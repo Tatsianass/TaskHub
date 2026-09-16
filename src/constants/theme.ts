@@ -7,21 +7,22 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+// TaskHub uses a single soft, pastel-friendly dark theme regardless of the system color scheme.
+const brand = {
+  text: '#EDEFF2',
+  background: '#30343D',
+  backgroundElement: '#3A3F49',
+  backgroundSelected: '#454B56',
+  textSecondary: '#A8B0BD',
+  border: '#4A5059',
+  primary: '#6FA8F5',
+  danger: '#E38B8B',
+  cardText: '#2A2E36',
+} as const;
+
 export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-  },
+  light: brand,
+  dark: brand,
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
