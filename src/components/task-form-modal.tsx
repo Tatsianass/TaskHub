@@ -10,6 +10,8 @@ import { ThemedView } from '@/components/themed-view';
 import { QUADRANTS } from '@/constants/quadrants';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
+import { useTheme } from '@/hooks/use-theme';
+import { hexToRgba } from '@/utils/colors';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { QuadrantId, Task } from '@/types/task';
 
@@ -24,6 +26,7 @@ type Props = {
 
 export function TaskFormModal({ visible, initialTask, defaultQuadrantId, onClose, onSave, onDelete }: Props) {
   const { t } = useLocale();
+  const theme = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [quadrantId, setQuadrantId] = useState<QuadrantId>(defaultQuadrantId);
@@ -89,21 +92,28 @@ export function TaskFormModal({ visible, initialTask, defaultQuadrantId, onClose
               <ThemedText type="small" themeColor="textSecondary" style={styles.quadrantLabel}>
                 {t('taskForm.sectionLabel')}
               </ThemedText>
-              {QUADRANTS.map((quadrant) => (
-                <Pressable
-                  key={quadrant.id}
-                  onPress={() => setQuadrantId(quadrant.id)}
-                  style={[
-                    styles.quadrantRow,
-                    { borderColor: quadrant.id === quadrantId ? quadrant.color : 'transparent' },
-                  ]}>
-                  <View style={[styles.quadrantSwatch, { backgroundColor: quadrant.color }]}>
-                    <ThemedText style={styles.quadrantIcon}>{quadrant.icon}</ThemedText>
-                  </View>
-                  <ThemedText style={styles.quadrantTitle}>{t(quadrant.titleKey)}</ThemedText>
-                  {quadrant.id === quadrantId && <ThemedText themeColor="primary">✓</ThemedText>}
-                </Pressable>
-              ))}
+              <View style={[styles.quadrantTabs, { backgroundColor: theme.glassBg, borderColor: theme.glassBorder }]}>
+                {QUADRANTS.map((quadrant) => {
+                  const isActive = quadrant.id === quadrantId;
+                  return (
+                    <Pressable key={quadrant.id} style={styles.quadrantTabWrapper} onPress={() => setQuadrantId(quadrant.id)}>
+                      <View
+                        style={[
+                          styles.quadrantTab,
+                          isActive && {
+                            backgroundColor: hexToRgba(quadrant.color, 0.32),
+                            borderColor: theme.glassBorder,
+                          },
+                        ]}>
+                        <ThemedText style={styles.quadrantTabIcon}>{quadrant.icon}</ThemedText>
+                        <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
+                          {t(quadrant.shortLabelKey)}
+                        </ThemedText>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
               <PrimaryButton title={t('taskForm.save')} onPress={handleSave} disabled={!title.trim()} />
             </ScrollView>
@@ -154,26 +164,25 @@ const styles = StyleSheet.create({
   quadrantLabel: {
     marginTop: Spacing.one,
   },
-  quadrantRow: {
+  quadrantTabs: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    padding: Spacing.two,
+    gap: Spacing.one,
+    padding: Spacing.one,
     borderRadius: Spacing.two,
-    borderWidth: 2,
+    borderWidth: 1,
   },
-  quadrantSwatch: {
-    width: 32,
-    height: 32,
-    borderRadius: Spacing.two,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quadrantIcon: {
-    fontSize: 16,
-  },
-  quadrantTitle: {
+  quadrantTabWrapper: {
     flex: 1,
-    fontSize: 14,
+  },
+  quadrantTab: {
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  quadrantTabIcon: {
+    fontSize: 17,
   },
 });
