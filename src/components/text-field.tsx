@@ -20,7 +20,7 @@ export function TextField({ label, style, ...rest }: Props) {
         placeholderTextColor={theme.textSecondary}
         style={[
           styles.input,
-          { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
+          { color: theme.text, backgroundColor: theme.glassBg, borderColor: theme.glassBorder },
           style,
         ]}
         {...rest}

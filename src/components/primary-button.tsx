@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { ActivityIndicator, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -17,8 +18,32 @@ type Props = {
 export function PrimaryButton({ title, onPress, disabled, loading, variant = 'primary', style, textColor }: Props) {
   const theme = useTheme();
   const isGhost = variant === 'ghost';
-  const backgroundColor = isGhost ? 'transparent' : variant === 'danger' ? theme.danger : theme.primary;
+  const isGradient = variant === 'primary';
   const resolvedTextColor = textColor ?? (isGhost ? theme.text : '#ffffff');
+
+  const content = loading ? (
+    <ActivityIndicator color={resolvedTextColor} />
+  ) : (
+    <ThemedText type="smallBold" style={{ color: resolvedTextColor }}>
+      {title}
+    </ThemedText>
+  );
+
+  if (isGradient) {
+    return (
+      <Pressable onPress={onPress} disabled={disabled || loading} style={[{ opacity: disabled ? 0.5 : 1 }, style]}>
+        <LinearGradient
+          colors={[theme.gradientStart, theme.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.button}>
+          {content}
+        </LinearGradient>
+      </Pressable>
+    );
+  }
+
+  const backgroundColor = isGhost ? 'transparent' : theme.danger;
 
   return (
     <Pressable
@@ -30,13 +55,7 @@ export function PrimaryButton({ title, onPress, disabled, loading, variant = 'pr
         isGhost && { borderWidth: 1, borderColor: theme.border },
         style,
       ]}>
-      {loading ? (
-        <ActivityIndicator color={resolvedTextColor} />
-      ) : (
-        <ThemedText type="smallBold" style={{ color: resolvedTextColor }}>
-          {title}
-        </ThemedText>
-      )}
+      {content}
     </Pressable>
   );
 }

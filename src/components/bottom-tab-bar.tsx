@@ -1,15 +1,14 @@
 import { usePathname, useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
+import { GlassPanel } from '@/components/glass-panel';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
-import { useTheme } from '@/hooks/use-theme';
 
 const TABS = [
   { href: '/', icon: '📋', labelKey: 'tabs.tasks' },
   { href: '/calendar', icon: '📅', labelKey: 'tabs.calendar' },
-  { href: '/stats', icon: '📊', labelKey: 'tabs.stats' },
   { href: '/settings', icon: '⚙️', labelKey: 'tabs.settings' },
 ] as const;
 
@@ -17,10 +16,9 @@ export function BottomTabBar() {
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useLocale();
-  const theme = useTheme();
 
   return (
-    <View style={[styles.bar, { borderTopColor: theme.border }]}>
+    <GlassPanel style={styles.outer} contentStyle={styles.bar}>
       {TABS.map((tab) => {
         const isActive = pathname === tab.href;
         return (
@@ -37,16 +35,17 @@ export function BottomTabBar() {
           </Pressable>
         );
       })}
-    </View>
+    </GlassPanel>
   );
 }
 
 const styles = StyleSheet.create({
+  outer: {
+    borderRadius: Spacing.four,
+  },
   bar: {
     flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingTop: Spacing.two,
-    marginTop: Spacing.two,
+    paddingVertical: Spacing.two,
   },
   tab: {
     flex: 1,

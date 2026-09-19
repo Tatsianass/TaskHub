@@ -3,10 +3,11 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AuroraBackground } from '@/components/aurora-background';
+import { GlassPanel } from '@/components/glass-panel';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth-context';
 import { useLocale } from '@/context/locale-context';
 import { Spacing } from '@/constants/theme';
@@ -40,11 +41,10 @@ export default function RegisterScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.select({ ios: 'padding', default: undefined })}>
+    <AuroraBackground>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.select({ ios: 'padding', default: undefined })}>
         <SafeAreaView style={styles.safeArea}>
+        <View style={styles.inner}>
           <View style={styles.hero}>
             <ThemedText type="title" style={styles.brand}>
               {t('app.brand')}
@@ -52,7 +52,7 @@ export default function RegisterScreen() {
             <ThemedText themeColor="textSecondary">{t('auth.register.tagline')}</ThemedText>
           </View>
 
-          <View style={styles.form}>
+          <GlassPanel contentStyle={styles.form}>
             <TextField
               label={t('auth.email')}
               value={email}
@@ -83,7 +83,7 @@ export default function RegisterScreen() {
             )}
 
             <PrimaryButton title={t('auth.registerButton')} onPress={handleSubmit} loading={isSubmitting} />
-          </View>
+          </GlassPanel>
 
           <View style={styles.footer}>
             <ThemedText type="small" themeColor="textSecondary">
@@ -96,22 +96,24 @@ export default function RegisterScreen() {
               </ThemedText>
             </Link>
           </View>
+        </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
-    </ThemedView>
+    </AuroraBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   flex: {
     flex: 1,
   },
   safeArea: {
     flex: 1,
+  },
+  inner: {
+    flex: 1,
     paddingHorizontal: Spacing.four,
+    paddingBottom: Spacing.four,
     justifyContent: 'center',
     gap: Spacing.five,
   },
@@ -124,6 +126,7 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: Spacing.three,
+    padding: Spacing.four,
   },
   footer: {
     flexDirection: 'row',

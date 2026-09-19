@@ -1,13 +1,14 @@
 import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AuroraBackground } from '@/components/aurora-background';
 import { BottomTabBar } from '@/components/bottom-tab-bar';
+import { GlassPanel } from '@/components/glass-panel';
 import { TaskFormModal } from '@/components/task-form-modal';
 import { TaskRow } from '@/components/task-row';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { QUADRANTS } from '@/constants/quadrants';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
@@ -49,35 +50,39 @@ export default function CalendarScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <AuroraBackground>
       <SafeAreaView style={styles.safeArea}>
+      <View style={styles.inner}>
         <ThemedText type="subtitle" style={styles.title}>
           {t('calendar.title')}
         </ThemedText>
 
         {isLoaded && (
-          <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-            {datedTasks.length === 0 && (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-                {t('calendar.empty')}
-              </ThemedText>
-            )}
-            {datedTasks.map((task) => {
-              const quadrant = QUADRANTS.find((q) => q.id === task.quadrantId);
-              return (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  accentColor={quadrant?.color ?? '#A8C4E0'}
-                  onToggle={() => toggleTask(task.id)}
-                  onPress={() => openEditModal(task)}
-                />
-              );
-            })}
-          </ScrollView>
+          <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {datedTasks.length === 0 && (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+                  {t('calendar.empty')}
+                </ThemedText>
+              )}
+              {datedTasks.map((task) => {
+                const quadrant = QUADRANTS.find((q) => q.id === task.quadrantId);
+                return (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    accentColor={quadrant?.color ?? '#A8C4E0'}
+                    onToggle={() => toggleTask(task.id)}
+                    onPress={() => openEditModal(task)}
+                  />
+                );
+              })}
+            </ScrollView>
+          </GlassPanel>
         )}
 
         <BottomTabBar />
+      </View>
       </SafeAreaView>
 
       <TaskFormModal
@@ -88,28 +93,31 @@ export default function CalendarScreen() {
         onSave={handleSave}
         onDelete={editingTask ? handleDelete : undefined}
       />
-    </ThemedView>
+    </AuroraBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.three,
+  },
+  inner: {
+    flex: 1,
+    paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
   },
   title: {
     fontSize: 22,
     marginBottom: Spacing.three,
   },
-  list: {
+  listPanel: {
     flex: 1,
+    marginBottom: Spacing.three,
   },
   listContent: {
-    paddingBottom: Spacing.three,
+    flex: 1,
+    padding: Spacing.two,
   },
   empty: {
     textAlign: 'center',

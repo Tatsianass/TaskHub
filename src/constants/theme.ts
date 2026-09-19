@@ -1,31 +1,64 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * TaskHub's two "Aurora Glass" themes: a dark aurora palette and a light warm-bokeh palette.
+ * Both share the same glassmorphism structure (blurred background blobs + frosted panels).
  */
 
 import '@/global.css';
 
 import { Platform } from 'react-native';
 
-// TaskHub uses a single soft, pastel-friendly dark theme regardless of the system color scheme.
-const brand = {
-  text: '#EDEFF2',
-  background: '#30343D',
-  backgroundElement: '#3A3F49',
-  backgroundSelected: '#454B56',
-  textSecondary: '#A8B0BD',
-  border: '#4A5059',
-  primary: '#6FA8F5',
-  danger: '#E38B8B',
+const dark = {
+  text: '#F4F2FA',
+  background: '#14121F',
+  backgroundElement: 'rgba(255,255,255,0.08)',
+  backgroundSelected: 'rgba(255,255,255,0.16)',
+  textSecondary: 'rgba(244,242,250,0.6)',
+  border: 'rgba(255,255,255,0.16)',
+  primary: '#B69CFF',
+  danger: '#E9A5A5',
   cardText: '#2A2E36',
+  glassBg: 'rgba(255,255,255,0.08)',
+  glassBgStrong: 'rgba(255,255,255,0.12)',
+  glassBorder: 'rgba(255,255,255,0.18)',
+  gradientStart: '#7A6AF0',
+  gradientEnd: '#B15CD9',
+  blobs: ['#6F5CD9', '#2FB8B0', '#D95C9C', '#4C7CE0'],
 } as const;
 
-export const Colors = {
-  light: brand,
-  dark: brand,
+const light = {
+  text: '#35271F',
+  background: '#FBF3EA',
+  backgroundElement: 'rgba(255,255,255,0.55)',
+  backgroundSelected: 'rgba(255,255,255,0.75)',
+  textSecondary: 'rgba(53,39,31,0.6)',
+  border: 'rgba(53,39,31,0.15)',
+  primary: '#C1583A',
+  danger: '#B5502E',
+  cardText: '#2A2E36',
+  glassBg: 'rgba(255,255,255,0.55)',
+  glassBgStrong: 'rgba(255,255,255,0.65)',
+  glassBorder: 'rgba(255,255,255,0.7)',
+  gradientStart: '#E8735A',
+  gradientEnd: '#EE8FA6',
+  blobs: ['#F3A56B', '#EE8FA6', '#F6CE7A', '#E8735A'],
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export const Colors = { light, dark } as const;
+
+export type ThemeColor =
+  | 'text'
+  | 'background'
+  | 'backgroundElement'
+  | 'backgroundSelected'
+  | 'textSecondary'
+  | 'border'
+  | 'primary'
+  | 'danger'
+  | 'cardText'
+  | 'glassBg'
+  | 'glassBgStrong'
+  | 'glassBorder';
+export type ThemeMode = keyof typeof Colors;
 
 export const Fonts = Platform.select({
   ios: {

@@ -3,7 +3,9 @@ import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AuroraBackground } from '@/components/aurora-background';
 import { DateField } from '@/components/date-field';
+import { GlassPanel } from '@/components/glass-panel';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
@@ -11,6 +13,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useLocale } from '@/context/locale-context';
+import { useTheme } from '@/hooks/use-theme';
 import { useBirthdays } from '@/hooks/use-birthdays';
 import { nextBirthdayDayDiff } from '@/utils/dates';
 
@@ -18,6 +21,7 @@ export default function BirthdaysScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { t, locale } = useLocale();
+  const theme = useTheme();
   const { birthdays, isLoaded, addBirthday, deleteBirthday } = useBirthdays();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,51 +48,59 @@ export default function BirthdaysScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <AuroraBackground>
       <SafeAreaView style={styles.safeArea}>
+      <View style={styles.inner}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={10}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={10}
+            style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
             <ThemedText style={styles.back}>←</ThemedText>
           </Pressable>
-          <ThemedText type="smallBold">
-            🎂 {t('settings.birthdays')}
-          </ThemedText>
-          <Pressable onPress={openModal} hitSlop={10}>
+          <ThemedText type="smallBold">🎂 {t('settings.birthdays')}</ThemedText>
+          <Pressable
+            onPress={openModal}
+            hitSlop={10}
+            style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
             <ThemedText style={styles.add}>➕</ThemedText>
           </Pressable>
         </View>
 
         {isLoaded && (
-          <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-            {sorted.length === 0 && (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-                {t('birthdays.empty')}
-              </ThemedText>
-            )}
-            {sorted.map((birthday) => {
-              const diff = nextBirthdayDayDiff(birthday.date);
-              const dateLabel = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(
-                new Date(`${birthday.date}T00:00:00`),
-              );
-              return (
-                <ThemedView key={birthday.id} type="backgroundElement" style={styles.row}>
-                  <View style={styles.rowText}>
-                    <ThemedText type="smallBold">{birthday.name}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {dateLabel}
+          <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {sorted.length === 0 && (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+                  {t('birthdays.empty')}
+                </ThemedText>
+              )}
+              {sorted.map((birthday) => {
+                const diff = nextBirthdayDayDiff(birthday.date);
+                const dateLabel = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(
+                  new Date(`${birthday.date}T00:00:00`),
+                );
+                return (
+                  <View key={birthday.id} style={styles.row}>
+                    <View style={styles.rowText}>
+                      <ThemedText type="smallBold">{birthday.name}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {dateLabel}
+                      </ThemedText>
+                    </View>
+                    <ThemedText type="small" themeColor="primary">
+                      {diff === 0 ? t('birthdays.today') : t('birthdays.inDays', { n: diff })}
                     </ThemedText>
+                    <Pressable onPress={() => deleteBirthday(birthday.id)} hitSlop={8} style={styles.delete}>
+                      <ThemedText themeColor="textSecondary">✕</ThemedText>
+                    </Pressable>
                   </View>
-                  <ThemedText type="small" themeColor="primary">
-                    {diff === 0 ? t('birthdays.today') : t('birthdays.inDays', { n: diff })}
-                  </ThemedText>
-                  <Pressable onPress={() => deleteBirthday(birthday.id)} hitSlop={8} style={styles.delete}>
-                    <ThemedText themeColor="textSecondary">✕</ThemedText>
-                  </Pressable>
-                </ThemedView>
-              );
-            })}
-          </ScrollView>
+                );
+              })}
+            </ScrollView>
+          </GlassPanel>
         )}
+      </View>
       </SafeAreaView>
 
       <Modal visible={isModalOpen} animationType="slide" transparent onRequestClose={() => setIsModalOpen(false)}>
@@ -122,18 +134,19 @@ export default function BirthdaysScreen() {
           </ThemedView>
         </View>
       </Modal>
-    </ThemedView>
+    </AuroraBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.three,
+  },
+  inner: {
+    flex: 1,
+    paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
   },
   header: {
     flexDirection: 'row',
@@ -141,18 +154,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.three,
   },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   back: {
-    fontSize: 24,
+    fontSize: 16,
   },
   add: {
-    fontSize: 20,
+    fontSize: 15,
   },
-  list: {
+  listPanel: {
     flex: 1,
+    marginBottom: Spacing.three,
   },
   listContent: {
+    flex: 1,
+    padding: Spacing.two,
     gap: Spacing.two,
-    paddingBottom: Spacing.three,
   },
   empty: {
     textAlign: 'center',
@@ -163,7 +186,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     borderRadius: Spacing.three,
-    padding: Spacing.three,
+    padding: Spacing.two,
   },
   rowText: {
     flex: 1,

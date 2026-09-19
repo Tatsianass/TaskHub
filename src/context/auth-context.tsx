@@ -6,7 +6,7 @@ const USERS_KEY = 'auth:users';
 const SESSION_KEY = 'auth:session';
 
 type StoredUser = { email: string; salt: string; passwordHash: string };
-type User = { email: string };
+type User = { id: string; email: string };
 
 type AuthContextValue = {
   user: User | null;
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const email = await AsyncStorage.getItem(SESSION_KEY);
         if (email) {
           const users = await loadUsers();
-          if (users[email]) setUser({ email });
+          if (users[email]) setUser({ id: email, email });
         }
       } finally {
         setIsLoading(false);
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
     await AsyncStorage.setItem(SESSION_KEY, email);
-    setUser({ email });
+    setUser({ id: email, email });
   }, []);
 
   const login = useCallback(async (rawEmail: string, password: string) => {
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (passwordHash !== stored.passwordHash) throw new Error('WRONG_PASSWORD');
 
     await AsyncStorage.setItem(SESSION_KEY, email);
-    setUser({ email });
+    setUser({ id: email, email });
   }, []);
 
   const logout = useCallback(async () => {

@@ -1,120 +1,223 @@
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
 
+import { AuroraBackground } from '@/components/aurora-background';
 import { BottomTabBar } from '@/components/bottom-tab-bar';
-import { QuadrantSummaryCard } from '@/components/quadrant-summary-card';
+import { GlassPanel } from '@/components/glass-panel';
 import { TaskFormModal } from '@/components/task-form-modal';
+import { TaskRow } from '@/components/task-row';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { QUADRANTS } from '@/constants/quadrants';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useLocale } from '@/context/locale-context';
 import { useTasksContext } from '@/context/tasks-context';
+import { useTheme } from '@/hooks/use-theme';
+import { hexToRgba } from '@/utils/colors';
 import type { TaskDraft } from '@/hooks/use-tasks';
+import type { QuadrantId, Task } from '@/types/task';
 
 export default function HomeScreen() {
-  const router = useRouter();
   const { user } = useAuth();
   const { t } = useLocale();
-  const { tasks, isLoaded, addTask } = useTasksContext();
+  const theme = useTheme();
+  const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask } = useTasksContext();
+
+  const [activeQuadrantId, setActiveQuadrantId] = useState<QuadrantId>(QUADRANTS[0].id);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   if (!user) return <Redirect href="/login" />;
 
+  const activeQuadrant = QUADRANTS.find((quadrant) => quadrant.id === activeQuadrantId) ?? QUADRANTS[0];
+  const quadrantTasks = tasks
+    .filter((task) => task.quadrantId === activeQuadrantId)
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  const openCreateModal = () => {
+    setEditingTask(null);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (task: Task) => {
+    setEditingTask(task);
+    setIsModalOpen(true);
+  };
+
   const handleSave = (draft: TaskDraft) => {
-    addTask(draft);
+    if (editingTask) {
+      updateTask(editingTask.id, draft);
+    } else {
+      addTask(draft);
+    }
+    setIsModalOpen(false);
+  };
+
+  const handleDelete = () => {
+    if (editingTask) deleteTask(editingTask.id);
     setIsModalOpen(false);
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <AuroraBackground>
       <SafeAreaView style={styles.safeArea}>
+      <View style={styles.content}>
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerSpacer} />
+          <View style={styles.headerCenter}>
             <ThemedText type="subtitle" style={styles.brand}>
               {t('app.brand')}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              {t('home.tagline')}
+              {t('home.subtitle')}
             </ThemedText>
           </View>
-          <Pressable onPress={() => setIsModalOpen(true)} hitSlop={10}>
+          <Pressable
+            onPress={openCreateModal}
+            hitSlop={10}
+            style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
             <ThemedText style={styles.icon}>➕</ThemedText>
           </Pressable>
         </View>
 
+        <GlassPanel style={styles.tabs} contentStyle={styles.tabsContent}>
+          {QUADRANTS.map((quadrant) => {
+            const isActive = quadrant.id === activeQuadrantId;
+            return (
+              <Pressable key={quadrant.id} style={styles.tabWrapper} onPress={() => setActiveQuadrantId(quadrant.id)}>
+                <View
+                  style={[
+                    styles.tabItem,
+                    isActive && {
+                      backgroundColor: hexToRgba(quadrant.color, 0.32),
+                      borderColor: theme.glassBorder,
+                    },
+                  ]}>
+                  <ThemedText style={styles.tabIcon}>{quadrant.icon}</ThemedText>
+                  <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
+                    {t(quadrant.shortLabelKey)}
+                  </ThemedText>
+                </View>
+              </Pressable>
+            );
+          })}
+        </GlassPanel>
+
+        <ThemedText type="smallBold" style={styles.sectionTitle}>
+          {t(activeQuadrant.titleKey)}
+        </ThemedText>
+
         {isLoaded && (
-          <View style={styles.grid}>
-            <View style={styles.row}>
-              {QUADRANTS.slice(0, 2).map((quadrant) => (
-                <QuadrantSummaryCard
-                  key={quadrant.id}
-                  quadrant={quadrant}
-                  count={tasks.filter((t2) => t2.quadrantId === quadrant.id).length}
-                  onPress={() => router.push(`/quadrant/${quadrant.id}`)}
+          <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {quadrantTasks.length === 0 && (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+                  {t('quadrantScreen.empty')}
+                </ThemedText>
+              )}
+              {quadrantTasks.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  accentColor={activeQuadrant.color}
+                  onToggle={() => toggleTask(task.id)}
+                  onPress={() => openEditModal(task)}
                 />
               ))}
-            </View>
-            <View style={styles.row}>
-              {QUADRANTS.slice(2, 4).map((quadrant) => (
-                <QuadrantSummaryCard
-                  key={quadrant.id}
-                  quadrant={quadrant}
-                  count={tasks.filter((t2) => t2.quadrantId === quadrant.id).length}
-                  onPress={() => router.push(`/quadrant/${quadrant.id}`)}
-                />
-              ))}
-            </View>
-          </View>
+            </ScrollView>
+          </GlassPanel>
         )}
 
-        <View style={styles.spacer} />
         <BottomTabBar />
+      </View>
       </SafeAreaView>
 
       <TaskFormModal
         visible={isModalOpen}
-        initialTask={null}
-        defaultQuadrantId={QUADRANTS[0].id}
+        initialTask={editingTask}
+        defaultQuadrantId={activeQuadrantId}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
+        onDelete={editingTask ? handleDelete : undefined}
       />
-    </ThemedView>
+    </AuroraBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.three,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.four,
+    marginBottom: Spacing.three,
+  },
+  headerSpacer: {
+    width: 34,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   brand: {
-    fontSize: 24,
+    fontSize: 22,
+    textAlign: 'center',
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   icon: {
-    fontSize: 20,
+    fontSize: 15,
   },
-  grid: {
-    gap: Spacing.two,
+  tabs: {
+    marginBottom: Spacing.three,
   },
-  row: {
+  tabsContent: {
     flexDirection: 'row',
-    gap: Spacing.two,
+    gap: Spacing.one,
+    padding: Spacing.one,
   },
-  spacer: {
+  tabWrapper: {
     flex: 1,
+  },
+  tabItem: {
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  tabIcon: {
+    fontSize: 17,
+  },
+  sectionTitle: {
+    marginBottom: Spacing.two,
+  },
+  listPanel: {
+    flex: 1,
+    marginBottom: Spacing.three,
+  },
+  listContent: {
+    flex: 1,
+    padding: Spacing.two,
+  },
+  empty: {
+    textAlign: 'center',
+    marginTop: Spacing.five,
   },
 });
