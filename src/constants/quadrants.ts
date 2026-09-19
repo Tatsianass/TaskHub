@@ -9,6 +9,9 @@ export type Quadrant = {
   color: string;
 };
 
+/** Soft cap of active (not done) tasks per quadrant before "Swap to Add" kicks in. */
+export const MAX_ACTIVE_TASKS_PER_QUADRANT = 3;
+
 export const QUADRANTS: Quadrant[] = [
   {
     id: 'urgent-important',

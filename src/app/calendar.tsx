@@ -89,9 +89,11 @@ export default function CalendarScreen() {
         visible={isModalOpen}
         initialTask={editingTask}
         defaultQuadrantId={editingTask?.quadrantId ?? QUADRANTS[0].id}
+        tasks={tasks}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         onDelete={editingTask ? handleDelete : undefined}
+        onToggleTask={toggleTask}
       />
     </AuroraBackground>
   );

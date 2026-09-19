@@ -137,9 +137,11 @@ export default function HomeScreen() {
         visible={isModalOpen}
         initialTask={editingTask}
         defaultQuadrantId={activeQuadrantId}
+        tasks={tasks}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         onDelete={editingTask ? handleDelete : undefined}
+        onToggleTask={toggleTask}
       />
     </AuroraBackground>
   );
