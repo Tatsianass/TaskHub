@@ -10,11 +10,12 @@ import type { Task } from '@/types/task';
 type Props = {
   task: Task;
   accentColor: string;
+  escalated?: boolean;
   onToggle: () => void;
   onPress: () => void;
 };
 
-export function TaskRow({ task, accentColor, onToggle, onPress }: Props) {
+export function TaskRow({ task, accentColor, escalated, onToggle, onPress }: Props) {
   const { t, locale } = useLocale();
   const tag = TAGS.find((candidate) => candidate.id === task.tag);
 
@@ -41,6 +42,7 @@ export function TaskRow({ task, accentColor, onToggle, onPress }: Props) {
         )}
         {!!task.dueDate && (
           <ThemedText type="small" style={[styles.due, { color: accentColor }]}>
+            {escalated ? '🔥 ' : ''}
             {formatDueDate(task.dueDate, t, locale)}
           </ThemedText>
         )}

@@ -12,8 +12,10 @@ import { ThemedText } from '@/components/themed-text';
 import { QUADRANTS } from '@/constants/quadrants';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useTasksContext } from '@/context/tasks-context';
+import { effectiveQuadrantId, isEscalated } from '@/utils/priority';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { Task } from '@/types/task';
 
@@ -21,6 +23,7 @@ export default function CalendarScreen() {
   const { user } = useAuth();
   const { t } = useLocale();
   const { tasks, isLoaded, updateTask, toggleTask, deleteTask } = useTasksContext();
+  const { escalationDays } = useEscalationSettings();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -66,12 +69,13 @@ export default function CalendarScreen() {
                 </ThemedText>
               )}
               {datedTasks.map((task) => {
-                const quadrant = QUADRANTS.find((q) => q.id === task.quadrantId);
+                const quadrant = QUADRANTS.find((q) => q.id === effectiveQuadrantId(task, escalationDays));
                 return (
                   <TaskRow
                     key={task.id}
                     task={task}
                     accentColor={quadrant?.color ?? '#A8C4E0'}
+                    escalated={isEscalated(task, escalationDays)}
                     onToggle={() => toggleTask(task.id)}
                     onPress={() => openEditModal(task)}
                   />

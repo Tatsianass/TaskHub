@@ -11,10 +11,12 @@ import { TimeField } from '@/components/time-field';
 import { MAX_ACTIVE_TASKS_PER_QUADRANT } from '@/constants/quadrants';
 import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
+import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
 import { dayDiffFromToday } from '@/utils/dates';
+import { effectiveQuadrantId } from '@/utils/priority';
 import { parseSmartDate, suggestImportance } from '@/utils/smart-task';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { QuadrantId, TagId, Task } from '@/types/task';
@@ -97,6 +99,7 @@ export function TaskFormModal({
 }: Props) {
   const { t, locale } = useLocale();
   const theme = useTheme();
+  const { escalationDays } = useEscalationSettings();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<string | null>(null);
@@ -157,7 +160,7 @@ export function TaskFormModal({
   const quadrantId = computeQuadrant(isImportant, urgent);
 
   const activeTasksInQuadrant = tasks.filter(
-    (task) => task.quadrantId === quadrantId && !task.done && task.id !== initialTask?.id,
+    (task) => effectiveQuadrantId(task, escalationDays) === quadrantId && !task.done && task.id !== initialTask?.id,
   );
   const isOverLimit = activeTasksInQuadrant.length >= MAX_ACTIVE_TASKS_PER_QUADRANT;
   const canSave = !!title.trim() && (!isOverLimit || forceAdd);

@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AuroraBackground } from '@/components/aurora-background';
@@ -12,10 +12,12 @@ import { QUADRANTS } from '@/constants/quadrants';
 import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useTasksContext } from '@/context/tasks-context';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
+import { effectiveQuadrantId, isEscalated } from '@/utils/priority';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { QuadrantId, TagId, Task } from '@/types/task';
 
@@ -26,17 +28,31 @@ export default function HomeScreen() {
   const { t } = useLocale();
   const theme = useTheme();
   const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask } = useTasksContext();
+  const { escalationDays } = useEscalationSettings();
 
   const [activeQuadrantId, setActiveQuadrantId] = useState<QuadrantId>(QUADRANTS[0].id);
   const [activeTagFilter, setActiveTagFilter] = useState<TagFilter>('all');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [escalationBanner, setEscalationBanner] = useState<Task[]>([]);
+  const seenEscalatedIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    const currentlyEscalated = tasks.filter((task) => isEscalated(task, escalationDays));
+    const newlyEscalated = currentlyEscalated.filter((task) => !seenEscalatedIds.current.has(task.id));
+    if (newlyEscalated.length > 0) {
+      setEscalationBanner((prev) => [...prev, ...newlyEscalated]);
+    }
+    // Tasks that fall back out of the escalation window can re-trigger the banner later.
+    seenEscalatedIds.current = new Set(currentlyEscalated.map((task) => task.id));
+  }, [tasks, escalationDays, isLoaded]);
 
   if (!user) return <Redirect href="/login" />;
 
   const activeQuadrant = QUADRANTS.find((quadrant) => quadrant.id === activeQuadrantId) ?? QUADRANTS[0];
   const quadrantTasks = tasks
-    .filter((task) => task.quadrantId === activeQuadrantId)
+    .filter((task) => effectiveQuadrantId(task, escalationDays) === activeQuadrantId)
     .filter((task) => activeTagFilter === 'all' || task.tag === activeTagFilter)
     .sort((a, b) => b.createdAt - a.createdAt);
 
@@ -85,6 +101,22 @@ export default function HomeScreen() {
             <ThemedText style={styles.icon}>➕</ThemedText>
           </Pressable>
         </View>
+
+        {escalationBanner.length > 0 && (
+          <Pressable onPress={() => setEscalationBanner([])}>
+            <GlassPanel
+              style={styles.banner}
+              contentStyle={styles.bannerContent}
+              tintColor={hexToRgba(theme.danger, 0.15)}>
+              <ThemedText type="small" style={styles.bannerText}>
+                {escalationBanner.length === 1
+                  ? t('escalation.bannerOne', { title: escalationBanner[0].title })
+                  : t('escalation.bannerMany', { count: escalationBanner.length })}
+              </ThemedText>
+              <ThemedText themeColor="textSecondary">✕</ThemedText>
+            </GlassPanel>
+          </Pressable>
+        )}
 
         <View style={styles.tagFilterRow}>
           <Pressable onPress={() => setActiveTagFilter('all')}>
@@ -158,6 +190,7 @@ export default function HomeScreen() {
                   key={task.id}
                   task={task}
                   accentColor={activeQuadrant.color}
+                  escalated={isEscalated(task, escalationDays)}
                   onToggle={() => toggleTask(task.id)}
                   onPress={() => openEditModal(task)}
                 />
@@ -221,6 +254,19 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: 15,
+  },
+  banner: {
+    marginBottom: Spacing.three,
+  },
+  bannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+    padding: Spacing.three,
+  },
+  bannerText: {
+    flex: 1,
   },
   tagFilterRow: {
     flexDirection: 'row',

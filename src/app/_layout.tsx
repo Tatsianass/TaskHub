@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider } from '@/context/auth-context';
+import { EscalationProvider } from '@/context/escalation-context';
 import { LocaleProvider } from '@/context/locale-context';
 import { TasksProvider } from '@/context/tasks-context';
 import { ThemeModeProvider, useThemeMode } from '@/context/theme-mode-context';
@@ -23,9 +24,11 @@ export default function RootLayout() {
       <ThemeModeProvider>
         <LocaleProvider>
           <AuthProvider>
-            <TasksProvider>
-              <Navigation />
-            </TasksProvider>
+            <EscalationProvider>
+              <TasksProvider>
+                <Navigation />
+              </TasksProvider>
+            </EscalationProvider>
           </AuthProvider>
         </LocaleProvider>
       </ThemeModeProvider>
