@@ -1,9 +1,10 @@
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
+import { BottomTabBar } from '@/components/bottom-tab-bar';
 import { DateField } from '@/components/date-field';
 import { GlassPanel } from '@/components/glass-panel';
 import { PrimaryButton } from '@/components/primary-button';
@@ -18,7 +19,6 @@ import { useBirthdays } from '@/hooks/use-birthdays';
 import { nextBirthdayDayDiff } from '@/utils/dates';
 
 export default function BirthdaysScreen() {
-  const router = useRouter();
   const { user } = useAuth();
   const { t, locale } = useLocale();
   const theme = useTheme();
@@ -52,13 +52,9 @@ export default function BirthdaysScreen() {
       <SafeAreaView style={styles.safeArea}>
       <View style={styles.inner}>
         <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-            <ThemedText style={styles.back}>←</ThemedText>
-          </Pressable>
-          <ThemedText type="smallBold">🎂 {t('settings.birthdays')}</ThemedText>
+          <ThemedText type="subtitle" style={styles.title}>
+            🎂 {t('settings.birthdays')}
+          </ThemedText>
           <Pressable
             onPress={openModal}
             hitSlop={10}
@@ -100,6 +96,8 @@ export default function BirthdaysScreen() {
             </ScrollView>
           </GlassPanel>
         )}
+
+        <BottomTabBar />
       </View>
       </SafeAreaView>
 
@@ -154,6 +152,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.three,
   },
+  title: {
+    fontSize: 22,
+  },
   iconButton: {
     width: 34,
     height: 34,
@@ -161,9 +162,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  back: {
-    fontSize: 16,
   },
   add: {
     fontSize: 15,

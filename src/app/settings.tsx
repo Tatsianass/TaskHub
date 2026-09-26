@@ -90,13 +90,6 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          <Pressable onPress={() => router.push('/birthdays')}>
-            <GlassPanel contentStyle={styles.linkRow}>
-              <ThemedText type="smallBold">🎂 {t('settings.birthdays')}</ThemedText>
-              <ThemedText themeColor="textSecondary">›</ThemedText>
-            </GlassPanel>
-          </Pressable>
-
           <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />
         </ScrollView>
 
@@ -143,11 +136,5 @@ const styles = StyleSheet.create({
   chipContent: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-  },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: Spacing.three,
   },
 });

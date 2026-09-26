@@ -9,6 +9,7 @@ import { useLocale } from '@/context/locale-context';
 const TABS = [
   { href: '/', icon: '📋', labelKey: 'tabs.tasks' },
   { href: '/calendar', icon: '📅', labelKey: 'tabs.calendar' },
+  { href: '/birthdays', icon: '🎂', labelKey: 'settings.birthdays' },
   { href: '/settings', icon: '⚙️', labelKey: 'tabs.settings' },
 ] as const;
 
