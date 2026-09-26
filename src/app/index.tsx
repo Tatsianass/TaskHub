@@ -9,6 +9,7 @@ import { TaskFormModal } from '@/components/task-form-modal';
 import { TaskRow } from '@/components/task-row';
 import { ThemedText } from '@/components/themed-text';
 import { QUADRANTS } from '@/constants/quadrants';
+import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useLocale } from '@/context/locale-context';
@@ -16,7 +17,9 @@ import { useTasksContext } from '@/context/tasks-context';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
 import type { TaskDraft } from '@/hooks/use-tasks';
-import type { QuadrantId, Task } from '@/types/task';
+import type { QuadrantId, TagId, Task } from '@/types/task';
+
+type TagFilter = TagId | 'all';
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -25,6 +28,7 @@ export default function HomeScreen() {
   const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask } = useTasksContext();
 
   const [activeQuadrantId, setActiveQuadrantId] = useState<QuadrantId>(QUADRANTS[0].id);
+  const [activeTagFilter, setActiveTagFilter] = useState<TagFilter>('all');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -33,6 +37,7 @@ export default function HomeScreen() {
   const activeQuadrant = QUADRANTS.find((quadrant) => quadrant.id === activeQuadrantId) ?? QUADRANTS[0];
   const quadrantTasks = tasks
     .filter((task) => task.quadrantId === activeQuadrantId)
+    .filter((task) => activeTagFilter === 'all' || task.tag === activeTagFilter)
     .sort((a, b) => b.createdAt - a.createdAt);
 
   const openCreateModal = () => {
@@ -79,6 +84,38 @@ export default function HomeScreen() {
             style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
             <ThemedText style={styles.icon}>➕</ThemedText>
           </Pressable>
+        </View>
+
+        <View style={styles.tagFilterRow}>
+          <Pressable onPress={() => setActiveTagFilter('all')}>
+            <View
+              style={[
+                styles.tagPill,
+                { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
+                activeTagFilter === 'all' && { backgroundColor: theme.backgroundSelected },
+              ]}>
+              <ThemedText type="small" themeColor={activeTagFilter === 'all' ? 'text' : 'textSecondary'}>
+                {t('tagFilter.all')}
+              </ThemedText>
+            </View>
+          </Pressable>
+          {TAGS.map((tagOption) => {
+            const isActive = activeTagFilter === tagOption.id;
+            return (
+              <Pressable key={tagOption.id} onPress={() => setActiveTagFilter(tagOption.id)}>
+                <View
+                  style={[
+                    styles.tagPill,
+                    { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
+                    isActive && { backgroundColor: theme.backgroundSelected },
+                  ]}>
+                  <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
+                    {tagOption.icon} {t(tagOption.labelKey)}
+                  </ThemedText>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
 
         <GlassPanel style={styles.tabs} contentStyle={styles.tabsContent}>
@@ -184,6 +221,17 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: 15,
+  },
+  tagFilterRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginBottom: Spacing.three,
+  },
+  tagPill: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   tabs: {
     marginBottom: Spacing.three,

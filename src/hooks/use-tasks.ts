@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { QuadrantId, Task } from '@/types/task';
+import type { QuadrantId, TagId, Task } from '@/types/task';
 
 const STORAGE_KEY = 'task-manager:tasks:v3';
 
@@ -9,6 +9,7 @@ export type TaskDraft = {
   title: string;
   description: string;
   quadrantId: QuadrantId;
+  tag: TagId | null;
   dueDate: string | null;
 };
 
@@ -42,6 +43,7 @@ export function useTasks() {
       title,
       description: draft.description.trim(),
       quadrantId: draft.quadrantId,
+      tag: draft.tag,
       dueDate: draft.dueDate,
       done: false,
       createdAt: Date.now(),
@@ -60,6 +62,7 @@ export function useTasks() {
               title,
               description: draft.description.trim(),
               quadrantId: draft.quadrantId,
+              tag: draft.tag,
               dueDate: draft.dueDate,
             }
           : task,

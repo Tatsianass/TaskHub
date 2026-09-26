@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
 import { formatDueDate } from '@/utils/dates';
@@ -15,6 +16,7 @@ type Props = {
 
 export function TaskRow({ task, accentColor, onToggle, onPress }: Props) {
   const { t, locale } = useLocale();
+  const tag = TAGS.find((candidate) => candidate.id === task.tag);
 
   return (
     <View style={styles.row}>
@@ -30,6 +32,11 @@ export function TaskRow({ task, accentColor, onToggle, onPress }: Props) {
         {!!task.description && (
           <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
             {task.description}
+          </ThemedText>
+        )}
+        {!!tag && (
+          <ThemedText type="small" themeColor="textSecondary">
+            {tag.icon} {t(tag.labelKey)}
           </ThemedText>
         )}
         {!!task.dueDate && (

@@ -8,13 +8,14 @@ import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MAX_ACTIVE_TASKS_PER_QUADRANT, QUADRANTS } from '@/constants/quadrants';
+import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
 import { useTheme } from '@/hooks/use-theme';
 import { parseSmartDate, suggestQuadrant } from '@/utils/smart-task';
 import { hexToRgba } from '@/utils/colors';
 import type { TaskDraft } from '@/hooks/use-tasks';
-import type { QuadrantId, Task } from '@/types/task';
+import type { QuadrantId, TagId, Task } from '@/types/task';
 
 type Props = {
   visible: boolean;
@@ -42,6 +43,7 @@ export function TaskFormModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [quadrantId, setQuadrantId] = useState<QuadrantId>(defaultQuadrantId);
+  const [tag, setTag] = useState<TagId | null>(null);
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [dueDateAuto, setDueDateAuto] = useState(false);
   const [quadrantTouched, setQuadrantTouched] = useState(false);
@@ -55,6 +57,7 @@ export function TaskFormModal({
     setTitle(initialTask?.title ?? '');
     setDescription(initialTask?.description ?? '');
     setQuadrantId(initialTask?.quadrantId ?? defaultQuadrantId);
+    setTag(initialTask?.tag ?? null);
     setDueDate(initialTask?.dueDate ?? null);
     setDueDateAuto(false);
     setQuadrantTouched(!!initialTask);
@@ -106,7 +109,7 @@ export function TaskFormModal({
 
   const handleSave = () => {
     if (!canSave) return;
-    onSave({ title, description, quadrantId, dueDate });
+    onSave({ title, description, quadrantId, tag, dueDate });
   };
 
   const dateHint =
@@ -204,6 +207,40 @@ export function TaskFormModal({
                   {t('taskForm.autoQuadrantHint')}
                 </ThemedText>
               )}
+
+              <ThemedText type="small" themeColor="textSecondary" style={styles.quadrantLabel}>
+                {t('taskForm.tagLabel')}
+              </ThemedText>
+              <View style={[styles.quadrantTabs, { backgroundColor: theme.glassBg, borderColor: theme.glassBorder }]}>
+                <Pressable style={styles.quadrantTabWrapper} onPress={() => setTag(null)}>
+                  <View
+                    style={[
+                      styles.quadrantTab,
+                      tag === null && { backgroundColor: theme.backgroundSelected, borderColor: theme.glassBorder },
+                    ]}>
+                    <ThemedText type="small" themeColor={tag === null ? 'text' : 'textSecondary'}>
+                      {t('tag.none')}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+                {TAGS.map((tagOption) => {
+                  const isActive = tag === tagOption.id;
+                  return (
+                    <Pressable key={tagOption.id} style={styles.quadrantTabWrapper} onPress={() => setTag(tagOption.id)}>
+                      <View
+                        style={[
+                          styles.quadrantTab,
+                          isActive && { backgroundColor: theme.backgroundSelected, borderColor: theme.glassBorder },
+                        ]}>
+                        <ThemedText style={styles.quadrantTabIcon}>{tagOption.icon}</ThemedText>
+                        <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
+                          {t(tagOption.labelKey)}
+                        </ThemedText>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
               {isOverLimit && !forceAdd && (
                 <View
