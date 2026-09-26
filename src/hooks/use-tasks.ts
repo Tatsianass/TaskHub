@@ -11,6 +11,7 @@ export type TaskDraft = {
   quadrantId: QuadrantId;
   tag: TagId | null;
   dueDate: string | null;
+  remindMe: boolean;
 };
 
 export function useTasks() {
@@ -45,6 +46,7 @@ export function useTasks() {
       quadrantId: draft.quadrantId,
       tag: draft.tag,
       dueDate: draft.dueDate,
+      remindMe: draft.remindMe,
       done: false,
       createdAt: Date.now(),
     };
@@ -64,6 +66,7 @@ export function useTasks() {
               quadrantId: draft.quadrantId,
               tag: draft.tag,
               dueDate: draft.dueDate,
+              remindMe: draft.remindMe,
             }
           : task,
       ),

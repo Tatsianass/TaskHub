@@ -1,7 +1,5 @@
 import * as chrono from 'chrono-node';
 
-import type { QuadrantId } from '@/types/task';
-
 const chronoByLocale: Record<string, { parse: typeof chrono.en.parse }> = {
   ru: chrono.ru,
   en: chrono.en,
@@ -47,17 +45,13 @@ const IMPORTANT_KEYWORDS: Record<string, string[]> = {
   zh: ['重要', '关键', '必须', '优先'],
 };
 
-/** Suggests a quadrant from urgency/importance keywords in the text. Returns null when no signal is found. */
-export function suggestQuadrant(text: string, locale: string): QuadrantId | null {
+/** Suggests whether a task is important from keywords in the text. Returns null when no signal is found. */
+export function suggestImportance(text: string, locale: string): boolean | null {
   const lower = text.toLowerCase();
   const urgentWords = URGENT_KEYWORDS[locale] ?? URGENT_KEYWORDS.en;
   const importantWords = IMPORTANT_KEYWORDS[locale] ?? IMPORTANT_KEYWORDS.en;
 
-  const isUrgent = urgentWords.some((word) => lower.includes(word));
-  const isImportant = importantWords.some((word) => lower.includes(word));
-
-  if (!isUrgent && !isImportant) return null;
-  if (isUrgent && isImportant) return 'urgent-important';
-  if (isImportant) return 'not-urgent-important';
-  return 'urgent-not-important';
+  if (importantWords.some((word) => lower.includes(word))) return true;
+  if (urgentWords.some((word) => lower.includes(word))) return false;
+  return null;
 }

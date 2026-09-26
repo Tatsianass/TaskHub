@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { DateField } from '@/components/date-field';
+import { CustomDatePill } from '@/components/custom-date-pill';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MAX_ACTIVE_TASKS_PER_QUADRANT, QUADRANTS } from '@/constants/quadrants';
+import { MAX_ACTIVE_TASKS_PER_QUADRANT } from '@/constants/quadrants';
 import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
 import { useTheme } from '@/hooks/use-theme';
-import { parseSmartDate, suggestQuadrant } from '@/utils/smart-task';
 import { hexToRgba } from '@/utils/colors';
+import { dayDiffFromToday } from '@/utils/dates';
+import { parseSmartDate, suggestImportance } from '@/utils/smart-task';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { QuadrantId, TagId, Task } from '@/types/task';
 
@@ -27,6 +28,60 @@ type Props = {
   onDelete?: () => void;
   onToggleTask: (id: string) => void;
 };
+
+type WhenOption = 'today' | 'tomorrow' | 'week' | 'custom';
+
+function toISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function dateForWhen(when: WhenOption): string | null {
+  if (when === 'today') return toISODate(new Date());
+  if (when === 'tomorrow') return toISODate(addDays(new Date(), 1));
+  if (when === 'week') return toISODate(addDays(new Date(), 7));
+  return null;
+}
+
+/** Buckets a stored date back into one of the quick-pick pills, for highlighting. */
+function inferWhenOption(dueDate: string | null): WhenOption | null {
+  if (!dueDate) return null;
+  const diff = dayDiffFromToday(dueDate);
+  if (diff === 0) return 'today';
+  if (diff === 1) return 'tomorrow';
+  if (diff >= 2 && diff <= 7) return 'week';
+  return 'custom';
+}
+
+function isUrgentDate(dueDate: string | null): boolean {
+  if (!dueDate) return false;
+  return dayDiffFromToday(dueDate) <= 1;
+}
+
+function isImportantQuadrant(id: QuadrantId): boolean {
+  return id === 'urgent-important' || id === 'not-urgent-important';
+}
+
+function computeQuadrant(important: boolean, urgent: boolean): QuadrantId {
+  if (important && urgent) return 'urgent-important';
+  if (important) return 'not-urgent-important';
+  if (urgent) return 'urgent-not-important';
+  return 'not-urgent-not-important';
+}
+
+const WHEN_OPTIONS: { id: Exclude<WhenOption, 'custom'>; labelKey: string }[] = [
+  { id: 'today', labelKey: 'taskForm.when.today' },
+  { id: 'tomorrow', labelKey: 'taskForm.when.tomorrow' },
+  { id: 'week', labelKey: 'taskForm.when.week' },
+];
 
 export function TaskFormModal({
   visible,
@@ -42,12 +97,12 @@ export function TaskFormModal({
   const theme = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [quadrantId, setQuadrantId] = useState<QuadrantId>(defaultQuadrantId);
-  const [tag, setTag] = useState<TagId | null>(null);
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [dueDateAuto, setDueDateAuto] = useState(false);
-  const [quadrantTouched, setQuadrantTouched] = useState(false);
-  const [suggestedQuadrantId, setSuggestedQuadrantId] = useState<QuadrantId | null>(null);
+  const [isImportant, setIsImportant] = useState(true);
+  const [importantTouched, setImportantTouched] = useState(false);
+  const [tag, setTag] = useState<TagId | null>(null);
+  const [remindMe, setRemindMe] = useState(false);
   const [forceAdd, setForceAdd] = useState(false);
   const justResetRef = useRef(false);
 
@@ -56,20 +111,16 @@ export function TaskFormModal({
     justResetRef.current = true;
     setTitle(initialTask?.title ?? '');
     setDescription(initialTask?.description ?? '');
-    setQuadrantId(initialTask?.quadrantId ?? defaultQuadrantId);
-    setTag(initialTask?.tag ?? null);
-    setDueDate(initialTask?.dueDate ?? null);
+    setDueDate(initialTask ? initialTask.dueDate : dateForWhen('today'));
     setDueDateAuto(false);
-    setQuadrantTouched(!!initialTask);
-    setSuggestedQuadrantId(null);
+    setIsImportant(initialTask ? isImportantQuadrant(initialTask.quadrantId) : true);
+    setImportantTouched(!!initialTask);
+    setTag(initialTask?.tag ?? null);
+    setRemindMe(initialTask?.remindMe ?? false);
     setForceAdd(false);
   }, [visible, initialTask, defaultQuadrantId]);
 
-  useEffect(() => {
-    setForceAdd(false);
-  }, [quadrantId]);
-
-  // Smart date + quadrant suggestion from the title text — only while creating a new task.
+  // Smart date + importance suggestion from the title text — only while creating a new task.
   useEffect(() => {
     if (!visible || initialTask) return;
     if (justResetRef.current) {
@@ -79,10 +130,7 @@ export function TaskFormModal({
       return;
     }
     const trimmed = title.trim();
-    if (!trimmed) {
-      setSuggestedQuadrantId(null);
-      return;
-    }
+    if (!trimmed) return;
 
     const parsedDate = parseSmartDate(trimmed, locale);
     if (parsedDate && (dueDate === null || dueDateAuto)) {
@@ -93,13 +141,16 @@ export function TaskFormModal({
       setDueDateAuto(false);
     }
 
-    const suggestion = suggestQuadrant(trimmed, locale);
-    setSuggestedQuadrantId(suggestion);
-    if (suggestion && !quadrantTouched) {
-      setQuadrantId(suggestion);
+    const importance = suggestImportance(trimmed, locale);
+    if (importance !== null && !importantTouched) {
+      setIsImportant(importance);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, locale, initialTask, visible]);
+
+  const whenOption = inferWhenOption(dueDate);
+  const urgent = isUrgentDate(dueDate);
+  const quadrantId = computeQuadrant(isImportant, urgent);
 
   const activeTasksInQuadrant = tasks.filter(
     (task) => task.quadrantId === quadrantId && !task.done && task.id !== initialTask?.id,
@@ -109,7 +160,19 @@ export function TaskFormModal({
 
   const handleSave = () => {
     if (!canSave) return;
-    onSave({ title, description, quadrantId, tag, dueDate });
+    onSave({ title, description, quadrantId, tag, dueDate, remindMe });
+  };
+
+  const handleWhenPress = (option: Exclude<WhenOption, 'custom'>) => {
+    setDueDate(dateForWhen(option));
+    setDueDateAuto(false);
+    setForceAdd(false);
+  };
+
+  const handleCustomDate = (value: string) => {
+    setDueDate(value);
+    setDueDateAuto(false);
+    setForceAdd(false);
   };
 
   const dateHint =
@@ -119,120 +182,120 @@ export function TaskFormModal({
         })
       : null;
 
+  const customDateLabel =
+    whenOption === 'custom' && dueDate
+      ? new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(`${dueDate}T00:00:00`))
+      : t('taskForm.when.custom');
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <ThemedView style={styles.sheet}>
           <SafeAreaView edges={['bottom']}>
             <View style={styles.header}>
-              <ThemedText type="smallBold">{initialTask ? t('taskForm.editTitle') : t('taskForm.addTitle')}</ThemedText>
-              <View style={styles.headerActions}>
-                {onDelete && (
-                  <Pressable onPress={onDelete} hitSlop={8}>
-                    <ThemedText style={styles.deleteIcon}>🗑</ThemedText>
-                  </Pressable>
-                )}
-                <Pressable onPress={onClose} hitSlop={8}>
-                  <ThemedText style={styles.closeIcon}>✕</ThemedText>
+              <Pressable
+                onPress={onClose}
+                hitSlop={8}
+                style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+                <ThemedText style={styles.closeIcon}>✕</ThemedText>
+              </Pressable>
+              <ThemedText type="smallBold" style={styles.headerTitle}>
+                {initialTask ? t('taskForm.editTitle') : t('taskForm.addTitle')}
+              </ThemedText>
+              {onDelete ? (
+                <Pressable
+                  onPress={onDelete}
+                  hitSlop={8}
+                  style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+                  <ThemedText style={styles.deleteIcon}>🗑</ThemedText>
                 </Pressable>
-              </View>
+              ) : (
+                <View style={styles.iconButton} />
+              )}
             </View>
 
             <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-              <TextField
-                label={t('taskForm.titleLabel')}
-                value={title}
-                onChangeText={setTitle}
-                placeholder={t('taskForm.titlePlaceholder')}
-                autoFocus
-              />
+              <TextField value={title} onChangeText={setTitle} placeholder={t('taskForm.titlePlaceholder')} autoFocus />
               <TextField
                 label={t('taskForm.descriptionLabel')}
                 value={description}
                 onChangeText={setDescription}
-                placeholder={t('taskForm.descriptionPlaceholder')}
-                multiline
-                numberOfLines={3}
-                style={styles.multiline}
               />
 
-              <DateField
-                label={t('taskForm.dateLabel')}
-                placeholder={t('taskForm.datePlaceholder')}
-                value={dueDate}
-                onChange={(value) => {
-                  setDueDate(value);
-                  setDueDateAuto(false);
-                }}
-              />
+              <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+                {t('taskForm.whenLabel')}
+              </ThemedText>
+              <View style={styles.pillRow}>
+                {WHEN_OPTIONS.map((option) => (
+                  <Pressable key={option.id} onPress={() => handleWhenPress(option.id)}>
+                    <View
+                      style={[
+                        styles.pill,
+                        { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
+                        whenOption === option.id && { backgroundColor: theme.backgroundSelected },
+                      ]}>
+                      <ThemedText type="small" themeColor={whenOption === option.id ? 'text' : 'textSecondary'}>
+                        {t(option.labelKey)}
+                      </ThemedText>
+                    </View>
+                  </Pressable>
+                ))}
+                <CustomDatePill active={whenOption === 'custom'} label={customDateLabel} icon="📅" onChange={handleCustomDate} />
+              </View>
               {!!dateHint && (
                 <ThemedText type="small" themeColor="primary" style={styles.hint}>
                   {dateHint}
                 </ThemedText>
               )}
 
-              <ThemedText type="small" themeColor="textSecondary" style={styles.quadrantLabel}>
-                {t('taskForm.sectionLabel')}
+              <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+                {t('taskForm.importanceLabel')}
               </ThemedText>
-              <View style={[styles.quadrantTabs, { backgroundColor: theme.glassBg, borderColor: theme.glassBorder }]}>
-                {QUADRANTS.map((quadrant) => {
-                  const isActive = quadrant.id === quadrantId;
-                  return (
-                    <Pressable
-                      key={quadrant.id}
-                      style={styles.quadrantTabWrapper}
-                      onPress={() => {
-                        setQuadrantId(quadrant.id);
-                        setQuadrantTouched(true);
-                      }}>
-                      <View
-                        style={[
-                          styles.quadrantTab,
-                          isActive && {
-                            backgroundColor: hexToRgba(quadrant.color, 0.32),
-                            borderColor: theme.glassBorder,
-                          },
-                        ]}>
-                        <ThemedText style={styles.quadrantTabIcon}>{quadrant.icon}</ThemedText>
-                        <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
-                          {t(quadrant.shortLabelKey)}
-                        </ThemedText>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              {!!suggestedQuadrantId && !quadrantTouched && (
-                <ThemedText type="small" themeColor="primary" style={styles.hint}>
-                  {t('taskForm.autoQuadrantHint')}
-                </ThemedText>
-              )}
-
-              <ThemedText type="small" themeColor="textSecondary" style={styles.quadrantLabel}>
-                {t('taskForm.tagLabel')}
-              </ThemedText>
-              <View style={[styles.quadrantTabs, { backgroundColor: theme.glassBg, borderColor: theme.glassBorder }]}>
-                <Pressable style={styles.quadrantTabWrapper} onPress={() => setTag(null)}>
-                  <View
-                    style={[
-                      styles.quadrantTab,
-                      tag === null && { backgroundColor: theme.backgroundSelected, borderColor: theme.glassBorder },
-                    ]}>
-                    <ThemedText type="small" themeColor={tag === null ? 'text' : 'textSecondary'}>
-                      {t('tag.none')}
+              <View style={[styles.segmented, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+                <Pressable
+                  style={styles.segmentWrapper}
+                  onPress={() => {
+                    setIsImportant(false);
+                    setImportantTouched(true);
+                  }}>
+                  <View style={[styles.segment, !isImportant && { backgroundColor: theme.backgroundSelected }]}>
+                    <ThemedText type="smallBold" themeColor={!isImportant ? 'text' : 'textSecondary'}>
+                      {t('taskForm.importanceLow')}
                     </ThemedText>
                   </View>
                 </Pressable>
+                <Pressable
+                  style={styles.segmentWrapper}
+                  onPress={() => {
+                    setIsImportant(true);
+                    setImportantTouched(true);
+                  }}>
+                  <View style={[styles.segment, isImportant && { backgroundColor: theme.backgroundSelected }]}>
+                    <ThemedText type="smallBold" themeColor={isImportant ? 'text' : 'textSecondary'}>
+                      {t('taskForm.importanceHigh')}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
+                {t('taskForm.importanceHint')}
+              </ThemedText>
+
+              <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+                {t('taskForm.tagLabel')}
+              </ThemedText>
+              <View style={styles.pillRow}>
                 {TAGS.map((tagOption) => {
                   const isActive = tag === tagOption.id;
                   return (
-                    <Pressable key={tagOption.id} style={styles.quadrantTabWrapper} onPress={() => setTag(tagOption.id)}>
+                    <Pressable key={tagOption.id} onPress={() => setTag(tagOption.id)}>
                       <View
                         style={[
-                          styles.quadrantTab,
-                          isActive && { backgroundColor: theme.backgroundSelected, borderColor: theme.glassBorder },
+                          styles.pill,
+                          { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
+                          isActive && { backgroundColor: theme.backgroundSelected },
                         ]}>
-                        <ThemedText style={styles.quadrantTabIcon}>{tagOption.icon}</ThemedText>
+                        <ThemedText style={styles.pillIcon}>{tagOption.icon}</ThemedText>
                         <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
                           {t(tagOption.labelKey)}
                         </ThemedText>
@@ -240,6 +303,29 @@ export function TaskFormModal({
                     </Pressable>
                   );
                 })}
+                <Pressable onPress={() => setTag(null)}>
+                  <View
+                    style={[
+                      styles.pill,
+                      { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
+                      tag === null && { backgroundColor: theme.backgroundSelected },
+                    ]}>
+                    <ThemedText type="small" themeColor={tag === null ? 'text' : 'textSecondary'}>
+                      {t('tag.none')}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
+
+              <View style={styles.remindRow}>
+                <ThemedText>🔔 {t('taskForm.remindLabel')}</ThemedText>
+                <Switch
+                  value={remindMe}
+                  onValueChange={setRemindMe}
+                  trackColor={{ false: theme.glassBorder, true: theme.primary }}
+                />
               </View>
 
               {isOverLimit && !forceAdd && (
@@ -270,7 +356,11 @@ export function TaskFormModal({
                 </View>
               )}
 
-              <PrimaryButton title={t('taskForm.save')} onPress={handleSave} disabled={!canSave} />
+              <PrimaryButton
+                title={initialTask ? t('taskForm.save') : t('taskForm.addButton')}
+                onPress={handleSave}
+                disabled={!canSave}
+              />
             </ScrollView>
           </SafeAreaView>
         </ThemedView>
@@ -296,52 +386,74 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: Spacing.three,
   },
-  headerActions: {
-    flexDirection: 'row',
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    borderWidth: 1,
     alignItems: 'center',
-    gap: Spacing.three,
+    justifyContent: 'center',
   },
   deleteIcon: {
-    fontSize: 18,
+    fontSize: 15,
   },
   closeIcon: {
-    fontSize: 18,
+    fontSize: 15,
   },
   form: {
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.four,
     gap: Spacing.three,
   },
-  multiline: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
   hint: {
     marginTop: -Spacing.two,
   },
-  quadrantLabel: {
+  sectionLabel: {
     marginTop: Spacing.one,
   },
-  quadrantTabs: {
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  pillIcon: {
+    fontSize: 14,
+  },
+  segmented: {
     flexDirection: 'row',
     gap: Spacing.one,
     padding: Spacing.one,
     borderRadius: Spacing.two,
     borderWidth: 1,
   },
-  quadrantTabWrapper: {
+  segmentWrapper: {
     flex: 1,
   },
-  quadrantTab: {
+  segment: {
     alignItems: 'center',
-    gap: 3,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.two,
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
-  quadrantTabIcon: {
-    fontSize: 17,
+  divider: {
+    height: 1,
+  },
+  remindRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   swapPanel: {
     borderRadius: Spacing.three,
