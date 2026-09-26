@@ -20,9 +20,10 @@ export function CustomDatePill({ active, label, icon, onChange }: Props) {
         position: 'relative',
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 6,
+        height: 40,
         paddingHorizontal: Spacing.three,
-        paddingVertical: Spacing.two,
         borderRadius: 999,
         borderWidth: 1,
         overflow: 'hidden',
@@ -35,6 +36,16 @@ export function CustomDatePill({ active, label, icon, onChange }: Props) {
       </ThemedText>
       <input
         type="date"
+        onClick={(event) => {
+          const input = event.currentTarget as HTMLInputElement & { showPicker?: () => void };
+          if (typeof input.showPicker === 'function') {
+            try {
+              input.showPicker();
+            } catch {
+              // Some browsers throw if called too soon after a previous picker closed — ignore.
+            }
+          }
+        }}
         onChange={(event) => {
           if (event.target.value) onChange(event.target.value);
         }}

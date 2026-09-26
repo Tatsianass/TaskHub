@@ -53,9 +53,10 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+    height: 40,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
     borderRadius: 999,
     borderWidth: 1,
   },

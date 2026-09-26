@@ -16,4 +16,5 @@ export type Task = {
   createdAt: number;
   dueDate: string | null;
   remindMe: boolean;
+  remindTime: string | null;
 };

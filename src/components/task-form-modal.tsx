@@ -7,6 +7,7 @@ import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TimeField } from '@/components/time-field';
 import { MAX_ACTIVE_TASKS_PER_QUADRANT } from '@/constants/quadrants';
 import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
@@ -29,7 +30,7 @@ type Props = {
   onToggleTask: (id: string) => void;
 };
 
-type WhenOption = 'today' | 'tomorrow' | 'week' | 'custom';
+type WhenOption = 'none' | 'today' | 'tomorrow' | 'week' | 'custom';
 
 function toISODate(date: Date): string {
   const year = date.getFullYear();
@@ -52,8 +53,8 @@ function dateForWhen(when: WhenOption): string | null {
 }
 
 /** Buckets a stored date back into one of the quick-pick pills, for highlighting. */
-function inferWhenOption(dueDate: string | null): WhenOption | null {
-  if (!dueDate) return null;
+function inferWhenOption(dueDate: string | null): WhenOption {
+  if (!dueDate) return 'none';
   const diff = dayDiffFromToday(dueDate);
   if (diff === 0) return 'today';
   if (diff === 1) return 'tomorrow';
@@ -81,6 +82,7 @@ const WHEN_OPTIONS: { id: Exclude<WhenOption, 'custom'>; labelKey: string }[] = 
   { id: 'today', labelKey: 'taskForm.when.today' },
   { id: 'tomorrow', labelKey: 'taskForm.when.tomorrow' },
   { id: 'week', labelKey: 'taskForm.when.week' },
+  { id: 'none', labelKey: 'calendar.noDate' },
 ];
 
 export function TaskFormModal({
@@ -103,6 +105,7 @@ export function TaskFormModal({
   const [importantTouched, setImportantTouched] = useState(false);
   const [tag, setTag] = useState<TagId | null>(null);
   const [remindMe, setRemindMe] = useState(false);
+  const [remindTime, setRemindTime] = useState<string | null>(null);
   const [forceAdd, setForceAdd] = useState(false);
   const justResetRef = useRef(false);
 
@@ -117,6 +120,7 @@ export function TaskFormModal({
     setImportantTouched(!!initialTask);
     setTag(initialTask?.tag ?? null);
     setRemindMe(initialTask?.remindMe ?? false);
+    setRemindTime(initialTask?.remindTime ?? null);
     setForceAdd(false);
   }, [visible, initialTask, defaultQuadrantId]);
 
@@ -160,7 +164,12 @@ export function TaskFormModal({
 
   const handleSave = () => {
     if (!canSave) return;
-    onSave({ title, description, quadrantId, tag, dueDate, remindMe });
+    onSave({ title, description, quadrantId, tag, dueDate, remindMe, remindTime: remindMe ? remindTime : null });
+  };
+
+  const handleRemindToggle = (value: boolean) => {
+    setRemindMe(value);
+    if (value && !remindTime) setRemindTime('09:00');
   };
 
   const handleWhenPress = (option: Exclude<WhenOption, 'custom'>) => {
@@ -292,7 +301,6 @@ export function TaskFormModal({
                       <View
                         style={[
                           styles.pill,
-                          styles.categoryPill,
                           { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
                           isActive && { backgroundColor: theme.backgroundSelected },
                         ]}>
@@ -308,7 +316,6 @@ export function TaskFormModal({
                   <View
                     style={[
                       styles.pill,
-                      styles.categoryPill,
                       { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
                       tag === null && { backgroundColor: theme.backgroundSelected },
                     ]}>
@@ -325,10 +332,18 @@ export function TaskFormModal({
                 <ThemedText>🔔 {t('taskForm.remindLabel')}</ThemedText>
                 <Switch
                   value={remindMe}
-                  onValueChange={setRemindMe}
+                  onValueChange={handleRemindToggle}
                   trackColor={{ false: theme.glassBorder, true: theme.primary }}
                 />
               </View>
+              {remindMe && (
+                <TimeField
+                  label={t('taskForm.remindTimeLabel')}
+                  placeholder={t('taskForm.remindTimePlaceholder')}
+                  value={remindTime}
+                  onChange={setRemindTime}
+                />
+              )}
 
               {isOverLimit && !forceAdd && (
                 <View
@@ -425,9 +440,10 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+    height: 40,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
     borderRadius: 999,
     borderWidth: 1,
   },
@@ -440,9 +456,6 @@ const styles = StyleSheet.create({
   },
   categoryItem: {
     flex: 1,
-  },
-  categoryPill: {
-    justifyContent: 'center',
   },
   segmented: {
     flexDirection: 'row',

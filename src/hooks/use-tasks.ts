@@ -12,6 +12,7 @@ export type TaskDraft = {
   tag: TagId | null;
   dueDate: string | null;
   remindMe: boolean;
+  remindTime: string | null;
 };
 
 export function useTasks() {
@@ -47,6 +48,7 @@ export function useTasks() {
       tag: draft.tag,
       dueDate: draft.dueDate,
       remindMe: draft.remindMe,
+      remindTime: draft.remindTime,
       done: false,
       createdAt: Date.now(),
     };
@@ -67,6 +69,7 @@ export function useTasks() {
               tag: draft.tag,
               dueDate: draft.dueDate,
               remindMe: draft.remindMe,
+              remindTime: draft.remindTime,
             }
           : task,
       ),
