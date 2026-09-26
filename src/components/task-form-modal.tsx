@@ -284,14 +284,15 @@ export function TaskFormModal({
               <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
                 {t('taskForm.tagLabel')}
               </ThemedText>
-              <View style={styles.pillRow}>
+              <View style={styles.categoryRow}>
                 {TAGS.map((tagOption) => {
                   const isActive = tag === tagOption.id;
                   return (
-                    <Pressable key={tagOption.id} onPress={() => setTag(tagOption.id)}>
+                    <Pressable key={tagOption.id} style={styles.categoryItem} onPress={() => setTag(tagOption.id)}>
                       <View
                         style={[
                           styles.pill,
+                          styles.categoryPill,
                           { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
                           isActive && { backgroundColor: theme.backgroundSelected },
                         ]}>
@@ -303,10 +304,11 @@ export function TaskFormModal({
                     </Pressable>
                   );
                 })}
-                <Pressable onPress={() => setTag(null)}>
+                <Pressable style={styles.categoryItem} onPress={() => setTag(null)}>
                   <View
                     style={[
                       styles.pill,
+                      styles.categoryPill,
                       { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
                       tag === null && { backgroundColor: theme.backgroundSelected },
                     ]}>
@@ -431,6 +433,16 @@ const styles = StyleSheet.create({
   },
   pillIcon: {
     fontSize: 14,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  categoryItem: {
+    flex: 1,
+  },
+  categoryPill: {
+    justifyContent: 'center',
   },
   segmented: {
     flexDirection: 'row',
