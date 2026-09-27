@@ -68,7 +68,7 @@ How to use this file (for the implementing agent):
 - Done when: unit test asserts defaults and overrides.
 - Covers: R3.1, R7.3
 
-### [ ] T1.3 Database connection + migrations
+### [x] T1.3 Database connection + migrations
 - Steps: implement `db/connection.ts` and `db/migrations.ts` exactly as in
   design §4.1–4.3 (schema v1). Export `openDatabase(path)` and `closeDatabase(db)`
   (checkpoint + close).

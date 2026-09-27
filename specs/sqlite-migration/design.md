@@ -123,6 +123,12 @@ export function runMigrations(db) {
 }
 ```
 
+`runMigrations` also refuses to start (throws) if `user_version` is greater
+than `migrations.length`, i.e. the DB file was written by a newer server
+version; running old code against a newer schema could corrupt data.
+It takes the migration list as an optional parameter (defaulting to the real
+one) so tests can exercise rollback of a failing migration.
+
 ### 4.3 Schema v1
 
 ```sql
