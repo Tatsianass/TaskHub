@@ -5,10 +5,12 @@ import express from 'express';
 
 import { DEFAULT_CORS_ORIGIN } from './config.js';
 import { errorHandler, notFoundHandler } from './errors.js';
+import { birthdaysRepo } from './repos/birthdays.js';
 import { sessionsRepo } from './repos/sessions.js';
 import { tasksRepo } from './repos/tasks.js';
 import { usersRepo } from './repos/users.js';
 import { authRouter } from './routes/auth.js';
+import { birthdaysRouter } from './routes/birthdays.js';
 import { tasksRouter } from './routes/tasks.js';
 
 export type AppOptions = {
@@ -21,6 +23,7 @@ export function createApp(db: DatabaseSync, options: AppOptions = {}) {
   const users = usersRepo(db);
   const sessions = sessionsRepo(db);
   const tasks = tasksRepo(db);
+  const birthdays = birthdaysRepo(db);
 
   app.disable('x-powered-by');
   app.use(cors({ origin: corsOrigins }));
@@ -32,6 +35,7 @@ export function createApp(db: DatabaseSync, options: AppOptions = {}) {
 
   app.use('/auth', authRouter(users, sessions));
   app.use('/tasks', tasksRouter(tasks, sessions));
+  app.use('/birthdays', birthdaysRouter(birthdays, sessions));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

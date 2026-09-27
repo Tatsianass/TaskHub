@@ -154,7 +154,7 @@ How to use this file (for the implementing agent):
   user B gets 404 on user A's task for PUT and DELETE and doesn't see it in GET.
 - Covers: R4.1, R4.2
 
-### [ ] T3.3 Birthdays repo + routes
+### [x] T3.3 Birthdays repo + routes
 - Steps: same pattern for birthdays (`GET`, `POST`, `DELETE /birthdays/:id`).
 - Done when: same style of tests as T3.2, incl. cross-user isolation.
 - Covers: R5.1

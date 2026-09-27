@@ -231,8 +231,8 @@ has no translation for.
 | POST | `/tasks` | ✓ | `Task` (client id, createdAt) | `201 Task` | 400 `INVALID_TASK`, 409 `DUPLICATE_ID` |
 | PUT | `/tasks/:id` | ✓ | `TaskDraft` fields + `done` | `200 Task` | 400, 404 `NOT_FOUND` |
 | DELETE | `/tasks/:id` | ✓ | – | `204` | 404 |
-| GET | `/birthdays` | ✓ | – | `200 Birthday[]` | 401 |
-| POST | `/birthdays` | ✓ | `Birthday` | `201 Birthday` | 400 `INVALID_BIRTHDAY` |
+| GET | `/birthdays` | ✓ | – | `200 Birthday[]` (insertion order) | 401 |
+| POST | `/birthdays` | ✓ | `Birthday` | `201 Birthday` | 400 `INVALID_BIRTHDAY`, 409 `DUPLICATE_ID` |
 | DELETE | `/birthdays/:id` | ✓ | – | `204` | 404 |
 | POST | `/import` | ✓ | `{tasks:Task[],birthdays:Birthday[]}` | `200 {tasksImported,birthdaysImported}` | 400 |
 
