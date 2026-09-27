@@ -247,7 +247,7 @@ How to use this file (for the implementing agent):
   the server, try another edit → UI rolls back and shows the error.
 - Covers: R4.1, R4.3, R4.4
 
-### [ ] T5.2 Rewrite `useBirthdays`
+### [x] T5.2 Rewrite `useBirthdays`
 - Steps: same pattern; `birthdays.tsx` unchanged except optionally rendering `error`.
 - Done when: same checks as T5.1 for birthdays.
 - Covers: R5.1
