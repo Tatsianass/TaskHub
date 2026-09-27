@@ -59,7 +59,7 @@ How to use this file (for the implementing agent):
   unchanged vs baseline; `git status` doesn't show anything under `server/data` except `.gitkeep`.
 - Covers: R3.7
 
-### [ ] T1.2 Config module
+### [x] T1.2 Config module
 - Steps: `server/src/config.ts` reads `PORT` (default 4000), `DB_PATH`
   (default `data/app.db` resolved against the `server/` dir via
   `import.meta.dirname`, **not** `process.cwd()`), `CORS_ORIGIN`
