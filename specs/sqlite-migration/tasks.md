@@ -186,7 +186,7 @@ How to use this file (for the implementing agent):
 
 ## Phase 4 — App: API client and auth
 
-### [ ] T4.1 Remove Supabase, add config
+### [x] T4.1 Remove Supabase, add config
 - Steps: delete `src/lib/supabase.ts`; `npm uninstall @supabase/supabase-js`;
   uninstall `react-native-url-polyfill` if `grep -r url-polyfill src` is
   empty. Replace `.env.example` contents with `EXPO_PUBLIC_API_URL=http://localhost:4000`
