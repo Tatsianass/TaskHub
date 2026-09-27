@@ -235,6 +235,13 @@ has no translation for.
 `src/types/birthday.ts`. The client keeps generating ids (existing format)
 so optimistic inserts don't need an id swap.
 
+Validation (`validation.ts`, T3.1): `parseTask` / `parseBirthday` check a full
+object (POST, `/import`); `parseTaskUpdate` checks a `PUT /tasks/:id` body —
+every `Task` field except `id` (taken from the URL) and `createdAt`
+(immutable), which are ignored if present so the client can send the whole
+task. Strings are trimmed, unknown fields dropped, ids are 1–128 chars,
+dates must be real calendar dates and times 24-hour `00:00`–`23:59`.
+
 Security notes:
 - `USER_NOT_FOUND` vs `WRONG_PASSWORD`: distinct codes
   allow email enumeration. Kept to preserve current UX (R2.7); flagged for

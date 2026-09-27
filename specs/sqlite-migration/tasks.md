@@ -136,7 +136,7 @@ How to use this file (for the implementing agent):
 
 ## Phase 3 — Tasks, birthdays, import (server)
 
-### [ ] T3.1 Validation module
+### [x] T3.1 Validation module
 - Steps: `validation.ts` with `parseTask(body)` and `parseBirthday(body)`
   returning typed objects or throwing `ApiError(400, 'INVALID_TASK' |
   'INVALID_BIRTHDAY')`. Rules: trimmed non-empty title/name; quadrant/tag
