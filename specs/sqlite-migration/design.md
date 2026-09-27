@@ -74,7 +74,7 @@ eslint.config.js             ignore "server/*" (server has its own lint if any)
 | Runtime | Node 24 (`engines: ">=22.13"`) | Installed locally; ships `node:sqlite`. |
 | SQLite driver | `node:sqlite` `DatabaseSync` | Zero native deps, synchronous API = simple transactions. Fallback: `better-sqlite3` has a near-identical API if `node:sqlite` misbehaves. |
 | HTTP | `express@5` + `cors` | Familiar, async error handling built into v5. |
-| TS execution | `tsx` for dev/test, `tsc` build to `dist/` for start | No transpile step during dev. |
+| TS execution | `tsx` as a loader for dev/test (`node --watch --import tsx`, `node --import tsx --test`), `tsc` build to `dist/` for start | No transpile step during dev. Not `tsx watch`: on Ctrl-C it receives SIGINT twice (from the terminal and from the npm wrapper) and SIGKILLs the server during its graceful shutdown (R3.6). Node's own `--watch` restarts with SIGTERM and exits cleanly. |
 | Password hash | `crypto.scrypt` (N=16384, r=8, p=1, keylen=64, salt 16 B) | Built-in, memory-hard, no native module. |
 | Tests | `node:test` + `node:assert`, HTTP via `fetch` on an ephemeral port | Built-in. |
 | App token storage | `expo-secure-store` (native), `localStorage` (web) | Keychain/Keystore encryption on device; SecureStore has no web support. |
@@ -208,6 +208,12 @@ Row ↔ API mapping (done in repos): snake_case ↔ camelCase, `0/1` ↔ boolean
 
 Base: `http://<host>:4000`. JSON in/out. All error responses:
 `{ "error": "<CODE>" }` where CODE is an existing/new i18n key suffix.
+
+Errors that apply to every route (T1.4): unknown route → 404 `NOT_FOUND`;
+malformed JSON body → 400 `INVALID_JSON`; body over 1 MB → 413
+`PAYLOAD_TOO_LARGE`; any unexpected exception → 500 `INTERNAL` (stack
+logged, body never logged). The App shows `errors.UNKNOWN` for any code it
+has no translation for.
 
 | Method | Path | Auth | Body | 2xx response | Errors |
 |---|---|---|---|---|---|

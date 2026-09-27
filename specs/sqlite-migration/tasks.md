@@ -41,7 +41,7 @@ How to use this file (for the implementing agent):
 - Steps:
   1. Create `server/package.json` (`"private": true`, `"type": "module"`,
      `"engines": {"node": ">=22.13"}`), scripts:
-     `dev: tsx watch src/index.ts`, `build: tsc`, `start: node dist/index.js`,
+     `dev: node --watch --import tsx src/index.ts` (not `tsx watch`, see design §3), `build: tsc`, `start: node dist/index.js`,
      `test: node --import tsx --test "test/**/*.test.ts"` (glob **quoted** so
      Node expands it — npm runs scripts via `sh`, which has no `**` globstar
      and would silently skip `test/*.test.ts`).
@@ -81,7 +81,7 @@ How to use this file (for the implementing agent):
   - running migrations twice is a no-op.
 - Covers: R3.1–R3.5
 
-### [ ] T1.4 App factory, errors, health, lifecycle
+### [x] T1.4 App factory, errors, health, lifecycle
 - Steps:
   1. `errors.ts`: `class ApiError { status; code }` + express error
      middleware → `res.status(status).json({ error: code })`; unknown errors
