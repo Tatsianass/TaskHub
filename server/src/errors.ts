@@ -11,6 +11,14 @@ export class ApiError extends Error {
   }
 }
 
+/** Extended SQLite result codes; node:sqlite puts them on `error.errcode`. */
+export const SQLITE_CONSTRAINT_UNIQUE = 2067;
+
+/** Match SQLite errors by result code, never by message. */
+export function isSqliteError(error: unknown, errcode: number) {
+  return (error as { errcode?: unknown } | null)?.errcode === errcode;
+}
+
 /** Errors raised by express.json() (body-parser) carry a `type`. */
 type BodyParserError = Error & { type?: string; status?: number };
 

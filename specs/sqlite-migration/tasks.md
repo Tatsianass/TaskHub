@@ -119,7 +119,7 @@ How to use this file (for the implementing agent):
   not returned; duplicate email insert throws a constraint error.
 - Covers: R1.3, R2.1–R2.3
 
-### [ ] T2.3 Auth routes + middleware
+### [x] T2.3 Auth routes + middleware
 - Steps: implement `/auth/register`, `/auth/login`, `/auth/me`,
   `/auth/logout` per design §5; `requireAuth` middleware parses
   `Authorization: Bearer`, sets `req.userId`, returns 401

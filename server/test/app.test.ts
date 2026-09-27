@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { after, before, describe, test } from 'node:test';
 
 import { createApp } from '../src/app.js';
+import { runMigrations } from '../src/db/migrations.js';
 
 describe('createApp', () => {
   const db = new DatabaseSync(':memory:');
@@ -12,6 +13,7 @@ describe('createApp', () => {
   let baseUrl: string;
 
   before(async () => {
+    runMigrations(db);
     server = createApp(db, { corsOrigins: ['http://localhost:8081'] }).listen(0);
     await new Promise((resolve) => server.once('listening', resolve));
     baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;

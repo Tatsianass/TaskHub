@@ -5,6 +5,9 @@ import express from 'express';
 
 import { DEFAULT_CORS_ORIGIN } from './config.js';
 import { errorHandler, notFoundHandler } from './errors.js';
+import { sessionsRepo } from './repos/sessions.js';
+import { usersRepo } from './repos/users.js';
+import { authRouter } from './routes/auth.js';
 
 export type AppOptions = {
   corsOrigins?: string[];
@@ -13,6 +16,8 @@ export type AppOptions = {
 export function createApp(db: DatabaseSync, options: AppOptions = {}) {
   const { corsOrigins = [DEFAULT_CORS_ORIGIN] } = options;
   const app = express();
+  const users = usersRepo(db);
+  const sessions = sessionsRepo(db);
 
   app.disable('x-powered-by');
   app.use(cors({ origin: corsOrigins }));
@@ -21,6 +26,8 @@ export function createApp(db: DatabaseSync, options: AppOptions = {}) {
   app.get('/health', (req, res) => {
     res.json({ ok: db.isOpen });
   });
+
+  app.use('/auth', authRouter(users, sessions));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
