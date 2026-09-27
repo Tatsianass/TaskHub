@@ -210,7 +210,7 @@ How to use this file (for the implementing agent):
   call with the server stopped rejects with `SERVER_UNREACHABLE` within ~10 s.
 - Covers: R7.1, R7.2
 
-### [ ] T4.4 Rewrite AuthProvider
+### [x] T4.4 Rewrite AuthProvider
 - Steps: rewrite `src/context/auth-context.tsx` per design §7.3. Keep the
   exported names and context shape. Remove `expo-crypto` import and the
   `auth:users` / `auth:session` logic. Wire `setOnUnauthorized(() => logout-local)`.
