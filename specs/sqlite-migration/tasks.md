@@ -195,7 +195,7 @@ How to use this file (for the implementing agent):
 - Done when: `grep -ri supabase src package.json .env.example` is empty; `tsc` baseline.
 - Covers: R7.1, R8.1
 
-### [ ] T4.2 Install SecureStore and token storage
+### [x] T4.2 Install SecureStore and token storage
 - Steps: `npx expo install expo-secure-store` (use the command from T0.2 docs;
   add a config plugin to `app.json` only if the docs require it). Create
   `src/lib/token-storage.ts` and `src/lib/token-storage.web.ts` per design §7.2
