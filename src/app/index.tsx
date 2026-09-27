@@ -6,6 +6,7 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 
 
 import { AuroraBackground } from '@/components/aurora-background';
 import { BottomTabBar } from '@/components/bottom-tab-bar';
+import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
 import { TaskFormModal } from '@/components/task-form-modal';
 import { TaskRow } from '@/components/task-row';
@@ -29,7 +30,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { t } = useLocale();
   const theme = useTheme();
-  const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask } = useTasksContext();
+  const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError } = useTasksContext();
   const { escalationDays } = useEscalationSettings();
 
   const [activeQuadrantId, setActiveQuadrantId] = useState<QuadrantId>(QUADRANTS[0].id);
@@ -145,6 +146,8 @@ export default function HomeScreen() {
             <ThemedText style={styles.icon}>➕</ThemedText>
           </Pressable>
         </View>
+
+        <ErrorBanner code={error} onDismiss={clearError} />
 
         {escalationBanner.length > 0 && (
           <Pressable onPress={() => setEscalationBanner([])}>

@@ -252,7 +252,7 @@ How to use this file (for the implementing agent):
 - Done when: same checks as T5.1 for birthdays.
 - Covers: R5.1
 
-### [ ] T5.3 Surface hook errors in UI
+### [x] T5.3 Surface hook errors in UI
 - Steps: show `t(\`errors.${error}\`)` as a dismissible banner/text on home,
   calendar and birthdays screens using existing components (`ThemedText`,
   `GlassPanel`). Keep it minimal.
