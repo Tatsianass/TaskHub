@@ -159,11 +159,12 @@ How to use this file (for the implementing agent):
 - Done when: same style of tests as T3.2, incl. cross-user isolation.
 - Covers: R5.1
 
-### [ ] T3.4 Import endpoint
+### [x] T3.4 Import endpoint
 - Steps: `POST /import` validates every item with T3.1; in one transaction
   inserts tasks/birthdays with `INSERT … ON CONFLICT(id) DO NOTHING` for
   same-user duplicates; if the id belongs to a different user, insert with
-  a fresh `randomUUID()`. Return counts.
+  an id derived from (user, id) — see design §4.3 (was `randomUUID()`,
+  which broke idempotency). Return counts.
 - Done when: tests — importing the same payload twice gives the same row
   count; an invalid item rejects the whole import (nothing written).
 - Covers: R6.2

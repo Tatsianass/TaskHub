@@ -177,7 +177,12 @@ CREATE INDEX idx_birthdays_user ON birthdays(user_id);
 Note on ids: `id` is globally unique (PK), but every query also filters by
 `user_id` so one user can never read/modify another user's row (R4.2).
 If an import sends an id that already exists for **another** user, the
-server generates a new id for that row instead of skipping.
+server stores that row under a new id instead of skipping it. The new id is
+**derived**, not random: a UUID-shaped `sha256(userId + "\0" + id)`
+(`repos/import-ids.ts`). *Changed in T3.4 from `randomUUID()`*: a random id
+would insert another copy on every re-import of the same payload, breaking
+R6.2 (idempotent import); a derived id collides with itself and is skipped by
+`ON CONFLICT(id) DO NOTHING` the second time.
 `POST /tasks` with an id that exists for any user (including another user)
 returns 409 `DUPLICATE_ID`; ids are client-random, so this only happens on a
 retry of the same insert. `PUT` updates via `UPDATE … WHERE id = ? AND
@@ -234,7 +239,7 @@ has no translation for.
 | GET | `/birthdays` | ✓ | – | `200 Birthday[]` (insertion order) | 401 |
 | POST | `/birthdays` | ✓ | `Birthday` | `201 Birthday` | 400 `INVALID_BIRTHDAY`, 409 `DUPLICATE_ID` |
 | DELETE | `/birthdays/:id` | ✓ | – | `204` | 404 |
-| POST | `/import` | ✓ | `{tasks:Task[],birthdays:Birthday[]}` | `200 {tasksImported,birthdaysImported}` | 400 |
+| POST | `/import` | ✓ | `{tasks?:Task[],birthdays?:Birthday[]}` (absent = `[]`) | `200 {tasksImported,birthdaysImported}` (rows actually inserted) | 400 `INVALID_TASK` / `INVALID_BIRTHDAY` (whole import rejected) |
 
 `Task`/`Birthday` JSON shapes are exactly those in `src/types/task.ts` and
 `src/types/birthday.ts`. The client keeps generating ids (existing format)

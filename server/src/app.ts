@@ -11,6 +11,7 @@ import { tasksRepo } from './repos/tasks.js';
 import { usersRepo } from './repos/users.js';
 import { authRouter } from './routes/auth.js';
 import { birthdaysRouter } from './routes/birthdays.js';
+import { importRouter } from './routes/import.js';
 import { tasksRouter } from './routes/tasks.js';
 
 export type AppOptions = {
@@ -36,6 +37,7 @@ export function createApp(db: DatabaseSync, options: AppOptions = {}) {
   app.use('/auth', authRouter(users, sessions));
   app.use('/tasks', tasksRouter(tasks, sessions));
   app.use('/birthdays', birthdaysRouter(birthdays, sessions));
+  app.use('/import', importRouter(db, tasks, birthdays, sessions));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
