@@ -1,6 +1,8 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AuroraBackground } from '@/components/aurora-background';
 import { BottomTabBar } from '@/components/bottom-tab-bar';
@@ -47,6 +49,48 @@ export default function HomeScreen() {
     // Tasks that fall back out of the escalation window can re-trigger the banner later.
     seenEscalatedIds.current = new Set(currentlyEscalated.map((task) => task.id));
   }, [tasks, escalationDays, isLoaded]);
+
+  // Smooth Instagram-style slide + fade whenever the active quadrant changes, whichever way it's triggered.
+  const translateX = useSharedValue(0);
+  const contentOpacity = useSharedValue(1);
+  const previousIndexRef = useRef(QUADRANTS.findIndex((quadrant) => quadrant.id === activeQuadrantId));
+
+  useEffect(() => {
+    const activeIndex = QUADRANTS.findIndex((quadrant) => quadrant.id === activeQuadrantId);
+    const prevIndex = previousIndexRef.current;
+    if (prevIndex !== activeIndex) {
+      const direction = activeIndex > prevIndex ? 1 : -1;
+      translateX.value = direction * 28;
+      contentOpacity.value = 0;
+      translateX.value = withTiming(0, { duration: 240 });
+      contentOpacity.value = withTiming(1, { duration: 240 });
+    }
+    previousIndexRef.current = activeIndex;
+  }, [activeQuadrantId, translateX, contentOpacity]);
+
+  const animatedContentStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+    opacity: contentOpacity.value,
+  }));
+
+  const switchQuadrant = (direction: 1 | -1) => {
+    const currentIndex = QUADRANTS.findIndex((quadrant) => quadrant.id === activeQuadrantId);
+    const nextIndex = currentIndex + direction;
+    if (nextIndex >= 0 && nextIndex < QUADRANTS.length) {
+      setActiveQuadrantId(QUADRANTS[nextIndex].id);
+    }
+  };
+
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-20, 20])
+    .failOffsetY([-15, 15])
+    .onEnd((event) => {
+      if (event.translationX < -60) {
+        runOnJS(switchQuadrant)(1);
+      } else if (event.translationX > 60) {
+        runOnJS(switchQuadrant)(-1);
+      }
+    });
 
   if (!user) return <Redirect href="/login" />;
 
@@ -173,31 +217,35 @@ export default function HomeScreen() {
           })}
         </GlassPanel>
 
-        <ThemedText type="smallBold" style={styles.sectionTitle}>
-          {t(activeQuadrant.titleKey)}
-        </ThemedText>
+        <GestureDetector gesture={swipeGesture}>
+          <Animated.View style={[styles.page, animatedContentStyle]}>
+            <ThemedText type="smallBold" style={styles.sectionTitle}>
+              {t(activeQuadrant.titleKey)}
+            </ThemedText>
 
-        {isLoaded && (
-          <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {quadrantTasks.length === 0 && (
-                <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-                  {t('quadrantScreen.empty')}
-                </ThemedText>
-              )}
-              {quadrantTasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  accentColor={activeQuadrant.color}
-                  escalated={isEscalated(task, escalationDays)}
-                  onToggle={() => toggleTask(task.id)}
-                  onPress={() => openEditModal(task)}
-                />
-              ))}
-            </ScrollView>
-          </GlassPanel>
-        )}
+            {isLoaded && (
+              <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {quadrantTasks.length === 0 && (
+                    <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+                      {t('quadrantScreen.empty')}
+                    </ThemedText>
+                  )}
+                  {quadrantTasks.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      accentColor={activeQuadrant.color}
+                      escalated={isEscalated(task, escalationDays)}
+                      onToggle={() => toggleTask(task.id)}
+                      onPress={() => openEditModal(task)}
+                    />
+                  ))}
+                </ScrollView>
+              </GlassPanel>
+            )}
+          </Animated.View>
+        </GestureDetector>
 
         <BottomTabBar />
       </View>
@@ -300,6 +348,9 @@ const styles = StyleSheet.create({
   },
   tabIcon: {
     fontSize: 17,
+  },
+  page: {
+    flex: 1,
   },
   sectionTitle: {
     marginBottom: Spacing.two,
