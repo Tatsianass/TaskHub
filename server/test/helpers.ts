@@ -6,13 +6,9 @@ import { createApp } from '../src/app.js';
 
 export type TestResponse = { status: number; body: any };
 
-/** Serves `createApp(db)` on an ephemeral port. */
-export async function startApp(db: DatabaseSync) {
-  const server = createApp(db).listen(0);
-  await once(server, 'listening');
-  const baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;
-
-  async function request(
+/** A JSON `request(method, path, { body, token })` against `baseUrl`. */
+export function requester(baseUrl: string) {
+  return async function request(
     method: string,
     path: string,
     { body, token }: { body?: unknown; token?: string } = {},
@@ -27,7 +23,15 @@ export async function startApp(db: DatabaseSync) {
     });
     const text = await res.text();
     return { status: res.status, body: text ? JSON.parse(text) : undefined };
-  }
+  };
+}
+
+/** Serves `createApp(db)` on an ephemeral port. */
+export async function startApp(db: DatabaseSync) {
+  const server = createApp(db).listen(0);
+  await once(server, 'listening');
+  const baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;
+  const request = requester(baseUrl);
 
   async function close() {
     server.closeAllConnections();

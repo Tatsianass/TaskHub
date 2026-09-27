@@ -169,7 +169,7 @@ How to use this file (for the implementing agent):
   count; an invalid item rejects the whole import (nothing written).
 - Covers: R6.2
 
-### [ ] T3.5 Durability tests (the key acceptance test)
+### [x] T3.5 Durability tests (the key acceptance test)
 - Steps: `test/durability.test.ts`:
   1. In-process: temp `DB_PATH`; `createApp(openDatabase(p))`; register, create
      task + birthday; `closeDatabase`; reopen same path with a new app; login
