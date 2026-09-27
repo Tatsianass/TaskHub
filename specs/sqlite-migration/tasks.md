@@ -259,7 +259,7 @@ How to use this file (for the implementing agent):
 - Done when: error from T5.1 check is visible and dismissible.
 - Covers: R4.4, R7.2
 
-### [ ] T5.4 Legacy data import
+### [x] T5.4 Legacy data import
 - Steps: `src/lib/legacy-import.ts` + prompt flow per design §7.5. Use
   `Alert.alert` on native and `window.confirm` on web.
 - Done when (web preview): on `main` build add 2 tasks + 1 birthday; switch to

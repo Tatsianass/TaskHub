@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
+import { useLocale } from '@/context/locale-context';
 import { api, ApiError, setAuthToken, setOnUnauthorized } from '@/lib/api';
+import { offerLegacyImport } from '@/lib/legacy-import';
 import { clearToken, getToken, setToken } from '@/lib/token-storage';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -23,6 +25,7 @@ function normalizeEmail(email: string) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { t } = useLocale();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -61,11 +64,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [clearSession]);
 
-  const startSession = useCallback(async ({ token, user: next }: AuthResponse) => {
-    await setToken(token);
-    setAuthToken(token);
-    setUser(next);
-  }, []);
+  const startSession = useCallback(
+    async ({ token, user: next }: AuthResponse) => {
+      await setToken(token);
+      setAuthToken(token);
+      // Before setUser: the data hooks fetch as soon as the user is set, and
+      // must see what the import added (R6.1).
+      await offerLegacyImport(t);
+      setUser(next);
+    },
+    [t],
+  );
 
   const register = useCallback(
     async (rawEmail: string, password: string) => {

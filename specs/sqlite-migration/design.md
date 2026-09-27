@@ -362,6 +362,23 @@ non-empty, shows `Alert.alert` (web: `window.confirm`) with i18n text
 `import.prompt`; Yes → `POST /import` then clear; No → clear. Then the task
 hook reload picks up imported data.
 
+*Refined in T5.4:*
+- **Order:** the offer runs inside `startSession` after the token is set
+  but **before** `setUser`. The data hooks fetch as soon as `user` is set,
+  so importing afterwards could race that fetch and miss the imported rows.
+- **Normalization:** `task-manager:tasks:v3` was never bumped when fields
+  were added (`tag` in d0c794c, `remindMe` in e9b806f, then `remindTime`),
+  so old devices hold tasks without them. `POST /import` validates strictly
+  and rejects the whole payload on one bad item, so `readLegacyData()`
+  fills later-added fields with their defaults (`null`/`false`/`''`),
+  turns an invalid `dueDate`/`remindTime` into `null`, and drops only items
+  missing a field every version had (`id`, `title`, `quadrantId`,
+  `createdAt`; birthdays: `id`, `name`, valid `date`).
+- **Nothing to import:** if the keys hold no importable item, no prompt is
+  shown and the legacy keys (incl. the dead `auth:*` hashes) are cleared.
+- **Upload failure:** the keys are kept and sign-in still succeeds; the
+  offer comes back on the next sign-in.
+
 ## 8. Configuration & running locally
 
 | Env (server/.env) | Default |
