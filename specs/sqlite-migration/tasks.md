@@ -279,7 +279,7 @@ How to use this file (for the implementing agent):
   `"server:test": "npm --prefix server test"`.
 - Done when: both preview configs start.
 
-### [ ] T6.2 README
+### [x] T6.2 README
 - Steps: replace the template README sections with: architecture summary,
   prerequisites (Node ≥ 22.13), how to run server + app, `EXPO_PUBLIC_API_URL`
   per platform, where the DB file lives, how to back it up (stop server, copy
