@@ -146,7 +146,7 @@ How to use this file (for the implementing agent):
 - Done when: table-driven unit tests for valid + each invalid case.
 - Covers: R4.5
 
-### [ ] T3.2 Tasks repo + routes
+### [x] T3.2 Tasks repo + routes
 - Steps: `repos/tasks.ts` (row↔Task mapping, every statement has
   `WHERE user_id = ?`). Routes `GET/POST /tasks`, `PUT/DELETE /tasks/:id`
   behind `requireAuth`. `PUT` of a task owned by another user → 404.

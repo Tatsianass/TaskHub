@@ -13,6 +13,8 @@ export class ApiError extends Error {
 
 /** Extended SQLite result codes; node:sqlite puts them on `error.errcode`. */
 export const SQLITE_CONSTRAINT_UNIQUE = 2067;
+export const SQLITE_CONSTRAINT_PRIMARYKEY = 1555;
+export const SQLITE_CONSTRAINT_CHECK = 275;
 
 /** Match SQLite errors by result code, never by message. */
 export function isSqliteError(error: unknown, errcode: number) {

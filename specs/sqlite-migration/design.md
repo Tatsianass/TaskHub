@@ -178,6 +178,11 @@ Note on ids: `id` is globally unique (PK), but every query also filters by
 `user_id` so one user can never read/modify another user's row (R4.2).
 If an import sends an id that already exists for **another** user, the
 server generates a new id for that row instead of skipping.
+`POST /tasks` with an id that exists for any user (including another user)
+returns 409 `DUPLICATE_ID`; ids are client-random, so this only happens on a
+retry of the same insert. `PUT` updates via `UPDATE … WHERE id = ? AND
+user_id = ? RETURNING …`, so "not yours" and "doesn't exist" are the same 404.
+`GET /tasks` orders by `created_at DESC, rowid DESC` (stable for equal times).
 
 Row ↔ API mapping (done in repos): snake_case ↔ camelCase, `0/1` ↔ boolean.
 

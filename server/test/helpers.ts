@@ -36,3 +36,47 @@ export async function startApp(db: DatabaseSync) {
 
   return { baseUrl, request, close };
 }
+
+export type TestApp = Awaited<ReturnType<typeof startApp>>;
+
+export const TEST_PASSWORD = 's3cret-pass';
+
+let userCounter = 0;
+
+/** Registers a fresh user and returns `{ token, user }`. */
+export async function registerUser(app: Pick<TestApp, 'request'>, email?: string) {
+  userCounter += 1;
+  const res = await app.request('POST', '/auth/register', {
+    body: { email: email ?? `fixture${userCounter}-${Date.now()}@example.com`, password: TEST_PASSWORD },
+  });
+  if (res.status !== 201) throw new Error(`register failed: ${res.status} ${JSON.stringify(res.body)}`);
+  return res.body as { token: string; user: { id: string; email: string } };
+}
+
+let idCounter = 0;
+
+/** A unique id in the app's format (`<ms>-<random>`). */
+export function newClientId() {
+  idCounter += 1;
+  return `${Date.now()}-t${idCounter}`;
+}
+
+export function makeTask(overrides: Record<string, unknown> = {}) {
+  return {
+    id: newClientId(),
+    title: 'Task',
+    description: '',
+    quadrantId: 'urgent-important',
+    tag: null,
+    done: false,
+    createdAt: Date.now(),
+    dueDate: null,
+    remindMe: false,
+    remindTime: null,
+    ...overrides,
+  };
+}
+
+export function makeBirthday(overrides: Record<string, unknown> = {}) {
+  return { id: newClientId(), name: 'Ann', date: '1990-02-28', ...overrides };
+}
