@@ -237,7 +237,7 @@ How to use this file (for the implementing agent):
 
 ## Phase 5 — App: data hooks
 
-### [ ] T5.1 Rewrite `useTasks`
+### [x] T5.1 Rewrite `useTasks`
 - Steps: per design §7.4. Keep `STORAGE_KEY` constant only inside
   `legacy-import.ts` now. Public return: `tasks, isLoaded, addTask,
   updateTask, toggleTask, deleteTask` + additive `error, clearError`.

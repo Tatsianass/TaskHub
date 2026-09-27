@@ -334,6 +334,20 @@ Keeps the same context shape `{ user, isLoading, register, login, logout }`.
   request; on failure restore previous snapshot and surface an error
   (add `error: string | null` + `clearError()` to the returned object —
   additive, doesn't break existing destructuring).
+  *Refined in T5.1:* the snapshot is of the **affected item only** (re-add
+  the deleted item, restore the pre-edit version, drop the failed insert),
+  not of the whole list. Restoring a whole-list snapshot would also undo
+  any other mutation that succeeded while the failed request was in flight,
+  leaving the UI out of sync with the server.
+- Both hooks share `src/hooks/use-server-list.ts` (fetch on user change,
+  `mutate(optimistic, request, rollback)`, `error`/`clearError`). The list
+  is stored together with the user id it belongs to; while that id isn't the
+  signed-in user the hook reports `[]`/`isLoaded=false`, and responses or
+  rollbacks that arrive for a previous user are dropped. This replaces the
+  "reset in an effect" approach, which the app's lint rules
+  (`react-hooks/set-state-in-effect`) reject.
+- A failed initial `GET` sets `isLoaded=true` with an empty list and `error`
+  set, so screens show the error instead of an endless blank state.
 - `toggleTask` sends `PUT` with the full updated task.
 - `useBirthdays` is used directly by `birthdays.tsx` (no provider); that's fine,
   it fetches when mounted.
