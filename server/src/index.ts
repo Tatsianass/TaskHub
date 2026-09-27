@@ -3,12 +3,15 @@ import type { AddressInfo } from 'node:net';
 import { createApp } from './app.js';
 import { loadConfig, loadEnvFile } from './config.js';
 import { closeDatabase, openDatabase } from './db/connection.js';
+import { sessionsRepo } from './repos/sessions.js';
 
 loadEnvFile();
 const config = loadConfig();
 
 const db = openDatabase(config.dbPath);
 console.log(`[server] database: ${config.dbPath}`);
+const expired = sessionsRepo(db).deleteExpired();
+if (expired > 0) console.log(`[server] removed ${expired} expired session(s)`);
 
 const server = createApp(db, { corsOrigins: config.corsOrigins }).listen(
   config.port,

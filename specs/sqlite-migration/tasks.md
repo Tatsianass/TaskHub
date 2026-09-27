@@ -107,7 +107,7 @@ How to use this file (for the implementing agent):
   pw differ (salt), hash string doesn't contain the password.
 - Covers: R1.2, R1.7
 
-### [ ] T2.2 Tokens and users/sessions repos
+### [x] T2.2 Tokens and users/sessions repos
 - Steps: `auth/tokens.ts` (`newToken()` = 32 random bytes base64url,
   `hashToken()` = sha256 hex). `repos/users.ts`
   (`create`, `findByEmail`, `findById`), `repos/sessions.ts`
