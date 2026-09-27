@@ -221,7 +221,7 @@ How to use this file (for the implementing agent):
   `localStorage` (only the token key).
 - Covers: R1.1, R2.5, R2.6, R2.7, R8.2
 
-### [ ] T4.5 i18n
+### [x] T4.5 i18n
 - Steps: in `src/i18n/translations.ts` for **every** locale (ru, en, es, fr, de, pt, zh):
   update `errors.PASSWORD_TOO_SHORT` to 8 characters; add
   `errors.SERVER_UNREACHABLE`, `errors.SESSION_EXPIRED`, `errors.UNAUTHORIZED`,
