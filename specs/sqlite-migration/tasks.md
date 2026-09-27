@@ -272,7 +272,7 @@ How to use this file (for the implementing agent):
 
 ## Phase 6 — Tooling, docs, verification
 
-### [ ] T6.1 Dev tooling
+### [x] T6.1 Dev tooling
 - Steps: add to `.claude/launch.json` an `api-server` configuration
   (`npm --prefix server run dev`, port 4000). Add root scripts
   `"server": "npm --prefix server run dev"` and
