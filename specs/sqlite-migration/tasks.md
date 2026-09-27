@@ -98,7 +98,7 @@ How to use this file (for the implementing agent):
 
 ## Phase 2 — Credentials and sessions (server)
 
-### [ ] T2.1 Password hashing
+### [x] T2.1 Password hashing
 - Steps: `auth/password.ts` — `hashPassword(pw) → {hash, salt, params}` with
   `crypto.scrypt` (promisified) N=16384 r=8 p=1 keylen=64, salt
   `randomBytes(16)`; `verifyPassword(pw, stored)` using `timingSafeEqual`.
