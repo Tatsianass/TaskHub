@@ -288,19 +288,19 @@ How to use this file (for the implementing agent):
 - Done when: a fresh clone following only the README reaches a working login.
 - Covers: N4
 
-### [ ] T6.3 Full verification (release gate)
+### [x] T6.3 Full verification (release gate)
 - Steps / Done when — all must pass:
-  - [ ] `npm --prefix server test` green.
-  - [ ] root `npx tsc --noEmit` and `npm run lint` — no new errors vs T0.1.
-  - [ ] Manual restart scenario (web): register, add task + birthday →
+  - [x] `npm --prefix server test` green.
+  - [x] root `npx tsc --noEmit` and `npm run lint` — no new errors vs T0.1.
+  - [x] Manual restart scenario (web): register, add task + birthday →
         stop server (Ctrl-C) → start again → reload app → still logged in,
         data present.
-  - [ ] Manual crash scenario: same, but `kill -9 <server pid>`.
-  - [ ] iOS simulator: login with the account created on web → same data
+  - [x] Manual crash scenario: same, but `kill -9 <server pid>`.
+  - [x] iOS simulator: login with the account created on web → same data
         (proves credentials are server-side).
-  - [ ] `sqlite3 server/data/app.db "select email, password_hash from users"`
+  - [x] `sqlite3 server/data/app.db "select email, password_hash from users"`
         shows scrypt hashes, no plaintext.
-  - [ ] `git status` / `git ls-files server/data` shows only `.gitkeep`.
+  - [x] `git status` / `git ls-files server/data` shows only `.gitkeep`.
 - Covers: all
 
 ### [ ] T6.4 Open PR
