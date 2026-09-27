@@ -37,7 +37,7 @@ How to use this file (for the implementing agent):
 
 ## Phase 1 — Server skeleton and durable database
 
-### [ ] T1.1 Scaffold `server/` package
+### [x] T1.1 Scaffold `server/` package
 - Steps:
   1. Create `server/package.json` (`"private": true`, `"type": "module"`,
      `"engines": {"node": ">=22.13"}`), scripts:

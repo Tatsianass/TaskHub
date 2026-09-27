@@ -42,3 +42,10 @@ example
 # generated native folders
 /ios
 /android
+
+# server (SQLite DB file + WAL/SHM companions, local env, build output)
+server/data/*.db
+server/data/*.db-*
+server/.env
+server/dist/
+server/node_modules/
