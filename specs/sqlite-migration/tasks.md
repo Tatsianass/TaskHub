@@ -203,7 +203,7 @@ How to use this file (for the implementing agent):
 - Done when: `tsc` passes; web file has SSR guard.
 - Covers: R2.5, N3
 
-### [ ] T4.3 API client
+### [x] T4.3 API client
 - Steps: `src/lib/api.ts` per design §7.1 (base URL check, bearer header,
   10 s timeout, `ApiError`, `setAuthToken`, `setOnUnauthorized`).
 - Done when: `tsc` passes; manual check in the web preview console that a
