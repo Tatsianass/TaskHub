@@ -252,7 +252,13 @@ export function TaskFormModal({
                     </View>
                   </Pressable>
                 ))}
-                <CustomDatePill active={whenOption === 'custom'} label={customDateLabel} icon="📅" onChange={handleCustomDate} />
+                <CustomDatePill
+                  active={whenOption === 'custom'}
+                  label={customDateLabel}
+                  icon="📅"
+                  value={whenOption === 'custom' ? dueDate : null}
+                  onChange={handleCustomDate}
+                />
               </View>
               {!!dateHint && (
                 <ThemedText type="small" themeColor="primary" style={styles.hint}>

@@ -8,10 +8,12 @@ type Props = {
   active: boolean;
   label: string;
   icon?: string;
+  /** Currently chosen date (YYYY-MM-DD); the browser picker opens on it. */
+  value?: string | null;
   onChange: (value: string) => void;
 };
 
-export function CustomDatePill({ active, label, icon, onChange }: Props) {
+export function CustomDatePill({ active, label, icon, value, onChange }: Props) {
   const theme = useTheme();
 
   return (
@@ -36,6 +38,7 @@ export function CustomDatePill({ active, label, icon, onChange }: Props) {
       </ThemedText>
       <input
         type="date"
+        value={value ?? ''}
         onClick={(event) => {
           const input = event.currentTarget as HTMLInputElement & { showPicker?: () => void };
           if (typeof input.showPicker === 'function') {
