@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
 import { BottomTabBar } from '@/components/bottom-tab-bar';
+import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
 import { TaskFormModal } from '@/components/task-form-modal';
 import { TaskRow } from '@/components/task-row';
@@ -22,7 +23,7 @@ import type { Task } from '@/types/task';
 export default function CalendarScreen() {
   const { user } = useAuth();
   const { t } = useLocale();
-  const { tasks, isLoaded, updateTask, toggleTask, deleteTask } = useTasksContext();
+  const { tasks, isLoaded, updateTask, toggleTask, deleteTask, error, clearError } = useTasksContext();
   const { escalationDays } = useEscalationSettings();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,6 +60,8 @@ export default function CalendarScreen() {
         <ThemedText type="subtitle" style={styles.title}>
           {t('calendar.title')}
         </ThemedText>
+
+        <ErrorBanner code={error} onDismiss={clearError} />
 
         {isLoaded && (
           <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>

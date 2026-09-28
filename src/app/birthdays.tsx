@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuroraBackground } from '@/components/aurora-background';
 import { BottomTabBar } from '@/components/bottom-tab-bar';
 import { DateField } from '@/components/date-field';
+import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
@@ -22,7 +23,7 @@ export default function BirthdaysScreen() {
   const { user } = useAuth();
   const { t, locale } = useLocale();
   const theme = useTheme();
-  const { birthdays, isLoaded, addBirthday, deleteBirthday } = useBirthdays();
+  const { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError } = useBirthdays();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState('');
@@ -62,6 +63,8 @@ export default function BirthdaysScreen() {
             <ThemedText style={styles.add}>➕</ThemedText>
           </Pressable>
         </View>
+
+        <ErrorBanner code={error} onDismiss={clearError} />
 
         {isLoaded && (
           <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>

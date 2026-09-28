@@ -1,12 +1,14 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
-const USERS_KEY = 'auth:users';
-const SESSION_KEY = 'auth:session';
+import { useLocale } from '@/context/locale-context';
+import { api, ApiError, setAuthToken, setOnUnauthorized } from '@/lib/api';
+import { offerLegacyImport } from '@/lib/legacy-import';
+import { clearToken, getToken, setToken } from '@/lib/token-storage';
 
-type StoredUser = { email: string; salt: string; passwordHash: string };
+const MIN_PASSWORD_LENGTH = 8;
+
 type User = { id: string; email: string };
+type AuthResponse = { token: string; user: User };
 
 type AuthContextValue = {
   user: User | null;
@@ -22,69 +24,87 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-async function hashPassword(password: string, salt: string) {
-  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${salt}:${password}`);
-}
-
-async function loadUsers(): Promise<Record<string, StoredUser>> {
-  const raw = await AsyncStorage.getItem(USERS_KEY);
-  return raw ? (JSON.parse(raw) as Record<string, StoredUser>) : {};
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { t } = useLocale();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const clearSession = useCallback(async () => {
+    setAuthToken(null);
+    setUser(null);
+    await clearToken();
+  }, []);
+
+  useEffect(() => {
+    // Any request rejected for an invalid/expired session signs the user out.
+    setOnUnauthorized(() => {
+      clearSession().catch(() => {});
+    });
+    return () => setOnUnauthorized(null);
+  }, [clearSession]);
 
   useEffect(() => {
     (async () => {
       try {
-        const email = await AsyncStorage.getItem(SESSION_KEY);
-        if (email) {
-          const users = await loadUsers();
-          if (users[email]) setUser({ id: email, email });
+        const token = await getToken();
+        if (!token) return;
+        setAuthToken(token);
+        try {
+          const { user: me } = await api<{ user: User }>('/auth/me');
+          setUser(me);
+        } catch (e) {
+          // 401: the token is dead, forget it. Anything else (server
+          // unreachable): keep the token and fall back to the login screen.
+          if (e instanceof ApiError && e.status === 401) await clearSession();
+          else setAuthToken(null);
         }
       } finally {
         setIsLoading(false);
       }
     })();
-  }, []);
+  }, [clearSession]);
 
-  const register = useCallback(async (rawEmail: string, password: string) => {
-    const email = normalizeEmail(rawEmail);
-    if (!email || !password) throw new Error('ENTER_EMAIL_PASSWORD');
-    if (password.length < 4) throw new Error('PASSWORD_TOO_SHORT');
+  const startSession = useCallback(
+    async ({ token, user: next }: AuthResponse) => {
+      await setToken(token);
+      setAuthToken(token);
+      // Before setUser: the data hooks fetch as soon as the user is set, and
+      // must see what the import added (R6.1).
+      await offerLegacyImport(t);
+      setUser(next);
+    },
+    [t],
+  );
 
-    const users = await loadUsers();
-    if (users[email]) throw new Error('EMAIL_TAKEN');
+  const register = useCallback(
+    async (rawEmail: string, password: string) => {
+      const email = normalizeEmail(rawEmail);
+      if (!email || !password) throw new Error('ENTER_EMAIL_PASSWORD');
+      if (password.length < MIN_PASSWORD_LENGTH) throw new Error('PASSWORD_TOO_SHORT');
 
-    const salt = Crypto.randomUUID();
-    const passwordHash = await hashPassword(password, salt);
-    users[email] = { email, salt, passwordHash };
+      await startSession(await api<AuthResponse>('/auth/register', { method: 'POST', body: { email, password } }));
+    },
+    [startSession],
+  );
 
-    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
-    await AsyncStorage.setItem(SESSION_KEY, email);
-    setUser({ id: email, email });
-  }, []);
+  const login = useCallback(
+    async (rawEmail: string, password: string) => {
+      const email = normalizeEmail(rawEmail);
+      if (!email || !password) throw new Error('ENTER_EMAIL_PASSWORD');
 
-  const login = useCallback(async (rawEmail: string, password: string) => {
-    const email = normalizeEmail(rawEmail);
-    if (!email || !password) throw new Error('ENTER_EMAIL_PASSWORD');
-
-    const users = await loadUsers();
-    const stored = users[email];
-    if (!stored) throw new Error('USER_NOT_FOUND');
-
-    const passwordHash = await hashPassword(password, stored.salt);
-    if (passwordHash !== stored.passwordHash) throw new Error('WRONG_PASSWORD');
-
-    await AsyncStorage.setItem(SESSION_KEY, email);
-    setUser({ id: email, email });
-  }, []);
+      await startSession(await api<AuthResponse>('/auth/login', { method: 'POST', body: { email, password } }));
+    },
+    [startSession],
+  );
 
   const logout = useCallback(async () => {
-    await AsyncStorage.removeItem(SESSION_KEY);
-    setUser(null);
-  }, []);
+    try {
+      await api('/auth/logout', { method: 'POST' });
+    } catch {
+      // Server unreachable or session already gone: still sign out locally.
+    }
+    await clearSession();
+  }, [clearSession]);
 
   return (
     <AuthContext.Provider value={{ user, isLoading, register, login, logout }}>{children}</AuthContext.Provider>

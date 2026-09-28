@@ -1,9 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback } from 'react';
 
+import { useServerList } from '@/hooks/use-server-list';
+import { api } from '@/lib/api';
 import type { Birthday } from '@/types/birthday';
-
-const STORAGE_KEY = 'task-manager:birthdays:v1';
 
 export type BirthdayDraft = {
   name: string;
@@ -11,41 +10,42 @@ export type BirthdayDraft = {
 };
 
 export function useBirthdays() {
-  const [birthdays, setBirthdays] = useState<Birthday[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const hasLoaded = useRef(false);
+  const { items: birthdays, isLoaded, error, clearError, mutate } = useServerList<Birthday>('/birthdays');
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) setBirthdays(JSON.parse(raw) as Birthday[]);
-      } finally {
-        hasLoaded.current = true;
-        setIsLoaded(true);
-      }
-    })();
-  }, []);
+  const addBirthday = useCallback(
+    (draft: BirthdayDraft) => {
+      const name = draft.name.trim();
+      if (!name || !draft.date) return;
+      const birthday: Birthday = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        date: draft.date,
+      };
+      mutate(
+        (prev) => [...prev, birthday],
+        () => api('/birthdays', { method: 'POST', body: birthday }),
+        (prev) => prev.filter((item) => item.id !== birthday.id),
+      );
+    },
+    [mutate],
+  );
 
-  useEffect(() => {
-    if (!hasLoaded.current) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(birthdays)).catch(() => {});
-  }, [birthdays]);
+  const deleteBirthday = useCallback(
+    (id: string) => {
+      const index = birthdays.findIndex((birthday) => birthday.id === id);
+      if (index === -1) return;
+      const removed = birthdays[index];
+      mutate(
+        (prev) => prev.filter((birthday) => birthday.id !== id),
+        () => api(`/birthdays/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+        (prev) =>
+          prev.some((birthday) => birthday.id === id)
+            ? prev
+            : [...prev.slice(0, index), removed, ...prev.slice(index)],
+      );
+    },
+    [birthdays, mutate],
+  );
 
-  const addBirthday = useCallback((draft: BirthdayDraft) => {
-    const name = draft.name.trim();
-    if (!name || !draft.date) return;
-    const birthday: Birthday = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name,
-      date: draft.date,
-    };
-    setBirthdays((prev) => [...prev, birthday]);
-  }, []);
-
-  const deleteBirthday = useCallback((id: string) => {
-    setBirthdays((prev) => prev.filter((birthday) => birthday.id !== id));
-  }, []);
-
-  return { birthdays, isLoaded, addBirthday, deleteBirthday };
+  return { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError };
 }
