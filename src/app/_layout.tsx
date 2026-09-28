@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider } from '@/context/auth-context';
+import { BirthdaysProvider } from '@/context/birthdays-context';
 import { EscalationProvider } from '@/context/escalation-context';
 import { LocaleProvider } from '@/context/locale-context';
 import { TasksProvider } from '@/context/tasks-context';
@@ -26,7 +27,9 @@ export default function RootLayout() {
           <AuthProvider>
             <EscalationProvider>
               <TasksProvider>
-                <Navigation />
+                <BirthdaysProvider>
+                  <Navigation />
+                </BirthdaysProvider>
               </TasksProvider>
             </EscalationProvider>
           </AuthProvider>

@@ -12,17 +12,17 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useBirthdaysContext } from '@/context/birthdays-context';
 import { useLocale } from '@/context/locale-context';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
-import { useBirthdays } from '@/hooks/use-birthdays';
 import { nextBirthdayDayDiff } from '@/utils/dates';
 
 export default function BirthdaysScreen() {
   const { user } = useAuth();
   const { t, locale } = useLocale();
   const theme = useTheme();
-  const { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError, refresh } = useBirthdays();
+  const { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError, refresh } = useBirthdaysContext();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { refreshing, onRefresh } = usePullToRefresh(refresh);

@@ -25,6 +25,8 @@ type Props = {
   visible: boolean;
   initialTask: Task | null;
   defaultQuadrantId: QuadrantId;
+  /** Due date a new task starts with (YYYY-MM-DD); defaults to today. */
+  defaultDueDate?: string | null;
   tasks: Task[];
   onClose: () => void;
   onSave: (draft: TaskDraft) => void;
@@ -60,7 +62,8 @@ function inferWhenOption(dueDate: string | null): WhenOption {
   const diff = dayDiffFromToday(dueDate);
   if (diff === 0) return 'today';
   if (diff === 1) return 'tomorrow';
-  if (diff >= 2 && diff <= 7) return 'week';
+  // Only the exact date the pill sets; any other day shows up as a custom date, so it's visible.
+  if (diff === 7) return 'week';
   return 'custom';
 }
 
@@ -91,6 +94,7 @@ export function TaskFormModal({
   visible,
   initialTask,
   defaultQuadrantId,
+  defaultDueDate,
   tasks,
   onClose,
   onSave,
@@ -117,7 +121,7 @@ export function TaskFormModal({
     justResetRef.current = true;
     setTitle(initialTask?.title ?? '');
     setDescription(initialTask?.description ?? '');
-    setDueDate(initialTask ? initialTask.dueDate : dateForWhen('today'));
+    setDueDate(initialTask ? initialTask.dueDate : (defaultDueDate ?? dateForWhen('today')));
     setDueDateAuto(false);
     setIsImportant(initialTask ? isImportantQuadrant(initialTask.quadrantId) : true);
     setImportantTouched(!!initialTask);
@@ -125,7 +129,7 @@ export function TaskFormModal({
     setRemindMe(initialTask?.remindMe ?? false);
     setRemindTime(initialTask?.remindTime ?? null);
     setForceAdd(false);
-  }, [visible, initialTask, defaultQuadrantId]);
+  }, [visible, initialTask, defaultQuadrantId, defaultDueDate]);
 
   // Smart date + importance suggestion from the title text — only while creating a new task.
   useEffect(() => {
