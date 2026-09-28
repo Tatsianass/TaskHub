@@ -37,10 +37,8 @@ export function useServerList<T>(path: string) {
     const fetchId = ++latestFetch.current;
     try {
       const items = await api<T[]>(path);
-      console.log(`[refresh-debug] ${path} loaded ${items.length}`);
       if (fetchId === latestFetch.current) setState({ owner: userId, items, isLoaded: true, error: null });
     } catch (e) {
-      console.log(`[refresh-debug] ${path} failed`, fetchId, latestFetch.current, String(e));
       if (fetchId !== latestFetch.current) return;
       // A failed refresh keeps the list already on screen; only the first load falls back to empty.
       setState((prev) =>

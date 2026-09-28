@@ -236,11 +236,6 @@ export default function HomeScreen() {
                   refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />
                   }>
-                  {quadrantTasks.length === 0 && (
-                    <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-                      {t('quadrantScreen.empty')}
-                    </ThemedText>
-                  )}
                   {quadrantTasks.map((task) => (
                     <TaskRow
                       key={task.id}
@@ -251,6 +246,14 @@ export default function HomeScreen() {
                       onPress={() => openEditModal(task)}
                     />
                   ))}
+                  {/* Tapping the free space below the tasks adds one to the active quadrant. */}
+                  <Pressable style={styles.addArea} onPress={openCreateModal}>
+                    {quadrantTasks.length === 0 && (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+                        {t('quadrantScreen.empty')}
+                      </ThemedText>
+                    )}
+                  </Pressable>
                 </ScrollView>
               </GlassPanel>
             )}
@@ -376,6 +379,10 @@ const styles = StyleSheet.create({
   listContent: {
     flex: 1,
     padding: Spacing.two,
+  },
+  addArea: {
+    flexGrow: 1,
+    minHeight: 64,
   },
   empty: {
     textAlign: 'center',

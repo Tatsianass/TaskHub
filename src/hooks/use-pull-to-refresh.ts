@@ -5,7 +5,6 @@ export function usePullToRefresh(refresh: () => Promise<unknown>) {
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
-    console.log("[refresh-debug] onRefresh");
     setRefreshing(true);
     try {
       await refresh();
