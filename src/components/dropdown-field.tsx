@@ -48,6 +48,7 @@ export function DropdownField({ label, value, options, onSelect }: Props) {
                   }}
                   style={[styles.row, option.value === value && { backgroundColor: theme.backgroundSelected }]}>
                   <ThemedText themeColor={option.value === value ? 'primary' : 'text'}>{option.label}</ThemedText>
+                  {option.value === value && <ThemedText themeColor="primary">✓</ThemedText>}
                 </Pressable>
               ))}
             </SafeAreaView>
@@ -82,6 +83,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
   },

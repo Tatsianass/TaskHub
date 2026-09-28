@@ -127,20 +127,14 @@ export default function SettingsScreen() {
             <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
               {t('settings.language')}
             </ThemedText>
-            <View style={styles.chipRow}>
-              {LOCALES.map((item) => (
-                <Pressable key={item.code} onPress={() => setLocale(item.code)} style={styles.chipWrapper}>
-                  <GlassPanel
-                    contentStyle={styles.chipContent}
-                    tintColor={item.code === locale ? theme.glassBgStrong : theme.glassBg}
-                    style={item.code === locale ? { borderColor: theme.primary } : undefined}>
-                    <ThemedText type="small" themeColor={item.code === locale ? 'primary' : 'text'}>
-                      {item.nativeLabel}
-                    </ThemedText>
-                  </GlassPanel>
-                </Pressable>
-              ))}
-            </View>
+            <DropdownField
+              value={locale}
+              options={LOCALES.map((item) => ({ value: item.code, label: item.nativeLabel }))}
+              onSelect={(code) => {
+                const next = LOCALES.find((item) => item.code === code);
+                if (next) setLocale(next.code);
+              }}
+            />
           </View>
 
           <View>
