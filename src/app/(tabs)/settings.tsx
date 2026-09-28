@@ -3,8 +3,6 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuroraBackground } from '@/components/aurora-background';
-import { BottomTabBar } from '@/components/bottom-tab-bar';
 import { DropdownField } from '@/components/dropdown-field';
 import { GlassPanel } from '@/components/glass-panel';
 import { PrimaryButton } from '@/components/primary-button';
@@ -88,8 +86,8 @@ export default function SettingsScreen() {
   ];
 
   return (
-    <AuroraBackground>
-      <SafeAreaView style={styles.safeArea}>
+    <>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.inner}>
         <ThemedText type="subtitle" style={styles.title}>
           {t('settings.title')}
@@ -162,11 +160,9 @@ export default function SettingsScreen() {
 
           <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />
         </ScrollView>
-
-        <BottomTabBar />
       </View>
       </SafeAreaView>
-    </AuroraBackground>
+    </>
   );
 }
 
@@ -178,7 +174,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
-    paddingBottom: Spacing.two,
   },
   title: {
     fontSize: 22,

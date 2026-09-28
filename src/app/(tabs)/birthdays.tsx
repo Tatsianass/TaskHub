@@ -3,8 +3,6 @@ import { useMemo, useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuroraBackground } from '@/components/aurora-background';
-import { BottomTabBar } from '@/components/bottom-tab-bar';
 import { DateField } from '@/components/date-field';
 import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
@@ -51,8 +49,8 @@ export default function BirthdaysScreen() {
   };
 
   return (
-    <AuroraBackground>
-      <SafeAreaView style={styles.safeArea}>
+    <>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.inner}>
         <View style={styles.header}>
           <ThemedText type="subtitle" style={styles.title}>
@@ -106,8 +104,6 @@ export default function BirthdaysScreen() {
             </ScrollView>
           </GlassPanel>
         )}
-
-        <BottomTabBar />
       </View>
       </SafeAreaView>
 
@@ -142,7 +138,7 @@ export default function BirthdaysScreen() {
           </ThemedView>
         </View>
       </Modal>
-    </AuroraBackground>
+    </>
   );
 }
 
@@ -154,7 +150,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
-    paddingBottom: Spacing.two,
   },
   header: {
     flexDirection: 'row',

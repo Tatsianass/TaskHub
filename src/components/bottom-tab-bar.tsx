@@ -1,5 +1,6 @@
-import { usePathname, useRouter } from 'expo-router';
+import type { BottomTabBarProps } from 'expo-router/tabs';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GlassPanel } from '@/components/glass-panel';
 import { ThemedText } from '@/components/themed-text';
@@ -7,57 +8,72 @@ import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
 import { useTheme } from '@/hooks/use-theme';
 
-const TABS = [
-  { href: '/', icon: '📋', labelKey: 'tabs.tasks' },
-  { href: '/calendar', icon: '📅', labelKey: 'tabs.calendar' },
-  { href: '/birthdays', icon: '🎂', labelKey: 'settings.birthdays' },
-  { href: '/settings', icon: '⚙️', labelKey: 'tabs.settings' },
-] as const;
+// Keyed by route name in src/app/(tabs); order follows the navigator.
+const TABS = {
+  index: { icon: '📋', labelKey: 'tabs.tasks' },
+  calendar: { icon: '📅', labelKey: 'tabs.calendar' },
+  birthdays: { icon: '🎂', labelKey: 'settings.birthdays' },
+  settings: { icon: '⚙️', labelKey: 'tabs.settings' },
+} as const;
 
-export function BottomTabBar() {
-  const router = useRouter();
-  const pathname = usePathname();
+
+export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
   const { t } = useLocale();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
-    <GlassPanel style={styles.outer} contentStyle={styles.bar}>
-      {TABS.map((tab) => {
-        const isActive = pathname === tab.href;
-        return (
-          <Pressable
-            key={tab.href}
-            style={[styles.tab, isActive && styles.tabActive]}
-            accessibilityRole="tab"
-            accessibilityLabel={t(tab.labelKey)}
-            accessibilityState={{ selected: isActive }}
-            onPress={() => {
-              if (!isActive) router.replace(tab.href);
-            }}>
-            <View style={[styles.tabInner, isActive && { backgroundColor: theme.backgroundSelected }]}>
-              <ThemedText style={styles.icon}>{tab.icon}</ThemedText>
-              {/* Only the active tab spells out its name, so labels of any length
+    <View style={[styles.wrapper, { paddingBottom: insets.bottom + Spacing.two }]}>
+      <GlassPanel style={styles.outer} contentStyle={styles.bar}>
+        {state.routes.map((route, index) => {
+          const tab = TABS[route.name as keyof typeof TABS];
+          if (!tab) return null;
+          const isActive = state.index === index;
+          return (
+            <Pressable
+              // Remount on (de)activation: iOS doesn't re-apply flexBasis 'auto' -> 0 on an
+              // existing view, so the previously active tab would keep its wide pill size.
+              key={`${route.key}-${isActive}`}
+              style={[styles.tab, isActive && styles.tabActive]}
+              accessibilityRole="tab"
+              accessibilityLabel={t(tab.labelKey)}
+              accessibilityState={{ selected: isActive }}
+              onPress={() => {
+                const event = navigation.emit({
+                  type: 'tabPress',
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!isActive && !event.defaultPrevented) navigation.navigate(route.name);
+              }}>
+              <View style={[styles.tabInner, isActive && { backgroundColor: theme.backgroundSelected }]}>
+                <ThemedText style={styles.icon}>{tab.icon}</ThemedText>
+                {/* Only the active tab spells out its name, so labels of any length
                   ("Дни рождения", "Einstellungen") fit on one line in every language. */}
-              {isActive && (
-                <ThemedText
-                  type="smallBold"
-                  themeColor="primary"
-                  style={styles.label}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}>
-                  {t(tab.labelKey)}
-                </ThemedText>
-              )}
-            </View>
-          </Pressable>
-        );
-      })}
-    </GlassPanel>
+                {isActive && (
+                  <ThemedText
+                    type="smallBold"
+                    themeColor="primary"
+                    style={styles.label}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}>
+                    {t(tab.labelKey)}
+                  </ThemedText>
+                )}
+              </View>
+            </Pressable>
+          );
+        })}
+      </GlassPanel>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    paddingHorizontal: Spacing.four,
+  },
   outer: {
     borderRadius: Spacing.four,
   },

@@ -3,8 +3,6 @@ import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuroraBackground } from '@/components/aurora-background';
-import { BottomTabBar } from '@/components/bottom-tab-bar';
 import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
 import { TaskFormModal } from '@/components/task-form-modal';
@@ -58,8 +56,8 @@ export default function CalendarScreen() {
   };
 
   return (
-    <AuroraBackground>
-      <SafeAreaView style={styles.safeArea}>
+    <>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.inner}>
         <ThemedText type="subtitle" style={styles.title}>
           {t('calendar.title')}
@@ -96,8 +94,6 @@ export default function CalendarScreen() {
             </ScrollView>
           </GlassPanel>
         )}
-
-        <BottomTabBar />
       </View>
       </SafeAreaView>
 
@@ -111,7 +107,7 @@ export default function CalendarScreen() {
         onDelete={editingTask ? handleDelete : undefined}
         onToggleTask={toggleTask}
       />
-    </AuroraBackground>
+    </>
   );
 }
 
@@ -123,7 +119,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
-    paddingBottom: Spacing.two,
   },
   title: {
     fontSize: 22,
