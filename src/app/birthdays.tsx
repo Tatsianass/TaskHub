@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
@@ -15,6 +15,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useLocale } from '@/context/locale-context';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useBirthdays } from '@/hooks/use-birthdays';
 import { nextBirthdayDayDiff } from '@/utils/dates';
@@ -23,9 +24,10 @@ export default function BirthdaysScreen() {
   const { user } = useAuth();
   const { t, locale } = useLocale();
   const theme = useTheme();
-  const { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError } = useBirthdays();
+  const { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError, refresh } = useBirthdays();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const { refreshing, onRefresh } = usePullToRefresh(refresh);
   const [name, setName] = useState('');
   const [date, setDate] = useState<string | null>(null);
 
@@ -68,7 +70,12 @@ export default function BirthdaysScreen() {
 
         {isLoaded && (
           <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />
+              }>
               {sorted.length === 0 && (
                 <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
                   {t('birthdays.empty')}
@@ -172,6 +179,10 @@ const styles = StyleSheet.create({
   listPanel: {
     flex: 1,
     marginBottom: Spacing.three,
+  },
+  // Fills the panel so pull-to-refresh works from anywhere in it, even when the list is short or empty.
+  scrollContent: {
+    flexGrow: 1,
   },
   listContent: {
     flex: 1,

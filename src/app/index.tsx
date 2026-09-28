@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -18,6 +18,7 @@ import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useTasksContext } from '@/context/tasks-context';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
 import { effectiveQuadrantId, isEscalated } from '@/utils/priority';
@@ -30,8 +31,9 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { t } = useLocale();
   const theme = useTheme();
-  const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError } = useTasksContext();
+  const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError, refresh } = useTasksContext();
   const { escalationDays } = useEscalationSettings();
+  const { refreshing, onRefresh } = usePullToRefresh(refresh);
 
   const [activeQuadrantId, setActiveQuadrantId] = useState<QuadrantId>(QUADRANTS[0].id);
   const [activeTagFilter, setActiveTagFilter] = useState<TagFilter>('all');
@@ -228,7 +230,12 @@ export default function HomeScreen() {
 
             {isLoaded && (
               <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
-                <ScrollView showsVerticalScrollIndicator={false}>
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.scrollContent}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />
+                  }>
                   {quadrantTasks.length === 0 && (
                     <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
                       {t('quadrantScreen.empty')}
@@ -361,6 +368,10 @@ const styles = StyleSheet.create({
   listPanel: {
     flex: 1,
     marginBottom: Spacing.three,
+  },
+  // Fills the panel so pull-to-refresh works from anywhere in it, even when the list is short or empty.
+  scrollContent: {
+    flexGrow: 1,
   },
   listContent: {
     flex: 1,

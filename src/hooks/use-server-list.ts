@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { useAuth } from '@/context/auth-context';
 import { api, ApiError } from '@/lib/api';
@@ -18,29 +19,56 @@ function errorCode(e: unknown) {
 
 /**
  * The signed-in user's list at `path` (e.g. `/tasks`), fetched whenever the
- * user changes. `mutate` is the optimistic-update primitive the data hooks
- * build on (R4.4).
+ * user changes, when the app returns to the foreground, and on `refresh()`
+ * (pull-to-refresh), so changes made from another device on the same
+ * account show up. `mutate` is the
+ * optimistic-update primitive the data hooks build on (R4.4).
  */
 export function useServerList<T>(path: string) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const [state, setState] = useState<State<T> | null>(null);
   const current = state && state.owner === userId ? state : null;
+  // Only the newest fetch may write, so an older response can't overwrite a newer one.
+  const latestFetch = useRef(0);
+
+  const load = useCallback(async () => {
+    if (!userId) return;
+    const fetchId = ++latestFetch.current;
+    try {
+      const items = await api<T[]>(path);
+      console.log(`[refresh-debug] ${path} loaded ${items.length}`);
+      if (fetchId === latestFetch.current) setState({ owner: userId, items, isLoaded: true, error: null });
+    } catch (e) {
+      console.log(`[refresh-debug] ${path} failed`, fetchId, latestFetch.current, String(e));
+      if (fetchId !== latestFetch.current) return;
+      // A failed refresh keeps the list already on screen; only the first load falls back to empty.
+      setState((prev) =>
+        prev && prev.owner === userId
+          ? { ...prev, error: errorCode(e) }
+          : { owner: userId, items: [], isLoaded: true, error: errorCode(e) },
+      );
+    }
+  }, [path, userId]);
 
   useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-    api<T[]>(path)
-      .then((items) => {
-        if (!cancelled) setState({ owner: userId, items, isLoaded: true, error: null });
-      })
-      .catch((e) => {
-        if (!cancelled) setState({ owner: userId, items: [], isLoaded: true, error: errorCode(e) });
-      });
+    load();
+    const fetches = latestFetch;
     return () => {
-      cancelled = true;
+      // Drop the in-flight response when the user or path changes.
+      fetches.current++;
     };
-  }, [path, userId]);
+  }, [load]);
+
+  useEffect(() => {
+    let wasActive = AppState.currentState === 'active';
+    const subscription = AppState.addEventListener('change', (next) => {
+      const isActive = next === 'active';
+      if (isActive && !wasActive) load();
+      wasActive = isActive;
+    });
+    return () => subscription.remove();
+  }, [load]);
 
   /**
    * Applies `optimistic` to the list now, sends `request`, and on failure
@@ -73,5 +101,6 @@ export function useServerList<T>(path: string) {
     error: current?.error ?? null,
     clearError,
     mutate,
+    refresh: load,
   };
 }

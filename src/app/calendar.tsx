@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
@@ -16,6 +16,8 @@ import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useTasksContext } from '@/context/tasks-context';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { useTheme } from '@/hooks/use-theme';
 import { effectiveQuadrantId, isEscalated } from '@/utils/priority';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { Task } from '@/types/task';
@@ -23,8 +25,10 @@ import type { Task } from '@/types/task';
 export default function CalendarScreen() {
   const { user } = useAuth();
   const { t } = useLocale();
-  const { tasks, isLoaded, updateTask, toggleTask, deleteTask, error, clearError } = useTasksContext();
+  const theme = useTheme();
+  const { tasks, isLoaded, updateTask, toggleTask, deleteTask, error, clearError, refresh } = useTasksContext();
   const { escalationDays } = useEscalationSettings();
+  const { refreshing, onRefresh } = usePullToRefresh(refresh);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -65,7 +69,12 @@ export default function CalendarScreen() {
 
         {isLoaded && (
           <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />
+              }>
               {datedTasks.length === 0 && (
                 <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
                   {t('calendar.empty')}
@@ -123,6 +132,10 @@ const styles = StyleSheet.create({
   listPanel: {
     flex: 1,
     marginBottom: Spacing.three,
+  },
+  // Fills the panel so pull-to-refresh works from anywhere in it, even when the list is short or empty.
+  scrollContent: {
+    flexGrow: 1,
   },
   listContent: {
     flex: 1,

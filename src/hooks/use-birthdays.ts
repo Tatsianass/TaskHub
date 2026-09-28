@@ -10,7 +10,7 @@ export type BirthdayDraft = {
 };
 
 export function useBirthdays() {
-  const { items: birthdays, isLoaded, error, clearError, mutate } = useServerList<Birthday>('/birthdays');
+  const { items: birthdays, isLoaded, error, clearError, mutate, refresh } = useServerList<Birthday>('/birthdays');
 
   const addBirthday = useCallback(
     (draft: BirthdayDraft) => {
@@ -47,5 +47,5 @@ export function useBirthdays() {
     [birthdays, mutate],
   );
 
-  return { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError };
+  return { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError, refresh };
 }

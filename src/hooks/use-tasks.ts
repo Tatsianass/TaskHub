@@ -17,7 +17,7 @@ export type TaskDraft = {
 const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
 
 export function useTasks() {
-  const { items: tasks, isLoaded, error, clearError, mutate } = useServerList<Task>('/tasks');
+  const { items: tasks, isLoaded, error, clearError, mutate, refresh } = useServerList<Task>('/tasks');
 
   const addTask = useCallback(
     (draft: TaskDraft) => {
@@ -95,5 +95,5 @@ export function useTasks() {
     [tasks, mutate],
   );
 
-  return { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError };
+  return { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError, refresh };
 }
