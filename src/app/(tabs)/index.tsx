@@ -1,5 +1,5 @@
-import { Redirect } from 'expo-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Redirect, useFocusEffect, useIsFocused } from 'expo-router';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -18,6 +18,7 @@ import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useTasksContext } from '@/context/tasks-context';
 import { useToday } from '@/context/today-context';
+import { useEscalationSeen } from '@/hooks/use-escalation-seen';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
@@ -46,25 +47,41 @@ export default function HomeScreen() {
   const [activeTagFilter, setActiveTagFilter] = useState<TagFilter>('all');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [escalationBanner, setEscalationBanner] = useState<Task[]>([]);
-  const seenEscalatedIds = useRef<Set<string>>(new Set());
+  const isFocused = useIsFocused();
 
+  const tasksFor = (quadrantId: QuadrantId) =>
+    tasks
+      .filter((task) => effectiveQuadrantId(task, escalationDays, today) === quadrantId)
+      .filter((task) => activeTagFilter === 'all' || task.tag === activeTagFilter)
+      .sort((a, b) => b.createdAt - a.createdAt);
+
+  // Tasks the deadline setting moved into another quadrant that the user hasn't looked at yet:
+  // counted on the quadrant tabs, and highlighted as "New" while the user views that quadrant.
+  const escalated = isLoaded ? tasks.filter((task) => isEscalated(task, escalationDays, today)) : null;
+  const { unseen, markSeen, arrivals, clearArrivals } = useEscalationSeen(escalated);
+  const unseenIn = (quadrantId: QuadrantId) =>
+    tasksFor(quadrantId)
+      .filter((task) => unseen.has(task.id))
+      .map((task) => task.id);
+  // Looking at a quadrant marks its arrivals as seen; they stay highlighted until the user
+  // switches quadrant or leaves the Tasks tab.
+  const arrivedKey = unseenIn(activeQuadrantId).join('|');
   useEffect(() => {
-    if (!isLoaded) return;
-    const currentlyEscalated = tasks.filter((task) => isEscalated(task, escalationDays, today));
-    const newlyEscalated = currentlyEscalated.filter((task) => !seenEscalatedIds.current.has(task.id));
-    if (newlyEscalated.length > 0) {
-      setEscalationBanner((prev) => [...prev, ...newlyEscalated]);
-    }
-    // Tasks that fall back out of the escalation window can re-trigger the banner later.
-    seenEscalatedIds.current = new Set(currentlyEscalated.map((task) => task.id));
-  }, [tasks, escalationDays, today, isLoaded]);
+    if (isFocused && arrivedKey) markSeen(arrivedKey.split('|'), activeQuadrantId);
+  }, [isFocused, activeQuadrantId, arrivedKey, markSeen]);
+
+  useFocusEffect(useCallback(() => clearArrivals, [clearArrivals]));
+
+  const selectQuadrant = (quadrantId: QuadrantId) => {
+    setActiveQuadrantId(quadrantId);
+    clearArrivals();
+  };
 
   const switchQuadrant = (direction: 1 | -1) => {
     const currentIndex = QUADRANTS.findIndex((quadrant) => quadrant.id === activeQuadrantId);
     const nextIndex = currentIndex + direction;
     if (nextIndex >= 0 && nextIndex < QUADRANTS.length) {
-      setActiveQuadrantId(QUADRANTS[nextIndex].id);
+      selectQuadrant(QUADRANTS[nextIndex].id);
     }
   };
 
@@ -88,12 +105,6 @@ export default function HomeScreen() {
     });
 
   if (!user) return <Redirect href="/login" />;
-
-  const tasksFor = (quadrantId: QuadrantId) =>
-    tasks
-      .filter((task) => effectiveQuadrantId(task, escalationDays, today) === quadrantId)
-      .filter((task) => activeTagFilter === 'all' || task.tag === activeTagFilter)
-      .sort((a, b) => b.createdAt - a.createdAt);
 
   const openCreateModal = () => {
     setEditingTask(null);
@@ -143,22 +154,6 @@ export default function HomeScreen() {
 
         <ErrorBanner code={error} onDismiss={clearError} />
 
-        {escalationBanner.length > 0 && (
-          <Pressable onPress={() => setEscalationBanner([])}>
-            <GlassPanel
-              style={styles.banner}
-              contentStyle={styles.bannerContent}
-              tintColor={hexToRgba(theme.danger, 0.15)}>
-              <ThemedText type="small" style={styles.bannerText}>
-                {escalationBanner.length === 1
-                  ? t('escalation.bannerOne', { title: escalationBanner[0].title })
-                  : t('escalation.bannerMany', { count: escalationBanner.length })}
-              </ThemedText>
-              <ThemedText themeColor="textSecondary">✕</ThemedText>
-            </GlassPanel>
-          </Pressable>
-        )}
-
         <View style={styles.tagFilterRow}>
           <Pressable onPress={() => setActiveTagFilter('all')}>
             <View
@@ -194,8 +189,19 @@ export default function HomeScreen() {
         <GlassPanel style={styles.tabs} contentStyle={styles.tabsContent}>
           {QUADRANTS.map((quadrant) => {
             const isActive = quadrant.id === activeQuadrantId;
+            // The quadrant being looked at marks its arrivals as seen, so it never shows a count.
+            const newCount = isActive && isFocused ? 0 : unseenIn(quadrant.id).length;
+            const label = t(quadrant.shortLabelKey);
             return (
-              <Pressable key={quadrant.id} style={styles.tabWrapper} onPress={() => setActiveQuadrantId(quadrant.id)}>
+              <Pressable
+                key={quadrant.id}
+                style={styles.tabWrapper}
+                onPress={() => selectQuadrant(quadrant.id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={
+                  newCount > 0 ? `${label}, ${t('escalation.newCount', { count: newCount })}` : label
+                }>
                 <View
                   style={[
                     styles.tabItem,
@@ -206,8 +212,13 @@ export default function HomeScreen() {
                   ]}>
                   <ThemedText style={styles.tabIcon}>{quadrant.icon}</ThemedText>
                   <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
-                    {t(quadrant.shortLabelKey)}
+                    {label}
                   </ThemedText>
+                  {newCount > 0 && (
+                    <View style={[styles.badge, { backgroundColor: theme.primary }]}>
+                      <ThemedText style={[styles.badgeText, { color: theme.background }]}>{newCount}</ThemedText>
+                    </View>
+                  )}
                 </View>
               </Pressable>
             );
@@ -239,6 +250,7 @@ export default function HomeScreen() {
                             task={task}
                             accentColor={quadrant.color}
                             escalated={isEscalated(task, escalationDays, today)}
+                            isNew={arrivals?.quadrantId === quadrant.id && arrivals.ids.includes(task.id)}
                             onToggle={() => !justSwiped() && toggleTask(task.id)}
                             onPress={() => !justSwiped() && openEditModal(task)}
                           />
@@ -336,19 +348,6 @@ const styles = StyleSheet.create({
   icon: {
     fontSize: 15,
   },
-  banner: {
-    marginBottom: Spacing.three,
-  },
-  bannerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
-    padding: Spacing.three,
-  },
-  bannerText: {
-    flex: 1,
-  },
   tagFilterRow: {
     flexDirection: 'row',
     gap: Spacing.two,
@@ -378,6 +377,22 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     borderWidth: 1,
     borderColor: 'transparent',
+  },
+  badge: {
+    position: 'absolute',
+    top: 2,
+    right: 6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
   },
   tabIcon: {
     fontSize: 17,
