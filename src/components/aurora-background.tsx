@@ -29,21 +29,26 @@ export function AuroraBackground({ style, children }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }, style]}>
-      {blobs.map((blob, index) => (
-        <View
-          key={index}
-          style={{
-            position: 'absolute',
-            left: blob.left,
-            top: blob.top,
-            width: blob.size,
-            height: blob.size,
-            borderRadius: blob.size / 2,
-            backgroundColor: blob.color,
-            opacity: blob.opacity,
-          }}
-        />
-      ))}
+      {/* Blobs overflow the screen; clipping them in their own layer keeps the content
+          container from being scrollable, which the browser would otherwise nudge sideways
+          when a modal takes focus. */}
+      <View style={styles.blobLayer} pointerEvents="none">
+        {blobs.map((blob, index) => (
+          <View
+            key={index}
+            style={{
+              position: 'absolute',
+              left: blob.left,
+              top: blob.top,
+              width: blob.size,
+              height: blob.size,
+              borderRadius: blob.size / 2,
+              backgroundColor: blob.color,
+              opacity: blob.opacity,
+            }}
+          />
+        ))}
+      </View>
       <BlurView intensity={90} tint={mode} style={StyleSheet.absoluteFill} />
       <View style={styles.content}>{children}</View>
     </View>
@@ -54,6 +59,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     position: 'relative',
+    overflow: 'hidden',
+  },
+  blobLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     overflow: 'hidden',
   },
   content: {

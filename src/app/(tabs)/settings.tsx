@@ -5,9 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DropdownField } from '@/components/dropdown-field';
 import { GlassPanel } from '@/components/glass-panel';
+import { InfoButton } from '@/components/info-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
+import { QUADRANTS } from '@/constants/quadrants';
 import type { ThemeMode } from '@/constants/theme';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
@@ -24,6 +26,14 @@ const ESCALATION_PRESETS: { key: string; days: number | null }[] = [
   { key: '7', days: 7 },
   { key: '14', days: 14 },
 ];
+
+const quadrant = (id: string) => QUADRANTS.find((q) => q.id === id)!;
+
+/** The moves deadline escalation makes, matching URGENT_COUNTERPART in utils/priority. */
+const ESCALATION_MOVES = [
+  [quadrant('not-urgent-important'), quadrant('urgent-important')],
+  [quadrant('not-urgent-not-important'), quadrant('urgent-not-important')],
+] as const;
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -136,9 +146,33 @@ export default function SettingsScreen() {
           </View>
 
           <View>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-              {t('settings.escalationTitle')}
-            </ThemedText>
+            <View style={[styles.sectionLabel, styles.labelRow]}>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t('settings.escalationTitle')}
+              </ThemedText>
+              <InfoButton
+                accessibilityLabel={t('escalationInfo.a11y')}
+                title={t('escalationInfo.title')}
+                closeLabel={t('escalationInfo.ok')}>
+                <ThemedText>{t('escalationInfo.intro')}</ThemedText>
+                <GlassPanel contentStyle={styles.moves}>
+                  {ESCALATION_MOVES.map(([from, to]) => (
+                    <ThemedText key={from.id} type="smallBold">
+                      {from.icon} {t(from.shortLabelKey)}  →  {to.icon} {t(to.shortLabelKey)}
+                    </ThemedText>
+                  ))}
+                </GlassPanel>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('escalationInfo.same')}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('escalationInfo.example', { urgent: t(QUADRANTS[0].shortLabelKey) })}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('escalationInfo.revert')}
+                </ThemedText>
+              </InfoButton>
+            </View>
             <DropdownField
               value={escalationDropdownKey}
               options={escalationDropdownOptions}
@@ -189,6 +223,15 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     marginBottom: Spacing.two,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  moves: {
+    padding: Spacing.three,
+    gap: Spacing.two,
   },
   escalationHint: {
     marginTop: Spacing.two,
