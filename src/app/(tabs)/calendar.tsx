@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
-import { MonthGrid, toISODate, type DayMarks } from '@/components/month-grid';
+import { MonthGrid, type DayMarks } from '@/components/month-grid';
 import { TaskFormModal } from '@/components/task-form-modal';
 import { TaskRow } from '@/components/task-row';
 import { ThemedText } from '@/components/themed-text';
@@ -18,6 +18,7 @@ import { useBirthdaysContext } from '@/context/birthdays-context';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useTasksContext } from '@/context/tasks-context';
+import { useToday } from '@/context/today-context';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { effectiveQuadrantId, isEscalated } from '@/utils/priority';
@@ -57,7 +58,7 @@ export default function CalendarScreen() {
   const { escalationDays } = useEscalationSettings();
   const { refreshing, onRefresh } = usePullToRefresh(() => Promise.all([refresh(), refreshBirthdays()]));
 
-  const today = toISODate(new Date());
+  const today = useToday();
   const [selected, setSelected] = useState(today);
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const now = new Date();
@@ -75,7 +76,7 @@ export default function CalendarScreen() {
   }, [locale, weekStartsOn]);
 
   const colorFor = (task: Task) =>
-    QUADRANTS.find((quadrant) => quadrant.id === effectiveQuadrantId(task, escalationDays))?.color ?? FALLBACK_COLOR;
+    QUADRANTS.find((quadrant) => quadrant.id === effectiveQuadrantId(task, escalationDays, today))?.color ?? FALLBACK_COLOR;
 
   const marks = useMemo(() => {
     const byDate = new Map<string, DayMarks>();
@@ -90,7 +91,7 @@ export default function CalendarScreen() {
     for (const task of tasks) {
       if (!task.dueDate) continue;
       const color =
-        QUADRANTS.find((quadrant) => quadrant.id === effectiveQuadrantId(task, escalationDays))?.color ??
+        QUADRANTS.find((quadrant) => quadrant.id === effectiveQuadrantId(task, escalationDays, today))?.color ??
         FALLBACK_COLOR;
       markFor(task.dueDate).dots.push({ color, done: task.done });
     }
@@ -101,7 +102,7 @@ export default function CalendarScreen() {
       }
     }
     return byDate;
-  }, [tasks, birthdays, escalationDays, visibleMonth.year]);
+  }, [tasks, birthdays, escalationDays, today, visibleMonth.year]);
 
   if (!user) return <Redirect href="/login" />;
 
@@ -243,7 +244,7 @@ export default function CalendarScreen() {
                     key={task.id}
                     task={task}
                     accentColor={colorFor(task)}
-                    escalated={isEscalated(task, escalationDays)}
+                    escalated={isEscalated(task, escalationDays, today)}
                     onToggle={() => toggleTask(task.id)}
                     onPress={() => openEditModal(task)}
                   />

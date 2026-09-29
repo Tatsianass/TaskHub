@@ -4,6 +4,7 @@ import { ThemedText } from '@/components/themed-text';
 import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
+import { useToday } from '@/context/today-context';
 import { formatDueDate } from '@/utils/dates';
 import type { Task } from '@/types/task';
 
@@ -17,6 +18,7 @@ type Props = {
 
 export function TaskRow({ task, accentColor, escalated, onToggle, onPress }: Props) {
   const { t, locale } = useLocale();
+  const today = useToday();
   const tag = TAGS.find((candidate) => candidate.id === task.tag);
 
   return (
@@ -43,7 +45,7 @@ export function TaskRow({ task, accentColor, escalated, onToggle, onPress }: Pro
         {!!task.dueDate && (
           <ThemedText type="small" style={[styles.due, { color: accentColor }]}>
             {escalated ? '🔥 ' : ''}
-            {formatDueDate(task.dueDate, t, locale)}
+            {formatDueDate(task.dueDate, t, locale, today)}
           </ThemedText>
         )}
       </Pressable>

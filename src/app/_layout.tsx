@@ -8,6 +8,7 @@ import { EscalationProvider } from '@/context/escalation-context';
 import { LocaleProvider } from '@/context/locale-context';
 import { TasksProvider } from '@/context/tasks-context';
 import { ThemeModeProvider, useThemeMode } from '@/context/theme-mode-context';
+import { TodayProvider } from '@/context/today-context';
 
 function Navigation() {
   const { mode } = useThemeMode();
@@ -22,19 +23,21 @@ function Navigation() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeModeProvider>
-        <LocaleProvider>
-          <AuthProvider>
-            <EscalationProvider>
-              <TasksProvider>
-                <BirthdaysProvider>
-                  <Navigation />
-                </BirthdaysProvider>
-              </TasksProvider>
-            </EscalationProvider>
-          </AuthProvider>
-        </LocaleProvider>
-      </ThemeModeProvider>
+      <TodayProvider>
+        <ThemeModeProvider>
+          <LocaleProvider>
+            <AuthProvider>
+              <EscalationProvider>
+                <TasksProvider>
+                  <BirthdaysProvider>
+                    <Navigation />
+                  </BirthdaysProvider>
+                </TasksProvider>
+              </EscalationProvider>
+            </AuthProvider>
+          </LocaleProvider>
+        </ThemeModeProvider>
+      </TodayProvider>
     </GestureHandlerRootView>
   );
 }

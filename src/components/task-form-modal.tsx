@@ -13,6 +13,7 @@ import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
+import { useToday } from '@/context/today-context';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
 import { dayDiffFromToday } from '@/utils/dates';
@@ -104,6 +105,7 @@ export function TaskFormModal({
   const { t, locale } = useLocale();
   const theme = useTheme();
   const { escalationDays } = useEscalationSettings();
+  const today = useToday();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<string | null>(null);
@@ -164,7 +166,7 @@ export function TaskFormModal({
   const quadrantId = computeQuadrant(isImportant, urgent);
 
   const activeTasksInQuadrant = tasks.filter(
-    (task) => effectiveQuadrantId(task, escalationDays) === quadrantId && !task.done && task.id !== initialTask?.id,
+    (task) => effectiveQuadrantId(task, escalationDays, today) === quadrantId && !task.done && task.id !== initialTask?.id,
   );
   const isOverLimit = activeTasksInQuadrant.length >= MAX_ACTIVE_TASKS_PER_QUADRANT;
   const canSave = !!title.trim() && (!isOverLimit || forceAdd);

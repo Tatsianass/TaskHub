@@ -17,6 +17,7 @@ import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useTasksContext } from '@/context/tasks-context';
+import { useToday } from '@/context/today-context';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
@@ -38,6 +39,7 @@ export default function HomeScreen() {
   const theme = useTheme();
   const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError, refresh } = useTasksContext();
   const { escalationDays } = useEscalationSettings();
+  const today = useToday();
   const { refreshing, onRefresh } = usePullToRefresh(refresh);
 
   const [activeQuadrantId, setActiveQuadrantId] = useState<QuadrantId>(QUADRANTS[0].id);
@@ -49,14 +51,14 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    const currentlyEscalated = tasks.filter((task) => isEscalated(task, escalationDays));
+    const currentlyEscalated = tasks.filter((task) => isEscalated(task, escalationDays, today));
     const newlyEscalated = currentlyEscalated.filter((task) => !seenEscalatedIds.current.has(task.id));
     if (newlyEscalated.length > 0) {
       setEscalationBanner((prev) => [...prev, ...newlyEscalated]);
     }
     // Tasks that fall back out of the escalation window can re-trigger the banner later.
     seenEscalatedIds.current = new Set(currentlyEscalated.map((task) => task.id));
-  }, [tasks, escalationDays, isLoaded]);
+  }, [tasks, escalationDays, today, isLoaded]);
 
   const switchQuadrant = (direction: 1 | -1) => {
     const currentIndex = QUADRANTS.findIndex((quadrant) => quadrant.id === activeQuadrantId);
@@ -89,7 +91,7 @@ export default function HomeScreen() {
 
   const tasksFor = (quadrantId: QuadrantId) =>
     tasks
-      .filter((task) => effectiveQuadrantId(task, escalationDays) === quadrantId)
+      .filter((task) => effectiveQuadrantId(task, escalationDays, today) === quadrantId)
       .filter((task) => activeTagFilter === 'all' || task.tag === activeTagFilter)
       .sort((a, b) => b.createdAt - a.createdAt);
 
@@ -236,7 +238,7 @@ export default function HomeScreen() {
                             key={task.id}
                             task={task}
                             accentColor={quadrant.color}
-                            escalated={isEscalated(task, escalationDays)}
+                            escalated={isEscalated(task, escalationDays, today)}
                             onToggle={() => !justSwiped() && toggleTask(task.id)}
                             onPress={() => !justSwiped() && openEditModal(task)}
                           />

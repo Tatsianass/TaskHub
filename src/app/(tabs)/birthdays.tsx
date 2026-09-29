@@ -14,6 +14,7 @@ import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useBirthdaysContext } from '@/context/birthdays-context';
 import { useLocale } from '@/context/locale-context';
+import { useToday } from '@/context/today-context';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { nextBirthdayDayDiff } from '@/utils/dates';
@@ -22,6 +23,7 @@ export default function BirthdaysScreen() {
   const { user } = useAuth();
   const { t, locale } = useLocale();
   const theme = useTheme();
+  const today = useToday();
   const { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError, refresh } = useBirthdaysContext();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,8 +32,8 @@ export default function BirthdaysScreen() {
   const [date, setDate] = useState<string | null>(null);
 
   const sorted = useMemo(
-    () => [...birthdays].sort((a, b) => nextBirthdayDayDiff(a.date) - nextBirthdayDayDiff(b.date)),
-    [birthdays],
+    () => [...birthdays].sort((a, b) => nextBirthdayDayDiff(a.date, today) - nextBirthdayDayDiff(b.date, today)),
+    [birthdays, today],
   );
 
   if (!user) return <Redirect href="/login" />;
@@ -80,7 +82,7 @@ export default function BirthdaysScreen() {
                 </ThemedText>
               )}
               {sorted.map((birthday) => {
-                const diff = nextBirthdayDayDiff(birthday.date);
+                const diff = nextBirthdayDayDiff(birthday.date, today);
                 const dateLabel = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(
                   new Date(`${birthday.date}T00:00:00`),
                 );

@@ -7,19 +7,22 @@ const URGENT_COUNTERPART: Partial<Record<QuadrantId, QuadrantId>> = {
 };
 
 /**
- * The quadrant a task should be grouped/displayed under right now. Never mutates the task's
- * stored `quadrantId` — an approaching deadline only escalates a "not urgent" task to its
- * "urgent" counterpart for as long as the deadline stays inside the configured window, so the
- * effect self-reverts if the due date moves back out or the task is edited.
+ * The quadrant a task should be grouped/displayed under on `today` (YYYY-MM-DD). Never mutates
+ * the task's stored `quadrantId` — an approaching deadline only escalates a "not urgent" task to
+ * its "urgent" counterpart for as long as the deadline stays inside the configured window, so
+ * the effect self-reverts if the due date moves back out or the task is edited.
+ *
+ * Completed tasks stay where they were escalated to, so ticking one off doesn't make it jump
+ * to another quadrant.
  */
-export function effectiveQuadrantId(task: Task, escalationDays: number | null): QuadrantId {
-  if (escalationDays === null || task.done || !task.dueDate) return task.quadrantId;
+export function effectiveQuadrantId(task: Task, escalationDays: number | null, today: string): QuadrantId {
+  if (escalationDays === null || !task.dueDate) return task.quadrantId;
   const counterpart = URGENT_COUNTERPART[task.quadrantId];
   if (!counterpart) return task.quadrantId;
-  return dayDiffFromToday(task.dueDate) <= escalationDays ? counterpart : task.quadrantId;
+  return dayDiffFromToday(task.dueDate, today) <= escalationDays ? counterpart : task.quadrantId;
 }
 
-/** Whether a task's displayed quadrant is currently boosted by the deadline-escalation setting. */
-export function isEscalated(task: Task, escalationDays: number | null): boolean {
-  return effectiveQuadrantId(task, escalationDays) !== task.quadrantId;
+/** Whether an open task is currently boosted by the deadline-escalation setting (drives the 🔥 and the banner). */
+export function isEscalated(task: Task, escalationDays: number | null, today: string): boolean {
+  return !task.done && effectiveQuadrantId(task, escalationDays, today) !== task.quadrantId;
 }

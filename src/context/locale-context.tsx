@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
+import { pluralCategory } from '@/i18n/plural';
 import { DEFAULT_LOCALE, translations, type Locale } from '@/i18n/translations';
 
 const LOCALE_KEY = 'settings:locale';
@@ -30,7 +31,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => {
       const dict = translations[locale] ?? translations[DEFAULT_LOCALE];
-      let text = dict[key] ?? translations[DEFAULT_LOCALE][key] ?? key;
+      // A numeric `count` picks a plural form (`key.one`, `key.few`, ...) when the language has one.
+      const pluralKey = typeof vars?.count === 'number' ? `${key}.${pluralCategory(locale, vars.count)}` : null;
+      let text = (pluralKey && dict[pluralKey]) ?? dict[key] ?? translations[DEFAULT_LOCALE][key] ?? key;
       if (vars) {
         for (const [name, value] of Object.entries(vars)) {
           text = text.replace(`{${name}}`, String(value));
