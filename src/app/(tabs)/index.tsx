@@ -1,4 +1,4 @@
-import { Redirect, useFocusEffect, useIsFocused } from 'expo-router';
+import { Redirect, useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -48,6 +48,8 @@ export default function HomeScreen() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const isFocused = useIsFocused();
+  const router = useRouter();
+  const { add } = useLocalSearchParams<{ add?: string }>();
 
   const tasksFor = (quadrantId: QuadrantId) =>
     tasks
@@ -71,6 +73,16 @@ export default function HomeScreen() {
   }, [isFocused, activeQuadrantId, arrivedKey, markSeen]);
 
   useFocusEffect(useCallback(() => clearArrivals, [clearArrivals]));
+
+  // The widget's "+" button opens the app at `?add=1`: show the new-task form, then clear the param.
+  useFocusEffect(
+    useCallback(() => {
+      if (add !== '1') return;
+      setEditingTask(null);
+      setIsModalOpen(true);
+      router.setParams({ add: undefined });
+    }, [add, router]),
+  );
 
   const selectQuadrant = (quadrantId: QuadrantId) => {
     setActiveQuadrantId(quadrantId);
