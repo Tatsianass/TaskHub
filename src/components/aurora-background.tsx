@@ -2,7 +2,6 @@ import { BlurView } from 'expo-blur';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
-import { useThemeMode } from '@/context/theme-mode-context';
 
 type Blob = { left: number; top: number; size: number; color: string; opacity: number };
 
@@ -20,7 +19,6 @@ type Props = {
 
 export function AuroraBackground({ style, children }: Props) {
   const theme = useTheme();
-  const { mode } = useThemeMode();
 
   const blobs: Blob[] = BLOB_LAYOUT.map((layout, index) => ({
     ...layout,
@@ -49,7 +47,7 @@ export function AuroraBackground({ style, children }: Props) {
           />
         ))}
       </View>
-      <BlurView intensity={90} tint={mode} style={StyleSheet.absoluteFill} />
+      <BlurView intensity={90} tint={theme.scheme} style={StyleSheet.absoluteFill} />
       <View style={styles.content}>{children}</View>
     </View>
   );

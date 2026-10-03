@@ -1,5 +1,6 @@
 /**
- * TaskHub's two "Aurora Glass" themes: a dark aurora palette and a light warm-bokeh palette.
+ * TaskHub's three "Aurora Glass" themes: a dark aurora palette, a light warm-bokeh palette and
+ * a cool-white "coral" palette taken from the app icon.
  * Both share the same glassmorphism structure (blurred background blobs + frosted panels).
  */
 
@@ -8,6 +9,7 @@ import '@/global.css';
 import { Platform } from 'react-native';
 
 const dark = {
+  scheme: 'dark',
   text: '#F4F2FA',
   background: '#14121F',
   backgroundElement: 'rgba(255,255,255,0.08)',
@@ -26,6 +28,7 @@ const dark = {
 } as const;
 
 const light = {
+  scheme: 'light',
   text: '#35271F',
   background: '#FBF3EA',
   backgroundElement: 'rgba(255,255,255,0.55)',
@@ -43,7 +46,26 @@ const light = {
   blobs: ['#F3A56B', '#EE8FA6', '#F6CE7A', '#E8735A'],
 } as const;
 
-export const Colors = { light, dark } as const;
+const coral = {
+  scheme: 'light',
+  text: '#2B1F2A',
+  background: '#F6F6FA',
+  backgroundElement: 'rgba(255,255,255,0.55)',
+  backgroundSelected: 'rgba(255,255,255,0.8)',
+  textSecondary: 'rgba(43,31,42,0.62)',
+  border: 'rgba(43,31,42,0.15)',
+  primary: '#D9244F',
+  danger: '#B5233F',
+  cardText: '#2A2E36',
+  glassBg: 'rgba(255,255,255,0.62)',
+  glassBgStrong: 'rgba(255,255,255,0.75)',
+  glassBorder: 'rgba(255,255,255,0.85)',
+  gradientStart: '#FF9A62',
+  gradientEnd: '#FF375F',
+  blobs: ['#FF9A62', '#FF375F', '#FFC2A0', '#FF7A8A'],
+} as const;
+
+export const Colors = { light, dark, coral } as const;
 
 export type ThemeColor =
   | 'text'

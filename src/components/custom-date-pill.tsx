@@ -5,7 +5,6 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
-import { useThemeMode } from '@/context/theme-mode-context';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
@@ -30,7 +29,6 @@ function toISODate(date: Date): string {
 
 export function CustomDatePill({ active, label, icon, value, onChange }: Props) {
   const theme = useTheme();
-  const { mode } = useThemeMode();
   const { locale } = useLocale();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -64,7 +62,7 @@ export function CustomDatePill({ active, label, icon, value, onChange }: Props) 
               mode="date"
               display="inline"
               locale={locale}
-              themeVariant={mode}
+              themeVariant={theme.scheme}
               accentColor={theme.primary}
               onChange={handleChange}
             />

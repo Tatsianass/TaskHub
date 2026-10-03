@@ -1,6 +1,6 @@
 import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, Switch, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DropdownField } from '@/components/dropdown-field';
@@ -14,6 +14,7 @@ import type { ThemeMode } from '@/constants/theme';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
+import { useNotificationsSettings } from '@/context/notifications-context';
 import { useLocale } from '@/context/locale-context';
 import { useThemeMode } from '@/context/theme-mode-context';
 import { useTheme } from '@/hooks/use-theme';
@@ -41,6 +42,8 @@ export default function SettingsScreen() {
   const { t, locale, setLocale } = useLocale();
   const { mode, setMode } = useThemeMode();
   const { escalationDays, setEscalationDays } = useEscalationSettings();
+  const { notificationsEnabled, setNotificationsEnabled } = useNotificationsSettings();
+  const [notificationsDenied, setNotificationsDenied] = useState(false);
   const theme = useTheme();
 
   const isCustomEscalation = escalationDays !== null && !ESCALATION_PRESETS.some((p) => p.days === escalationDays);
@@ -55,6 +58,10 @@ export default function SettingsScreen() {
   }, [escalationDays, isCustomEscalation]);
 
   if (!user) return <Redirect href="/login" />;
+
+  const handleNotificationsToggle = async (enabled: boolean) => {
+    setNotificationsDenied(!(await setNotificationsEnabled(enabled)));
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -93,6 +100,7 @@ export default function SettingsScreen() {
   const themeOptions: { value: ThemeMode; label: string }[] = [
     { value: 'dark', label: t('settings.themeDark') },
     { value: 'light', label: t('settings.themeLight') },
+    { value: 'coral', label: t('settings.themeCoral') },
   ];
 
   return (
@@ -192,6 +200,16 @@ export default function SettingsScreen() {
             </ThemedText>
           </View>
 
+          <GlassPanel contentStyle={styles.switchRow}>
+            <View style={styles.switchText}>
+              <ThemedText type="smallBold">{t('settings.notifications')}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {notificationsDenied ? t('settings.notificationsDenied') : t('settings.notificationsHint')}
+              </ThemedText>
+            </View>
+            <Switch value={notificationsEnabled} onValueChange={handleNotificationsToggle} />
+          </GlassPanel>
+
           <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />
         </ScrollView>
       </View>
@@ -219,6 +237,16 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: Spacing.three,
+    gap: Spacing.one,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    padding: Spacing.three,
+  },
+  switchText: {
+    flex: 1,
     gap: Spacing.one,
   },
   sectionLabel: {
