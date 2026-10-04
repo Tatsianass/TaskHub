@@ -43,11 +43,15 @@ CREATE TABLE birthdays (
 CREATE INDEX idx_birthdays_user ON birthdays(user_id);
 `;
 
+const V2_SQL = `
+ALTER TABLE tasks ADD COLUMN completed_at INTEGER;
+`;
+
 /**
  * Append-only list: index 0 upgrades user_version 0 → 1, and so on.
  * Never edit or reorder a migration that has shipped; add a new one.
  */
-export const MIGRATIONS: readonly string[] = [V1_SQL];
+export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL];
 
 export function getUserVersion(db: DatabaseSync) {
   const row = db.prepare('PRAGMA user_version').get() as { user_version: number };

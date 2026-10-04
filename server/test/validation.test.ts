@@ -20,6 +20,7 @@ const validTask: Task = {
   quadrantId: 'urgent-important',
   tag: 'home',
   done: false,
+  completedAt: null,
   createdAt: 1718000000000,
   dueDate: '2026-09-27',
   remindMe: true,
@@ -94,6 +95,8 @@ describe('parseTask', () => {
     ['done as string', { ...validTask, done: 'false' }],
     ['done as number', { ...validTask, done: 0 }],
     ['missing done', { ...validTask, done: undefined }],
+    ['completedAt as string', { ...validTask, completedAt: '1718000000000' }],
+    ['completedAt NaN', { ...validTask, completedAt: Number.NaN }],
     ['remindMe as number', { ...validTask, remindMe: 1 }],
     ['createdAt as string', { ...validTask, createdAt: '1718000000000' }],
     ['createdAt NaN', { ...validTask, createdAt: Number.NaN }],
@@ -120,6 +123,17 @@ describe('parseTask', () => {
       assertRejects(() => parseTask(body), 'INVALID_TASK');
     });
   }
+});
+
+describe('completedAt', () => {
+  test('is kept when set', () => {
+    assert.equal(parseTask({ ...validTask, done: true, completedAt: 1718000500000 }).completedAt, 1718000500000);
+  });
+
+  test('reads as null when an older client omits it', () => {
+    assert.equal(parseTask({ ...validTask, completedAt: undefined }).completedAt, null);
+    assert.equal(parseTaskUpdate({ ...validTask, completedAt: undefined }).completedAt, null);
+  });
 });
 
 describe('parseTaskUpdate', () => {

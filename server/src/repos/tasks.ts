@@ -10,6 +10,7 @@ type TaskRow = {
   quadrant_id: QuadrantId;
   tag: TagId | null;
   done: 0 | 1;
+  completed_at: number | null;
   created_at: number;
   due_date: string | null;
   remind_me: 0 | 1;
@@ -17,7 +18,7 @@ type TaskRow = {
 };
 
 const COLUMNS =
-  'id, title, description, quadrant_id, tag, done, created_at, due_date, remind_me, remind_time';
+  'id, title, description, quadrant_id, tag, done, completed_at, created_at, due_date, remind_me, remind_time';
 
 function toTask(row: TaskRow): Task {
   return {
@@ -27,6 +28,7 @@ function toTask(row: TaskRow): Task {
     quadrantId: row.quadrant_id,
     tag: row.tag,
     done: row.done === 1,
+    completedAt: row.completed_at,
     createdAt: row.created_at,
     dueDate: row.due_date,
     remindMe: row.remind_me === 1,
@@ -43,6 +45,7 @@ function toParams(userId: string, id: string, task: Task) {
     task.quadrantId,
     task.tag,
     task.done ? 1 : 0,
+    task.completedAt,
     task.createdAt,
     task.dueDate,
     task.remindMe ? 1 : 0,
@@ -59,14 +62,14 @@ export function tasksRepo(db: DatabaseSync) {
     `SELECT ${COLUMNS} FROM tasks WHERE user_id = ? ORDER BY created_at DESC, rowid DESC`,
   );
   const INSERT = `INSERT INTO tasks (id, user_id, title, description, quadrant_id, tag, done,
-                                     created_at, due_date, remind_me, remind_time)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                                     completed_at, created_at, due_date, remind_me, remind_time)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   const insert = db.prepare(INSERT);
   const insertOrSkip = db.prepare(`${INSERT} ON CONFLICT(id) DO NOTHING`);
   const selectOwner = db.prepare('SELECT user_id FROM tasks WHERE id = ?');
   const update = db.prepare(
     `UPDATE tasks
-     SET title = ?, description = ?, quadrant_id = ?, tag = ?, done = ?, due_date = ?,
+     SET title = ?, description = ?, quadrant_id = ?, tag = ?, done = ?, completed_at = ?, due_date = ?,
          remind_me = ?, remind_time = ?
      WHERE id = ? AND user_id = ?
      RETURNING ${COLUMNS}`,
@@ -109,6 +112,7 @@ export function tasksRepo(db: DatabaseSync) {
         fields.quadrantId,
         fields.tag,
         fields.done ? 1 : 0,
+        fields.completedAt,
         fields.dueDate,
         fields.remindMe ? 1 : 0,
         fields.remindTime,

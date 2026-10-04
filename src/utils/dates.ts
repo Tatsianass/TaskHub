@@ -11,6 +11,14 @@ export function todayISODate(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
+/** The local date (YYYY-MM-DD) of a timestamp in ms. */
+export function isoDateOf(timestamp: number): string {
+  const date = new Date(timestamp);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 /**
  * Whole days from `today` (defaults to the current date) to `dateStr`. Screens pass `today`
  * from `useToday()` so their results update at midnight.

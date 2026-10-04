@@ -33,6 +33,7 @@ export function useTasks() {
         remindMe: draft.remindMe,
         remindTime: draft.remindTime,
         done: false,
+        completedAt: null,
         createdAt: Date.now(),
       };
       mutate(
@@ -78,7 +79,7 @@ export function useTasks() {
   );
 
   const toggleTask = useCallback(
-    (id: string) => replaceTask(id, (task) => ({ ...task, done: !task.done })),
+    (id: string) => replaceTask(id, (task) => ({ ...task, done: !task.done, completedAt: task.done ? null : Date.now() })),
     [replaceTask],
   );
 
@@ -95,5 +96,9 @@ export function useTasks() {
     [tasks, mutate],
   );
 
-  return { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError, refresh };
+  const clearCompleted = useCallback(() => {
+    for (const task of tasks) if (task.done) deleteTask(task.id);
+  }, [tasks, deleteTask]);
+
+  return { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, clearCompleted, error, clearError, refresh };
 }

@@ -1,9 +1,10 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useLocale } from '@/context/locale-context';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
@@ -29,7 +30,19 @@ function toHHMM(date: Date): string {
 
 export function TimeField({ label, placeholder, value, onChange }: Props) {
   const theme = useTheme();
+  const { t, locale } = useLocale();
   const [isOpen, setIsOpen] = useState(false);
+  // iOS: the wheel reports every scroll step, so the choice is kept here until "Done".
+  const [draft, setDraft] = useState<Date>(() => toDate(value));
+
+  const open = () => {
+    setDraft(toDate(value));
+    setIsOpen(true);
+  };
+  const confirm = () => {
+    onChange(toHHMM(draft));
+    setIsOpen(false);
+  };
 
   const handleChange = (event: DateTimePickerEvent, date?: Date) => {
     setIsOpen(false);
@@ -44,11 +57,28 @@ export function TimeField({ label, placeholder, value, onChange }: Props) {
         </ThemedText>
       )}
       <Pressable
-        onPress={() => setIsOpen(true)}
+        onPress={open}
         style={[styles.input, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
         <ThemedText themeColor={value ? 'text' : 'textSecondary'}>{value || placeholder}</ThemedText>
       </Pressable>
-      {isOpen && <DateTimePicker value={toDate(value)} mode="time" onChange={handleChange} />}
+      {isOpen &&
+        (Platform.OS === 'ios' ? (
+          <View style={[styles.panel, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+            <DateTimePicker
+              value={draft}
+              mode="time"
+              display="spinner"
+              locale={locale}
+              themeVariant={theme.scheme}
+              onChange={(_event, date) => date && setDraft(date)}
+            />
+            <Pressable onPress={confirm} style={[styles.done, { backgroundColor: theme.primary }]}>
+              <ThemedText style={{ color: theme.background, fontWeight: '700' }}>{t('picker.done')}</ThemedText>
+            </Pressable>
+          </View>
+        ) : (
+          <DateTimePicker value={toDate(value)} mode="time" onChange={handleChange} />
+        ))}
     </View>
   );
 }
@@ -56,6 +86,17 @@ export function TimeField({ label, placeholder, value, onChange }: Props) {
 const styles = StyleSheet.create({
   wrapper: {
     gap: Spacing.one,
+  },
+  panel: {
+    borderRadius: Spacing.three,
+    borderWidth: 1,
+    padding: Spacing.two,
+    gap: Spacing.two,
+  },
+  done: {
+    alignItems: 'center',
+    paddingVertical: Spacing.two + 2,
+    borderRadius: Spacing.two,
   },
   input: {
     flexDirection: 'row',

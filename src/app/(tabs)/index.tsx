@@ -7,9 +7,11 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 
 import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
+import { CheckCircleIcon, PlusIcon } from '@/components/header-icons';
 import { TaskFormModal } from '@/components/task-form-modal';
 import { TaskRow } from '@/components/task-row';
 import { ThemedText } from '@/components/themed-text';
+import { UndoToast } from '@/components/undo-toast';
 import { QUADRANTS } from '@/constants/quadrants';
 import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
@@ -22,6 +24,7 @@ import { useEscalationSeen } from '@/hooks/use-escalation-seen';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
+import { isoDateOf } from '@/utils/dates';
 import { effectiveQuadrantId, isEscalated } from '@/utils/priority';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { QuadrantId, TagId, Task } from '@/types/task';
@@ -47,12 +50,26 @@ export default function HomeScreen() {
   const [activeTagFilter, setActiveTagFilter] = useState<TagFilter>('all');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // The task just checked off, offered for undo until the toast times out.
+  const [justCompletedId, setJustCompletedId] = useState<string | null>(null);
   const isFocused = useIsFocused();
   const router = useRouter();
   const { add } = useLocalSearchParams<{ add?: string }>();
 
+  // A finished task stays struck through in its quadrant for the rest of the day, then lives
+  // only on the Completed screen.
+  const completedToday = (task: Task) => task.done && task.completedAt !== null && isoDateOf(task.completedAt) === today;
+  const completedTodayCount = tasks.filter(completedToday).length;
+
+  const handleToggle = (task: Task) => {
+    toggleTask(task.id);
+    setJustCompletedId(task.done ? null : task.id);
+  };
+  const dismissToast = useCallback(() => setJustCompletedId(null), []);
+
   const tasksFor = (quadrantId: QuadrantId) =>
     tasks
+      .filter((task) => !task.done || completedToday(task))
       .filter((task) => effectiveQuadrantId(task, escalationDays, today) === quadrantId)
       .filter((task) => activeTagFilter === 'all' || task.tag === activeTagFilter)
       .sort((a, b) => b.createdAt - a.createdAt);
@@ -147,7 +164,19 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.content}>
         <View style={styles.header}>
-          <View style={styles.headerSpacer} />
+          <Pressable
+            onPress={() => router.push('/completed')}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('completed.open')}
+            style={[styles.iconButton, { borderColor: theme.primary, borderWidth: 1.5, backgroundColor: theme.glassBg }]}>
+            <CheckCircleIcon color={theme.primary} />
+            {completedTodayCount > 0 && (
+              <View style={[styles.countBadge, { backgroundColor: theme.primary }]}>
+                <ThemedText style={[styles.badgeText, { color: theme.background }]}>{completedTodayCount}</ThemedText>
+              </View>
+            )}
+          </Pressable>
           <View style={styles.headerCenter}>
             <ThemedText type="subtitle" style={styles.brand}>
               {t('app.brand')}
@@ -160,7 +189,7 @@ export default function HomeScreen() {
             onPress={openCreateModal}
             hitSlop={10}
             style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-            <ThemedText style={styles.icon}>➕</ThemedText>
+            <PlusIcon color={theme.text} />
           </Pressable>
         </View>
 
@@ -263,7 +292,7 @@ export default function HomeScreen() {
                             accentColor={quadrant.color}
                             escalated={isEscalated(task, escalationDays, today)}
                             isNew={arrivals?.quadrantId === quadrant.id && arrivals.ids.includes(task.id)}
-                            onToggle={() => !justSwiped() && toggleTask(task.id)}
+                            onToggle={() => !justSwiped() && handleToggle(task)}
                             onPress={() => !justSwiped() && openEditModal(task)}
                           />
                         ))}
@@ -283,6 +312,18 @@ export default function HomeScreen() {
             })}
           </View>
         </GestureDetector>
+
+        {justCompletedId && (
+          <UndoToast
+            message={t('completed.toast')}
+            actionLabel={t('completed.undo')}
+            onAction={() => {
+              toggleTask(justCompletedId);
+              dismissToast();
+            }}
+            onDismiss={dismissToast}
+          />
+        )}
       </View>
       </SafeAreaView>
 
@@ -338,9 +379,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.three,
   },
-  headerSpacer: {
-    width: 34,
-  },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
@@ -350,15 +388,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   iconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  icon: {
-    fontSize: 15,
   },
   tagFilterRow: {
     flexDirection: 'row',
@@ -394,6 +429,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     right: 6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
     minWidth: 18,
     height: 18,
     borderRadius: 9,

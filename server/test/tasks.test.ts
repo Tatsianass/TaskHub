@@ -44,7 +44,14 @@ describe('/tasks CRUD', () => {
     assert.equal(listed.status, 200);
     assert.deepEqual(listed.body, [task]);
 
-    const edited = { ...task, title: 'Write final report', tag: null, done: true, remindMe: false };
+    const edited = {
+      ...task,
+      title: 'Write final report',
+      tag: null,
+      done: true,
+      completedAt: 1718000500000,
+      remindMe: false,
+    };
     const updated = await app.request('PUT', `/tasks/${task.id}`, { token, body: edited });
     assert.equal(updated.status, 200);
     assert.deepEqual(updated.body, edited);

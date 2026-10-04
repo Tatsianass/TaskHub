@@ -61,6 +61,7 @@ function toTask(raw: unknown): Task | null {
     quadrantId,
     tag: TAG_IDS.find((tag) => tag === raw.tag) ?? null,
     done: raw.done === true,
+    completedAt: null,
     createdAt,
     dueDate: validDate(raw.dueDate),
     remindMe: raw.remindMe === true,

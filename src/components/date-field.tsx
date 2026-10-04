@@ -1,9 +1,10 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useLocale } from '@/context/locale-context';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
@@ -26,6 +27,7 @@ function toISODate(date: Date) {
 
 export function DateField({ label, placeholder, value, onChange }: Props) {
   const theme = useTheme();
+  const { locale } = useLocale();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleChange = (event: DateTimePickerEvent, date?: Date) => {
@@ -50,7 +52,24 @@ export function DateField({ label, placeholder, value, onChange }: Props) {
           </Pressable>
         )}
       </Pressable>
-      {isOpen && <DateTimePicker value={toDate(value)} mode="date" onChange={handleChange} />}
+      {isOpen &&
+        (Platform.OS === 'ios' ? (
+          // The default iOS style is a system-drawn pill that ignores the app's theme; an inline
+          // calendar in a themed panel matches the rest of the form.
+          <View style={[styles.panel, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+            <DateTimePicker
+              value={toDate(value)}
+              mode="date"
+              display="inline"
+              locale={locale}
+              themeVariant={theme.scheme}
+              accentColor={theme.primary}
+              onChange={handleChange}
+            />
+          </View>
+        ) : (
+          <DateTimePicker value={toDate(value)} mode="date" onChange={handleChange} />
+        ))}
     </View>
   );
 }
@@ -58,6 +77,11 @@ export function DateField({ label, placeholder, value, onChange }: Props) {
 const styles = StyleSheet.create({
   wrapper: {
     gap: Spacing.one,
+  },
+  panel: {
+    borderRadius: Spacing.three,
+    borderWidth: 1,
+    padding: Spacing.two,
   },
   input: {
     flexDirection: 'row',

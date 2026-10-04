@@ -46,9 +46,8 @@ describe('openDatabase', () => {
     const db = openDatabase(path);
     try {
       assert.equal(existsSync(path), true);
-      assert.equal(getUserVersion(db), 1);
-      assert.equal(MIGRATIONS.length, 1);
-      assert.deepEqual(tableNames(db), ['birthdays', 'sessions', 'tasks', 'users']);
+      assert.equal(getUserVersion(db), MIGRATIONS.length);
+            assert.deepEqual(tableNames(db), ['birthdays', 'sessions', 'tasks', 'users']);
     } finally {
       closeDatabase(db);
     }
@@ -75,7 +74,7 @@ describe('openDatabase', () => {
 
     const second = openDatabase(path);
     try {
-      assert.equal(getUserVersion(second), 1);
+      assert.equal(getUserVersion(second), MIGRATIONS.length);
       const row = second.prepare('SELECT id, email FROM users').get();
       assert.deepEqual({ ...row }, { id: 'u1', email: 'a@example.com' });
     } finally {
@@ -128,7 +127,7 @@ describe('runMigrations', () => {
       insertUser(db, 'u1', 'a@example.com');
       runMigrations(db);
       runMigrations(db);
-      assert.equal(getUserVersion(db), 1);
+      assert.equal(getUserVersion(db), MIGRATIONS.length);
       assert.deepEqual(tableNames(db), ['birthdays', 'sessions', 'tasks', 'users']);
       const count = db.prepare('SELECT count(*) AS n FROM users').get() as { n: number };
       assert.equal(count.n, 1);
@@ -141,7 +140,7 @@ describe('runMigrations', () => {
     const db = openDatabase(freshPath());
     try {
       runMigrations(db, [...MIGRATIONS, 'CREATE TABLE extra (id TEXT PRIMARY KEY);']);
-      assert.equal(getUserVersion(db), 2);
+      assert.equal(getUserVersion(db), MIGRATIONS.length + 1);
       assert.ok(tableNames(db).includes('extra'));
     } finally {
       closeDatabase(db);
@@ -158,7 +157,7 @@ describe('runMigrations', () => {
         ]),
       );
       assert.equal(db.isTransaction, false);
-      assert.equal(getUserVersion(db), 1);
+      assert.equal(getUserVersion(db), MIGRATIONS.length);
       assert.equal(tableNames(db).includes('half_done'), false);
     } finally {
       closeDatabase(db);

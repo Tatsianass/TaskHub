@@ -73,6 +73,7 @@ export function makeTask(overrides: Record<string, unknown> = {}) {
     quadrantId: 'urgent-important',
     tag: null,
     done: false,
+    completedAt: null,
     createdAt: Date.now(),
     dueDate: null,
     remindMe: false,

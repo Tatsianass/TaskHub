@@ -21,6 +21,8 @@ export type Task = {
   quadrantId: QuadrantId;
   tag: TagId | null;
   done: boolean;
+  /** When the task was marked done (ms since epoch); `null` while open or for tasks done before this existed. */
+  completedAt: number | null;
   createdAt: number;
   dueDate: string | null;
   remindMe: boolean;
@@ -106,12 +108,17 @@ function parseObject<T>(body: unknown, checks: { [K in keyof T]: Check<T[K]> }, 
   return result;
 }
 
+/** Like `nullable(finiteNumber)`, but a missing field (older clients) reads as `null`. */
+const optionalNullableNumber: Check<number | null> = (value) =>
+  value === undefined || value === null ? null : finiteNumber(value);
+
 const taskUpdateChecks: { [K in keyof TaskUpdate]: Check<TaskUpdate[K]> } = {
   title: nonEmptyTrimmed,
   description: text,
   quadrantId: oneOf(QUADRANT_IDS),
   tag: nullable(oneOf(TAG_IDS)),
   done: bool,
+  completedAt: optionalNullableNumber,
   dueDate: nullable(date),
   remindMe: bool,
   remindTime: nullable(time),
