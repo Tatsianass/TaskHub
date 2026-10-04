@@ -17,7 +17,7 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_MODE_KEY).then((saved) => {
-      if (saved === 'light' || saved === 'dark' || saved === 'coral') setModeState(saved);
+      if (saved === 'light' || saved === 'dark' || saved === 'coral' || saved === 'emerald') setModeState(saved);
     });
   }, []);
 

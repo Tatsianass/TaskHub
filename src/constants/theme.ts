@@ -1,7 +1,7 @@
 /**
- * TaskHub's three "Aurora Glass" themes: a dark aurora palette, a light warm-bokeh palette and
- * a cool-white "coral" palette taken from the app icon.
- * Both share the same glassmorphism structure (blurred background blobs + frosted panels).
+ * TaskHub's four "Aurora Glass" themes: a dark aurora palette, a light warm-bokeh palette,
+ * a cool-white "coral" palette taken from the app icon and a dark "emerald" palette.
+ * All share the same glassmorphism structure (blurred background blobs + frosted panels).
  */
 
 import '@/global.css';
@@ -65,7 +65,26 @@ const coral = {
   blobs: ['#FF9A62', '#FF375F', '#FFC2A0', '#FF7A8A'],
 } as const;
 
-export const Colors = { light, dark, coral } as const;
+const emerald = {
+  scheme: 'dark',
+  text: '#E8F5F0',
+  background: '#0A1512',
+  backgroundElement: 'rgba(255,255,255,0.08)',
+  backgroundSelected: 'rgba(255,255,255,0.16)',
+  textSecondary: 'rgba(232,245,240,0.6)',
+  border: 'rgba(255,255,255,0.16)',
+  primary: '#3DDBA4',
+  danger: '#F0A0A0',
+  cardText: '#2A2E36',
+  glassBg: 'rgba(255,255,255,0.08)',
+  glassBgStrong: 'rgba(255,255,255,0.12)',
+  glassBorder: 'rgba(255,255,255,0.18)',
+  gradientStart: '#12A67A',
+  gradientEnd: '#2FD6C4',
+  blobs: ['#0F8F6B', '#1FB5A8', '#2A6F5C', '#0B5D4B'],
+} as const;
+
+export const Colors = { light, dark, coral, emerald } as const;
 
 export type ThemeColor =
   | 'text'

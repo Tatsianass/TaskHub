@@ -101,6 +101,7 @@ export default function SettingsScreen() {
     { value: 'dark', label: t('settings.themeDark') },
     { value: 'light', label: t('settings.themeLight') },
     { value: 'coral', label: t('settings.themeCoral') },
+    { value: 'emerald', label: t('settings.themeEmerald') },
   ];
 
   return (
