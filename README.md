@@ -31,6 +31,9 @@ Expo app (src/)                         API server (server/)
   older on-device-only version, the app offers to import them into the
   account after sign-in.
 
+Project documentation (scope, features, architecture diagrams, API) is in
+[`docs/PROJECT_OVERVIEW.md`](docs/PROJECT_OVERVIEW.md).
+
 The full spec (requirements, design and API contract) is in
 [`specs/sqlite-migration/`](specs/sqlite-migration/README.md).
 
