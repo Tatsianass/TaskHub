@@ -39,32 +39,7 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-notifications",
-      [
-        "expo-widgets",
-        {
-          "widgets": [
-            {
-              "name": "TaskHubToday",
-              "displayName": "TaskHub: Сегодня",
-              "description": "Три ближайшие задачи на сегодня",
-              "ios": { "supportedFamilies": ["systemMedium"] }
-            },
-            {
-              "name": "TaskHubNext",
-              "displayName": "TaskHub: Сейчас",
-              "description": "Самая важная задача и прогресс дня",
-              "ios": { "supportedFamilies": ["systemSmall"] }
-            },
-            {
-              "name": "TaskHubMatrix",
-              "displayName": "TaskHub: Матрица",
-              "description": "Количество задач в квадрантах Эйзенхауэра",
-              "ios": { "supportedFamilies": ["systemSmall"] }
-            }
-          ]
-        }
-      ]
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,

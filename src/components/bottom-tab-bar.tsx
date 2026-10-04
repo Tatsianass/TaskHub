@@ -12,7 +12,7 @@ import { useTheme } from '@/hooks/use-theme';
 const TABS = {
   index: { icon: '📋', labelKey: 'tabs.tasks' },
   calendar: { icon: '📅', labelKey: 'tabs.calendar' },
-  birthdays: { icon: '🎂', labelKey: 'settings.birthdays' },
+  birthdays: { icon: '🎉', labelKey: 'settings.birthdays' },
   settings: { icon: '⚙️', labelKey: 'tabs.settings' },
 } as const;
 

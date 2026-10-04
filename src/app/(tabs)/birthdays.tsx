@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DateField } from '@/components/date-field';
@@ -56,7 +56,7 @@ export default function BirthdaysScreen() {
       <View style={styles.inner}>
         <View style={styles.header}>
           <ThemedText type="subtitle" style={styles.title}>
-            🎂 {t('settings.birthdays')}
+            🎉 {t('settings.birthdays')}
           </ThemedText>
           <Pressable
             onPress={openModal}
@@ -103,6 +103,7 @@ export default function BirthdaysScreen() {
                   </View>
                 );
               })}
+              <Pressable onPress={openModal} style={styles.freeArea} />
             </ScrollView>
           </GlassPanel>
         )}
@@ -110,7 +111,9 @@ export default function BirthdaysScreen() {
       </SafeAreaView>
 
       <Modal visible={isModalOpen} animationType="slide" transparent onRequestClose={() => setIsModalOpen(false)}>
-        <View style={styles.backdrop}>
+        <KeyboardAvoidingView
+          style={styles.backdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ThemedView style={styles.sheet}>
             <SafeAreaView edges={['bottom']}>
               <View style={styles.modalHeader}>
@@ -138,7 +141,7 @@ export default function BirthdaysScreen() {
               </View>
             </SafeAreaView>
           </ThemedView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -200,6 +203,10 @@ const styles = StyleSheet.create({
   rowText: {
     flex: 1,
     gap: 2,
+  },
+  freeArea: {
+    flex: 1,
+    minHeight: Spacing.six,
   },
   delete: {
     paddingLeft: Spacing.one,

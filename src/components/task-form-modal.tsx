@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CustomDatePill } from '@/components/custom-date-pill';
@@ -207,9 +207,9 @@ export function TaskFormModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ThemedView style={styles.sheet}>
-          <SafeAreaView edges={['bottom']}>
+          <SafeAreaView edges={['bottom']} style={styles.safeArea}>
             <View style={styles.header}>
               <Pressable
                 onPress={onClose}
@@ -232,7 +232,11 @@ export function TaskFormModal({
               )}
             </View>
 
-            <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.form}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive">
               <TextField value={title} onChangeText={setTitle} placeholder={t('taskForm.titlePlaceholder')} autoFocus />
               <TextField
                 label={t('taskForm.descriptionLabel')}
@@ -396,7 +400,7 @@ export function TaskFormModal({
             </ScrollView>
           </SafeAreaView>
         </ThemedView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -411,6 +415,12 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Spacing.four,
     borderTopRightRadius: Spacing.four,
     maxHeight: '88%',
+  },
+  safeArea: {
+    flexShrink: 1,
+  },
+  scroll: {
+    flexShrink: 1,
   },
   header: {
     flexDirection: 'row',

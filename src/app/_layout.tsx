@@ -9,13 +9,11 @@ import { NotificationsProvider } from '@/context/notifications-context';
 import { LocaleProvider } from '@/context/locale-context';
 import { TasksProvider } from '@/context/tasks-context';
 import { useTheme } from '@/hooks/use-theme';
-import { useWidgetSync } from '@/hooks/use-widget-sync';
 import { ThemeModeProvider } from '@/context/theme-mode-context';
 import { TodayProvider } from '@/context/today-context';
 
 function Navigation() {
   const theme = useTheme();
-  useWidgetSync();
   return (
     <ThemeProvider value={theme.scheme === 'dark' ? DarkTheme : DefaultTheme}>
       <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
