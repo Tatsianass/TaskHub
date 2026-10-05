@@ -6,6 +6,7 @@ import { runOnJS } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ErrorBanner } from '@/components/error-banner';
+import { PlusIcon } from '@/components/header-icons';
 import { GlassPanel } from '@/components/glass-panel';
 import { MonthGrid, type DayMarks } from '@/components/month-grid';
 import { TaskFormModal } from '@/components/task-form-modal';
@@ -179,7 +180,7 @@ export default function CalendarScreen() {
               onPress={openCreateModal}
               hitSlop={10}
               style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-              <ThemedText style={styles.icon}>➕</ThemedText>
+              <PlusIcon color={theme.text} />
             </Pressable>
           </View>
 
@@ -296,15 +297,12 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
   iconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  icon: {
-    fontSize: 15,
   },
   monthPanel: {
     marginBottom: Spacing.three,
