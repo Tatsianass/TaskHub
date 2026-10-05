@@ -38,7 +38,7 @@ const ESCALATION_MOVES = [
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isLocal } = useAuth();
   const { t, locale, setLocale } = useLocale();
   const { mode, setMode } = useThemeMode();
   const { escalationDays, setEscalationDays } = useEscalationSettings();
@@ -113,12 +113,14 @@ export default function SettingsScreen() {
         </ThemedText>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <GlassPanel contentStyle={styles.card}>
-            <ThemedText type="small" themeColor="textSecondary">
-              {t('settings.account')}
-            </ThemedText>
-            <ThemedText type="smallBold">{user.email}</ThemedText>
-          </GlassPanel>
+          {!isLocal && (
+            <GlassPanel contentStyle={styles.card}>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t('settings.account')}
+              </ThemedText>
+              <ThemedText type="smallBold">{user.email}</ThemedText>
+            </GlassPanel>
+          )}
 
           <View>
             <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
@@ -211,7 +213,7 @@ export default function SettingsScreen() {
             <Switch value={notificationsEnabled} onValueChange={handleNotificationsToggle} />
           </GlassPanel>
 
-          <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />
+          {!isLocal && <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />}
         </ScrollView>
       </View>
       </SafeAreaView>
