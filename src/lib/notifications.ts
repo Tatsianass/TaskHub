@@ -6,7 +6,7 @@ import type { Task } from '@/types/task';
 
 /** iOS keeps at most 64 pending local notifications; stay safely below it. */
 const MAX_SCHEDULED = 60;
-const BIRTHDAY_HOUR = 9;
+const DEFAULT_BIRTHDAY_TIME = '09:00';
 const CHANNEL_ID = 'default';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -58,12 +58,17 @@ function taskReminders(tasks: Task[], now: Date, t: Translate): Planned[] {
 }
 
 function birthdayReminders(birthdays: Birthday[], now: Date, t: Translate): Planned[] {
-  return birthdays.map((birthday) => {
+  const planned: Planned[] = [];
+  for (const birthday of birthdays) {
+    // Birthdays saved before the reminder option existed carry no fields and keep the old 09:00 reminder.
+    if (birthday.remindMe === false) continue;
     const [, month, day] = birthday.date.split('-').map(Number);
-    let date = new Date(now.getFullYear(), month - 1, day, BIRTHDAY_HOUR, 0);
-    if (date <= now) date = new Date(now.getFullYear() + 1, month - 1, day, BIRTHDAY_HOUR, 0);
-    return { date, title: t('notifications.birthdayTitle'), body: t('notifications.birthdayBody', { name: birthday.name }) };
-  });
+    const [hours, minutes] = (birthday.remindTime ?? DEFAULT_BIRTHDAY_TIME).split(':').map(Number);
+    let date = new Date(now.getFullYear(), month - 1, day, hours, minutes);
+    if (date <= now) date = new Date(now.getFullYear() + 1, month - 1, day, hours, minutes);
+    planned.push({ date, title: t('notifications.birthdayTitle'), body: t('notifications.birthdayBody', { name: birthday.name }) });
+  }
+  return planned;
 }
 
 /**

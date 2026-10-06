@@ -3,14 +3,18 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { Birthday } from '../validation.js';
 import { importRow } from './import-ids.js';
 
+type BirthdayRow = { id: string; name: string; date: string; remind_me: 0 | 1; remind_time: string | null };
+
+const reminderParams = (birthday: Birthday) => [birthday.remindMe ? 1 : 0, birthday.remindTime] as const;
+
 /**
  * Every statement filters by `user_id`, so a user never sees another user's
  * rows; only the import's owner lookup reads by id alone.
  */
 export function birthdaysRepo(db: DatabaseSync) {
   // Insertion order, like the old local list; the screen sorts by next occurrence.
-  const selectAll = db.prepare('SELECT id, name, date FROM birthdays WHERE user_id = ? ORDER BY rowid');
-  const INSERT = 'INSERT INTO birthdays (id, user_id, name, date) VALUES (?, ?, ?, ?)';
+  const selectAll = db.prepare('SELECT id, name, date, remind_me, remind_time FROM birthdays WHERE user_id = ? ORDER BY rowid');
+  const INSERT = 'INSERT INTO birthdays (id, user_id, name, date, remind_me, remind_time) VALUES (?, ?, ?, ?, ?, ?)';
   const insert = db.prepare(INSERT);
   const insertOrSkip = db.prepare(`${INSERT} ON CONFLICT(id) DO NOTHING`);
   const selectOwner = db.prepare('SELECT user_id FROM birthdays WHERE id = ?');
@@ -18,7 +22,13 @@ export function birthdaysRepo(db: DatabaseSync) {
 
   return {
     list(userId: string): Birthday[] {
-      return (selectAll.all(userId) as Birthday[]).map(({ id, name, date }) => ({ id, name, date }));
+      return (selectAll.all(userId) as BirthdayRow[]).map((row) => ({
+        id: row.id,
+        name: row.name,
+        date: row.date,
+        remindMe: row.remind_me === 1,
+        remindTime: row.remind_time,
+      }));
     },
 
     /**
@@ -26,7 +36,7 @@ export function birthdaysRepo(db: DatabaseSync) {
      * PRIMARY KEY constraint error (errcode 1555) if the id already exists.
      */
     create(userId: string, birthday: Birthday): Birthday {
-      insert.run(birthday.id, userId, birthday.name, birthday.date);
+      insert.run(birthday.id, userId, birthday.name, birthday.date, ...reminderParams(birthday));
       return birthday;
     },
 
@@ -35,7 +45,7 @@ export function birthdaysRepo(db: DatabaseSync) {
       return importRow(
         userId,
         birthday.id,
-        (id) => insertOrSkip.run(id, userId, birthday.name, birthday.date).changes > 0,
+        (id) => insertOrSkip.run(id, userId, birthday.name, birthday.date, ...reminderParams(birthday)).changes > 0,
         (id) => (selectOwner.get(id) as { user_id: string } | undefined)?.user_id,
       );
     },

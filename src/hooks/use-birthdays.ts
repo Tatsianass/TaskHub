@@ -7,6 +7,8 @@ import type { Birthday } from '@/types/birthday';
 export type BirthdayDraft = {
   name: string;
   date: string;
+  remindMe: boolean;
+  remindTime: string | null;
 };
 
 export function useBirthdays() {
@@ -20,6 +22,8 @@ export function useBirthdays() {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name,
         date: draft.date,
+        remindMe: draft.remindMe,
+        remindTime: draft.remindMe ? draft.remindTime : null,
       };
       mutate(
         (prev) => [...prev, birthday],

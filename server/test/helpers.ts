@@ -83,5 +83,5 @@ export function makeTask(overrides: Record<string, unknown> = {}) {
 }
 
 export function makeBirthday(overrides: Record<string, unknown> = {}) {
-  return { id: newClientId(), name: 'Ann', date: '1990-02-28', ...overrides };
+  return { id: newClientId(), name: 'Ann', date: '1990-02-28', remindMe: true, remindTime: '09:00', ...overrides };
 }

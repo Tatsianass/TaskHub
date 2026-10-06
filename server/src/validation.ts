@@ -33,7 +33,13 @@ export type Task = {
 export type TaskUpdate = Omit<Task, 'id' | 'createdAt'>;
 
 /** Same shape as the app's `Birthday` (src/types/birthday.ts). */
-export type Birthday = { id: string; name: string; date: string };
+export type Birthday = {
+  id: string;
+  name: string;
+  date: string;
+  remindMe: boolean;
+  remindTime: string | null;
+};
 
 export const MAX_ID_LENGTH = 128;
 
@@ -141,7 +147,15 @@ export function parseTaskUpdate(body: unknown): TaskUpdate {
   return parseObject<TaskUpdate>(body, taskUpdateChecks, 'INVALID_TASK');
 }
 
+/** A missing field (older clients) reads as the old behaviour: remind at 09:00. */
+const optionalRemindMe: Check<boolean> = (value) => (value === undefined ? true : bool(value));
+const optionalRemindTime: Check<string | null> = (value) => (value === undefined ? '09:00' : nullable(time)(value));
+
 /** A full `Birthday` (POST /birthdays, /import). Throws 400 `INVALID_BIRTHDAY`. */
 export function parseBirthday(body: unknown): Birthday {
-  return parseObject<Birthday>(body, { id, name: nonEmptyTrimmed, date }, 'INVALID_BIRTHDAY');
+  return parseObject<Birthday>(
+    body,
+    { id, name: nonEmptyTrimmed, date, remindMe: optionalRemindMe, remindTime: optionalRemindTime },
+    'INVALID_BIRTHDAY',
+  );
 }

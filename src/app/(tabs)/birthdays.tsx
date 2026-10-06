@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DateField } from '@/components/date-field';
@@ -8,6 +8,7 @@ import { ErrorBanner } from '@/components/error-banner';
 import { PlusIcon } from '@/components/header-icons';
 import { GlassPanel } from '@/components/glass-panel';
 import { PrimaryButton } from '@/components/primary-button';
+import { TimeField } from '@/components/time-field';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -31,6 +32,8 @@ export default function BirthdaysScreen() {
   const { refreshing, onRefresh } = usePullToRefresh(refresh);
   const [name, setName] = useState('');
   const [date, setDate] = useState<string | null>(null);
+  const [remindMe, setRemindMe] = useState(true);
+  const [remindTime, setRemindTime] = useState<string | null>('09:00');
 
   const sorted = useMemo(
     () => [...birthdays].sort((a, b) => nextBirthdayDayDiff(a.date, today) - nextBirthdayDayDiff(b.date, today)),
@@ -42,13 +45,20 @@ export default function BirthdaysScreen() {
   const openModal = () => {
     setName('');
     setDate(null);
+    setRemindMe(true);
+    setRemindTime('09:00');
     setIsModalOpen(true);
   };
 
   const handleSave = () => {
     if (!name.trim() || !date) return;
-    addBirthday({ name, date });
+    addBirthday({ name, date, remindMe, remindTime });
     setIsModalOpen(false);
+  };
+
+  const handleRemindToggle = (value: boolean) => {
+    setRemindMe(value);
+    if (value && !remindTime) setRemindTime('09:00');
   };
 
   return (
@@ -138,6 +148,22 @@ export default function BirthdaysScreen() {
                   value={date}
                   onChange={setDate}
                 />
+                <View style={styles.remindRow}>
+                  <ThemedText>🔔 {t('taskForm.remindLabel')}</ThemedText>
+                  <Switch
+                    value={remindMe}
+                    onValueChange={handleRemindToggle}
+                    trackColor={{ false: theme.glassBorder, true: theme.primary }}
+                  />
+                </View>
+                {remindMe && (
+                  <TimeField
+                    label={t('taskForm.remindTimeLabel')}
+                    placeholder={t('taskForm.remindTimePlaceholder')}
+                    value={remindTime}
+                    onChange={setRemindTime}
+                  />
+                )}
                 <PrimaryButton title={t('birthdays.save')} onPress={handleSave} disabled={!name.trim() || !date} />
               </View>
             </SafeAreaView>
@@ -223,6 +249,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: Spacing.three,
+  },
+  remindRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   closeIcon: {
     fontSize: 18,

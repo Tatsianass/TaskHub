@@ -47,11 +47,17 @@ const V2_SQL = `
 ALTER TABLE tasks ADD COLUMN completed_at INTEGER;
 `;
 
+// Birthdays used to always remind at 09:00, so existing rows keep doing exactly that.
+const V3_SQL = `
+ALTER TABLE birthdays ADD COLUMN remind_me INTEGER NOT NULL DEFAULT 1 CHECK (remind_me IN (0,1));
+ALTER TABLE birthdays ADD COLUMN remind_time TEXT DEFAULT '09:00';
+`;
+
 /**
  * Append-only list: index 0 upgrades user_version 0 → 1, and so on.
  * Never edit or reorder a migration that has shipped; add a new one.
  */
-export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL];
+export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL];
 
 export function getUserVersion(db: DatabaseSync) {
   const row = db.prepare('PRAGMA user_version').get() as { user_version: number };

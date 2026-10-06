@@ -27,7 +27,13 @@ const validTask: Task = {
   remindTime: '09:30',
 };
 
-const validBirthday: Birthday = { id: '1718000000000-xyz789', name: 'Ann', date: '1990-02-28' };
+const validBirthday: Birthday = {
+  id: '1718000000000-xyz789',
+  name: 'Ann',
+  date: '1990-02-28',
+  remindMe: true,
+  remindTime: '09:00',
+};
 
 function assertRejects(fn: () => unknown, code: string) {
   assert.throws(fn, (error: unknown) => {
@@ -155,6 +161,11 @@ describe('parseTaskUpdate', () => {
 describe('parseBirthday', () => {
   test('returns a valid birthday unchanged', () => {
     assert.deepEqual(parseBirthday(validBirthday), validBirthday);
+  });
+
+  test('a missing reminder pair defaults to 09:00 (older clients)', () => {
+    const { remindMe, remindTime, ...legacy } = validBirthday;
+    assert.deepEqual(parseBirthday(legacy), validBirthday);
   });
 
   test('trims name and drops unknown fields', () => {

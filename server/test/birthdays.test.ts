@@ -116,3 +116,22 @@ describe('/birthdays isolation between users', () => {
     assert.deepEqual((await app.request('GET', '/birthdays', { token: a.token })).body, [birthday]);
   });
 });
+
+describe('/birthdays reminder fields', () => {
+  test('stores remindMe and remindTime; a missing pair defaults to 09:00', async () => {
+    const { token } = await registerUser(app);
+    const off = makeBirthday({ remindMe: false, remindTime: null });
+    await app.request('POST', '/birthdays', { token, body: off });
+    const { remindMe, remindTime, ...legacy } = makeBirthday();
+    const created = await app.request('POST', '/birthdays', { token, body: legacy });
+    assert.equal(created.status, 201);
+    assert.deepEqual(created.body, { ...legacy, remindMe: true, remindTime: '09:00' });
+    assert.deepEqual((await app.request('GET', '/birthdays', { token })).body, [off, created.body]);
+  });
+
+  test('rejects an invalid remindTime', async () => {
+    const { token } = await registerUser(app);
+    const res = await app.request('POST', '/birthdays', { token, body: makeBirthday({ remindTime: '25:99' }) });
+    assert.equal(res.status, 400);
+  });
+});
