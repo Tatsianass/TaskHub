@@ -1,24 +1,15 @@
+import { ApiError } from '@/lib/api-error';
+import { LOCAL_MODE } from '@/lib/config';
+import { localApi } from '@/lib/local-api';
+
+export { ApiError };
+
 // Must be referenced literally as process.env.EXPO_PUBLIC_* so Expo inlines it.
+// Only server mode needs it; local mode never reads it.
 const rawBaseUrl = process.env.EXPO_PUBLIC_API_URL;
-
-if (!rawBaseUrl) {
-  throw new Error('Missing EXPO_PUBLIC_API_URL in your .env file (see .env.example)');
-}
-
-const BASE_URL = rawBaseUrl.replace(/\/+$/, '');
+const BASE_URL = (rawBaseUrl ?? '').replace(/\/+$/, '');
 const TIMEOUT_MS = 10_000;
 const SESSION_ERRORS = new Set(['UNAUTHORIZED', 'SESSION_EXPIRED']);
-
-// `message` is the error code so screens can keep calling t(`errors.${code}`).
-export class ApiError extends Error {
-  constructor(
-    public code: string,
-    public status: number,
-  ) {
-    super(code);
-    this.name = 'ApiError';
-  }
-}
 
 let authToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
@@ -34,6 +25,8 @@ export function setOnUnauthorized(cb: (() => void) | null) {
 type RequestOptions = { method?: string; body?: unknown };
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  if (LOCAL_MODE) return localApi<T>(path, opts);
+  if (!BASE_URL) throw new ApiError('SERVER_UNREACHABLE', 0);
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   const sentToken = authToken;

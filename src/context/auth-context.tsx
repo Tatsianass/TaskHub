@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { useLocale } from '@/context/locale-context';
+import { LOCAL_MODE, LOCAL_USER } from '@/lib/config';
 import { api, ApiError, setAuthToken, setOnUnauthorized } from '@/lib/api';
 import { offerLegacyImport } from '@/lib/legacy-import';
 import { clearToken, getToken, setToken } from '@/lib/token-storage';
@@ -16,6 +17,8 @@ type AuthContextValue = {
   register: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Local mode: data lives on this device, there are no accounts. */
+  isLocal: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -24,7 +27,7 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+function ServerAuthProvider({ children }: { children: ReactNode }) {
   const { t } = useLocale();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -107,8 +110,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, register, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, isLoading, register, login, logout, isLocal: false }}>{children}</AuthContext.Provider>
   );
+}
+
+const LOCAL_VALUE: AuthContextValue = {
+  user: LOCAL_USER,
+  isLoading: false,
+  register: async () => {},
+  login: async () => {},
+  logout: async () => {},
+  isLocal: true,
+};
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  // LOCAL_MODE is a build-time constant, so the same provider renders every time.
+  if (LOCAL_MODE) return <AuthContext.Provider value={LOCAL_VALUE}>{children}</AuthContext.Provider>;
+  return <ServerAuthProvider>{children}</ServerAuthProvider>;
 }
 
 export function useAuth() {
