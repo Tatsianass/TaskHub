@@ -12,20 +12,27 @@ import { TimeField } from '@/components/time-field';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { MAX_ACTIVE_TASKS_PER_QUADRANT, QUADRANTS } from '@/constants/quadrants';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useBirthdaysContext } from '@/context/birthdays-context';
+import { useTasksContext } from '@/context/tasks-context';
 import { useLocale } from '@/context/locale-context';
 import { useToday } from '@/context/today-context';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
-import { nextBirthdayDayDiff } from '@/utils/dates';
+import type { QuadrantId } from '@/types/task';
+import { addDaysISO, dayDiffFromToday, nextBirthdayDayDiff } from '@/utils/dates';
+
+const ALERT_OPTIONS = [1, 3, 7, 14];
+const DEFAULT_ALERT_DAYS = 7;
 
 export default function BirthdaysScreen() {
   const { user } = useAuth();
   const { t, locale } = useLocale();
   const theme = useTheme();
   const today = useToday();
+  const { tasks, addTask } = useTasksContext();
   const { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError, refresh } = useBirthdaysContext();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,6 +41,10 @@ export default function BirthdaysScreen() {
   const [date, setDate] = useState<string | null>(null);
   const [remindMe, setRemindMe] = useState(true);
   const [remindTime, setRemindTime] = useState<string | null>('09:00');
+  const [alertOn, setAlertOn] = useState(true);
+  const [alertDays, setAlertDays] = useState(DEFAULT_ALERT_DAYS);
+  const [giftOn, setGiftOn] = useState(true);
+  const [giftQuadrant, setGiftQuadrant] = useState<QuadrantId>('urgent-important');
 
   const sorted = useMemo(
     () => [...birthdays].sort((a, b) => nextBirthdayDayDiff(a.date, today) - nextBirthdayDayDiff(b.date, today)),
@@ -47,12 +58,32 @@ export default function BirthdaysScreen() {
     setDate(null);
     setRemindMe(true);
     setRemindTime('09:00');
+    setAlertOn(true);
+    setAlertDays(DEFAULT_ALERT_DAYS);
+    setGiftOn(true);
+    setGiftQuadrant('urgent-important');
     setIsModalOpen(true);
   };
 
   const handleSave = () => {
     if (!name.trim() || !date) return;
-    addBirthday({ name, date, remindMe, remindTime });
+    addBirthday({ name, date, remindMe, remindTime, alertDaysBefore: alertOn ? alertDays : null });
+    if (giftOn) {
+      const leadDays = alertOn ? alertDays : DEFAULT_ALERT_DAYS;
+      const birthdayDate = addDaysISO(today, nextBirthdayDayDiff(date, today));
+      const dueDate = addDaysISO(birthdayDate, -leadDays);
+      // The quadrant caps active tasks; when the chosen one is full, fall back to the planning quadrant.
+      const active = tasks.filter((task) => !task.done && task.quadrantId === giftQuadrant).length;
+      addTask({
+        title: t('birthdays.giftTaskTitle', { name: name.trim() }),
+        description: '',
+        quadrantId: active >= MAX_ACTIVE_TASKS_PER_QUADRANT ? 'not-urgent-important' : giftQuadrant,
+        tag: null,
+        dueDate: dayDiffFromToday(dueDate, today) < 0 ? today : dueDate,
+        remindMe: false,
+        remindTime: null,
+      });
+    }
     setIsModalOpen(false);
   };
 
@@ -164,6 +195,72 @@ export default function BirthdaysScreen() {
                     onChange={setRemindTime}
                   />
                 )}
+
+                <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
+                <View style={styles.remindRow}>
+                  <View style={styles.rowText}>
+                    <ThemedText>🔔 {t('birthdays.alertLabel')}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {t('birthdays.alertHint')}
+                    </ThemedText>
+                  </View>
+                  <Switch
+                    value={alertOn}
+                    onValueChange={setAlertOn}
+                    trackColor={{ false: theme.glassBorder, true: theme.primary }}
+                  />
+                </View>
+                {alertOn && (
+                  <View style={styles.chips}>
+                    {ALERT_OPTIONS.map((days) => (
+                      <Pressable
+                        key={days}
+                        onPress={() => setAlertDays(days)}
+                        style={[
+                          styles.chip,
+                          { borderColor: theme.glassBorder },
+                          alertDays === days && { backgroundColor: theme.glassBg, borderColor: theme.primary },
+                        ]}>
+                        <ThemedText type="small" themeColor={alertDays === days ? 'text' : 'textSecondary'}>
+                          {t(`birthdays.alertChip.${days}`)}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+
+                <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
+                <View style={styles.remindRow}>
+                  <View style={styles.rowText}>
+                    <ThemedText>🎁 {t('birthdays.giftLabel')}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {t('birthdays.giftHint')}
+                    </ThemedText>
+                  </View>
+                  <Switch
+                    value={giftOn}
+                    onValueChange={setGiftOn}
+                    trackColor={{ false: theme.glassBorder, true: theme.primary }}
+                  />
+                </View>
+                {giftOn && (
+                  <View style={styles.chips}>
+                    {QUADRANTS.map((quadrant) => (
+                      <Pressable
+                        key={quadrant.id}
+                        onPress={() => setGiftQuadrant(quadrant.id)}
+                        style={[
+                          styles.chip,
+                          { borderColor: theme.glassBorder },
+                          giftQuadrant === quadrant.id && { backgroundColor: theme.glassBg, borderColor: quadrant.color },
+                        ]}>
+                        <ThemedText type="small" themeColor={giftQuadrant === quadrant.id ? 'text' : 'textSecondary'}>
+                          {quadrant.icon} {t(quadrant.titleKey)}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
                 <PrimaryButton title={t('birthdays.save')} onPress={handleSave} disabled={!name.trim() || !date} />
               </View>
             </SafeAreaView>
@@ -254,6 +351,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  divider: {
+    height: 1,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  chip: {
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
   },
   closeIcon: {
     fontSize: 18,

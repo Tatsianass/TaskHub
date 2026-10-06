@@ -3,9 +3,15 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { Birthday } from '../validation.js';
 import { importRow } from './import-ids.js';
 
-type BirthdayRow = { id: string; name: string; date: string; remind_me: 0 | 1; remind_time: string | null };
+type BirthdayRow = {
+  id: string;
+  name: string;
+  date: string;
+  remind_me: 0 | 1; remind_time: string | null;
+  alert_days_before: number | null;
+};
 
-const reminderParams = (birthday: Birthday) => [birthday.remindMe ? 1 : 0, birthday.remindTime] as const;
+const reminderParams = (birthday: Birthday) => [birthday.remindMe ? 1 : 0, birthday.remindTime, birthday.alertDaysBefore] as const;
 
 /**
  * Every statement filters by `user_id`, so a user never sees another user's
@@ -13,8 +19,8 @@ const reminderParams = (birthday: Birthday) => [birthday.remindMe ? 1 : 0, birth
  */
 export function birthdaysRepo(db: DatabaseSync) {
   // Insertion order, like the old local list; the screen sorts by next occurrence.
-  const selectAll = db.prepare('SELECT id, name, date, remind_me, remind_time FROM birthdays WHERE user_id = ? ORDER BY rowid');
-  const INSERT = 'INSERT INTO birthdays (id, user_id, name, date, remind_me, remind_time) VALUES (?, ?, ?, ?, ?, ?)';
+  const selectAll = db.prepare('SELECT id, name, date, remind_me, remind_time, alert_days_before FROM birthdays WHERE user_id = ? ORDER BY rowid');
+  const INSERT = 'INSERT INTO birthdays (id, user_id, name, date, remind_me, remind_time, alert_days_before) VALUES (?, ?, ?, ?, ?, ?, ?)';
   const insert = db.prepare(INSERT);
   const insertOrSkip = db.prepare(`${INSERT} ON CONFLICT(id) DO NOTHING`);
   const selectOwner = db.prepare('SELECT user_id FROM birthdays WHERE id = ?');
@@ -28,6 +34,7 @@ export function birthdaysRepo(db: DatabaseSync) {
         date: row.date,
         remindMe: row.remind_me === 1,
         remindTime: row.remind_time,
+        alertDaysBefore: row.alert_days_before,
       }));
     },
 

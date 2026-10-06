@@ -74,7 +74,7 @@ function toBirthday(raw: unknown): Birthday | null {
   const id = nonEmpty(raw.id);
   const name = nonEmpty(raw.name);
   const date = validDate(raw.date);
-  return id && name && date ? { id, name, date, remindMe: true, remindTime: '09:00' } : null;
+  return id && name && date ? { id, name, date, remindMe: true, remindTime: '09:00', alertDaysBefore: null } : null;
 }
 
 async function readList<T>(key: string, parse: (raw: unknown) => T | null): Promise<T[]> {

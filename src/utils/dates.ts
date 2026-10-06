@@ -40,6 +40,13 @@ export function formatDueDate(
   return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(parseISODate(dateStr));
 }
 
+/** `dateStr` shifted by `days` (may be negative), as YYYY-MM-DD. */
+export function addDaysISO(dateStr: string, days: number): string {
+  const date = parseISODate(dateStr);
+  date.setDate(date.getDate() + days);
+  return isoDateOf(date.getTime());
+}
+
 export function nextBirthdayDayDiff(dateStr: string, todayStr: string = todayISODate()): number {
   const [, month, day] = dateStr.split('-').map(Number);
   const today = parseISODate(todayStr);

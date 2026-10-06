@@ -33,6 +33,7 @@ const validBirthday: Birthday = {
   date: '1990-02-28',
   remindMe: true,
   remindTime: '09:00',
+  alertDaysBefore: null,
 };
 
 function assertRejects(fn: () => unknown, code: string) {
@@ -164,7 +165,7 @@ describe('parseBirthday', () => {
   });
 
   test('a missing reminder pair defaults to 09:00 (older clients)', () => {
-    const { remindMe, remindTime, ...legacy } = validBirthday;
+    const { remindMe, remindTime, alertDaysBefore, ...legacy } = validBirthday;
     assert.deepEqual(parseBirthday(legacy), validBirthday);
   });
 

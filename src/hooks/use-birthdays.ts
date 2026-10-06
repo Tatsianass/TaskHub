@@ -9,6 +9,7 @@ export type BirthdayDraft = {
   date: string;
   remindMe: boolean;
   remindTime: string | null;
+  alertDaysBefore: number | null;
 };
 
 export function useBirthdays() {
@@ -24,6 +25,7 @@ export function useBirthdays() {
         date: draft.date,
         remindMe: draft.remindMe,
         remindTime: draft.remindMe ? draft.remindTime : null,
+        alertDaysBefore: draft.alertDaysBefore,
       };
       mutate(
         (prev) => [...prev, birthday],

@@ -61,12 +61,24 @@ function birthdayReminders(birthdays: Birthday[], now: Date, t: Translate): Plan
   const planned: Planned[] = [];
   for (const birthday of birthdays) {
     // Birthdays saved before the reminder option existed carry no fields and keep the old 09:00 reminder.
-    if (birthday.remindMe === false) continue;
     const [, month, day] = birthday.date.split('-').map(Number);
     const [hours, minutes] = (birthday.remindTime ?? DEFAULT_BIRTHDAY_TIME).split(':').map(Number);
     let date = new Date(now.getFullYear(), month - 1, day, hours, minutes);
     if (date <= now) date = new Date(now.getFullYear() + 1, month - 1, day, hours, minutes);
-    planned.push({ date, title: t('notifications.birthdayTitle'), body: t('notifications.birthdayBody', { name: birthday.name }) });
+    if (birthday.remindMe !== false) {
+      planned.push({ date, title: t('notifications.birthdayTitle'), body: t('notifications.birthdayBody', { name: birthday.name }) });
+    }
+    if (birthday.alertDaysBefore) {
+      // Same time of day, N days earlier; if that moment has passed this year, wait for the next one.
+      const alertAt = (year: number) => new Date(year, month - 1, day - birthday.alertDaysBefore!, hours, minutes);
+      let alertDate = alertAt(now.getFullYear());
+      if (alertDate <= now) alertDate = alertAt(now.getFullYear() + 1);
+      planned.push({
+        date: alertDate,
+        title: t('notifications.birthdayAlertTitle'),
+        body: `${birthday.name}: ${t('birthdays.inDays', { n: birthday.alertDaysBefore })}`,
+      });
+    }
   }
   return planned;
 }

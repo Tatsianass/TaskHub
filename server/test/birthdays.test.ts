@@ -122,10 +122,10 @@ describe('/birthdays reminder fields', () => {
     const { token } = await registerUser(app);
     const off = makeBirthday({ remindMe: false, remindTime: null });
     await app.request('POST', '/birthdays', { token, body: off });
-    const { remindMe, remindTime, ...legacy } = makeBirthday();
+    const { remindMe, remindTime, alertDaysBefore, ...legacy } = makeBirthday();
     const created = await app.request('POST', '/birthdays', { token, body: legacy });
     assert.equal(created.status, 201);
-    assert.deepEqual(created.body, { ...legacy, remindMe: true, remindTime: '09:00' });
+    assert.deepEqual(created.body, { ...legacy, remindMe: true, remindTime: '09:00', alertDaysBefore: null });
     assert.deepEqual((await app.request('GET', '/birthdays', { token })).body, [off, created.body]);
   });
 
@@ -133,5 +133,18 @@ describe('/birthdays reminder fields', () => {
     const { token } = await registerUser(app);
     const res = await app.request('POST', '/birthdays', { token, body: makeBirthday({ remindTime: '25:99' }) });
     assert.equal(res.status, 400);
+  });
+});
+
+describe('/birthdays alertDaysBefore', () => {
+  test('stores the alert lead time and rejects out-of-range values', async () => {
+    const { token } = await registerUser(app);
+    const week = makeBirthday({ alertDaysBefore: 7 });
+    assert.equal((await app.request('POST', '/birthdays', { token, body: week })).status, 201);
+    assert.deepEqual((await app.request('GET', '/birthdays', { token })).body, [week]);
+    for (const alertDaysBefore of [0, 61, 1.5, '7']) {
+      const res = await app.request('POST', '/birthdays', { token, body: makeBirthday({ alertDaysBefore }) });
+      assert.equal(res.status, 400);
+    }
   });
 });

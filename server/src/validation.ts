@@ -39,6 +39,8 @@ export type Birthday = {
   date: string;
   remindMe: boolean;
   remindTime: string | null;
+  /** Days before the birthday to send a heads-up alert, or `null` for none. */
+  alertDaysBefore: number | null;
 };
 
 export const MAX_ID_LENGTH = 128;
@@ -151,11 +153,17 @@ export function parseTaskUpdate(body: unknown): TaskUpdate {
 const optionalRemindMe: Check<boolean> = (value) => (value === undefined ? true : bool(value));
 const optionalRemindTime: Check<string | null> = (value) => (value === undefined ? '09:00' : nullable(time)(value));
 
+/** 1-60 whole days, or `null`; a missing field (older clients) reads as `null`. */
+const optionalAlertDays: Check<number | null> = (value) => {
+  if (value === undefined || value === null) return null;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 60 ? value : undefined;
+};
+
 /** A full `Birthday` (POST /birthdays, /import). Throws 400 `INVALID_BIRTHDAY`. */
 export function parseBirthday(body: unknown): Birthday {
   return parseObject<Birthday>(
     body,
-    { id, name: nonEmptyTrimmed, date, remindMe: optionalRemindMe, remindTime: optionalRemindTime },
+    { id, name: nonEmptyTrimmed, date, remindMe: optionalRemindMe, remindTime: optionalRemindTime, alertDaysBefore: optionalAlertDays },
     'INVALID_BIRTHDAY',
   );
 }

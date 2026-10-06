@@ -53,11 +53,16 @@ ALTER TABLE birthdays ADD COLUMN remind_me INTEGER NOT NULL DEFAULT 1 CHECK (rem
 ALTER TABLE birthdays ADD COLUMN remind_time TEXT DEFAULT '09:00';
 `;
 
+// How many days before the birthday to send a heads-up alert; NULL means no alert.
+const V4_SQL = `
+ALTER TABLE birthdays ADD COLUMN alert_days_before INTEGER CHECK (alert_days_before IS NULL OR alert_days_before BETWEEN 1 AND 60);
+`;
+
 /**
  * Append-only list: index 0 upgrades user_version 0 → 1, and so on.
  * Never edit or reorder a migration that has shipped; add a new one.
  */
-export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL];
+export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL, V4_SQL];
 
 export function getUserVersion(db: DatabaseSync) {
   const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
