@@ -13,7 +13,10 @@
         "dark": "./assets/images/ios-icon-dark.png",
         "tinted": "./assets/images/ios-icon-tinted.png"
       },
-      "bundleIdentifier": "com.tatsianas.todomobile"
+      "bundleIdentifier": "com.tatsianas.todomobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -39,11 +42,42 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "TaskHubToday",
+              "displayName": "TaskHub: Сегодня",
+              "description": "Три ближайшие задачи на сегодня",
+              "ios": { "supportedFamilies": ["systemMedium"] }
+            },
+            {
+              "name": "TaskHubNext",
+              "displayName": "TaskHub: Сейчас",
+              "description": "Самая важная задача и прогресс дня",
+              "ios": { "supportedFamilies": ["systemSmall"] }
+            },
+            {
+              "name": "TaskHubMatrix",
+              "displayName": "TaskHub: Матрица",
+              "description": "Количество задач в квадрантах Эйзенхауэра",
+              "ios": { "supportedFamilies": ["systemSmall"] }
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cd9e735d-c3fc-45e7-a3ac-8070cf09e811"
+      }
     }
   }
 }
