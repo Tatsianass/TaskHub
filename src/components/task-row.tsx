@@ -84,7 +84,6 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.two,
-    marginHorizontal: -Spacing.two,
     marginVertical: 2,
     borderRadius: Spacing.three,
     borderWidth: 1,
