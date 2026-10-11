@@ -36,6 +36,28 @@ export function useBirthdays() {
     [mutate],
   );
 
+  const updateBirthday = useCallback(
+    (id: string, draft: BirthdayDraft) => {
+      const name = draft.name.trim();
+      const previous = birthdays.find((birthday) => birthday.id === id);
+      if (!previous || !name || !draft.date) return;
+      const next: Birthday = {
+        id,
+        name,
+        date: draft.date,
+        remindMe: draft.remindMe,
+        remindTime: draft.remindMe ? draft.remindTime : null,
+        alertDaysBefore: draft.alertDaysBefore,
+      };
+      mutate(
+        (prev) => prev.map((birthday) => (birthday.id === id ? next : birthday)),
+        () => api(`/birthdays/${encodeURIComponent(id)}`, { method: 'PUT', body: next }),
+        (prev) => prev.map((birthday) => (birthday.id === id ? previous : birthday)),
+      );
+    },
+    [birthdays, mutate],
+  );
+
   const deleteBirthday = useCallback(
     (id: string) => {
       const index = birthdays.findIndex((birthday) => birthday.id === id);
@@ -53,5 +75,5 @@ export function useBirthdays() {
     [birthdays, mutate],
   );
 
-  return { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError, refresh };
+  return { birthdays, isLoaded, addBirthday, updateBirthday, deleteBirthday, error, clearError, refresh };
 }

@@ -30,6 +30,19 @@ export function birthdaysRouter(birthdays: BirthdaysRepo, sessions: SessionsRepo
     }
   };
 
+  const update: RequestHandler<{ id: string }> = (req, res) => {
+    const birthday = parseBirthday(req.body);
+    let updated;
+    try {
+      updated = birthdays.update(req.userId!, req.params.id, birthday);
+    } catch (error) {
+      if (isSqliteError(error, SQLITE_CONSTRAINT_CHECK)) throw new ApiError(400, 'INVALID_BIRTHDAY');
+      throw error;
+    }
+    if (!updated) throw new ApiError(404, 'NOT_FOUND');
+    res.json(updated);
+  };
+
   // Unknown id and another user's id are the same 404.
   const remove: RequestHandler<{ id: string }> = (req, res) => {
     if (!birthdays.delete(req.userId!, req.params.id)) throw new ApiError(404, 'NOT_FOUND');
@@ -38,6 +51,7 @@ export function birthdaysRouter(birthdays: BirthdaysRepo, sessions: SessionsRepo
 
   router.get('/', list);
   router.post('/', create);
+  router.put('/:id', update);
   router.delete('/:id', remove);
 
   return router;

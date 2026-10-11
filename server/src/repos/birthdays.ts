@@ -24,6 +24,7 @@ export function birthdaysRepo(db: DatabaseSync) {
   const insert = db.prepare(INSERT);
   const insertOrSkip = db.prepare(`${INSERT} ON CONFLICT(id) DO NOTHING`);
   const selectOwner = db.prepare('SELECT user_id FROM birthdays WHERE id = ?');
+  const update = db.prepare('UPDATE birthdays SET name = ?, date = ?, remind_me = ?, remind_time = ?, alert_days_before = ? WHERE id = ? AND user_id = ?');
   const remove = db.prepare('DELETE FROM birthdays WHERE id = ? AND user_id = ?');
 
   return {
@@ -55,6 +56,12 @@ export function birthdaysRepo(db: DatabaseSync) {
         (id) => insertOrSkip.run(id, userId, birthday.name, birthday.date, ...reminderParams(birthday)).changes > 0,
         (id) => (selectOwner.get(id) as { user_id: string } | undefined)?.user_id,
       );
+    },
+
+    /** Returns the updated birthday, or `undefined` if the user has no birthday `id`. */
+    update(userId: string, id: string, birthday: Birthday): Birthday | undefined {
+      const changed = update.run(birthday.name, birthday.date, ...reminderParams(birthday), id, userId).changes > 0;
+      return changed ? { ...birthday, id } : undefined;
     },
 
     /** Returns true if the user's birthday `id` existed and was deleted. */

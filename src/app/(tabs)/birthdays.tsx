@@ -21,6 +21,7 @@ import { useLocale } from '@/context/locale-context';
 import { useToday } from '@/context/today-context';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
+import type { Birthday } from '@/types/birthday';
 import type { QuadrantId } from '@/types/task';
 import { addDaysISO, dayDiffFromToday, nextBirthdayDayDiff } from '@/utils/dates';
 
@@ -33,9 +34,10 @@ export default function BirthdaysScreen() {
   const theme = useTheme();
   const today = useToday();
   const { tasks, addTask } = useTasksContext();
-  const { birthdays, isLoaded, addBirthday, deleteBirthday, error, clearError, refresh } = useBirthdaysContext();
+  const { birthdays, isLoaded, addBirthday, updateBirthday, deleteBirthday, error, clearError, refresh } = useBirthdaysContext();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Birthday | null>(null);
   const { refreshing, onRefresh } = usePullToRefresh(refresh);
   const [name, setName] = useState('');
   const [date, setDate] = useState<string | null>(null);
@@ -53,7 +55,20 @@ export default function BirthdaysScreen() {
 
   if (!user) return <Redirect href="/login" />;
 
+  const openEdit = (birthday: Birthday) => {
+    setEditing(birthday);
+    setName(birthday.name);
+    setDate(birthday.date);
+    setRemindMe(birthday.remindMe !== false);
+    setRemindTime(birthday.remindTime ?? '09:00');
+    setAlertOn(!!birthday.alertDaysBefore);
+    setAlertDays(birthday.alertDaysBefore ?? DEFAULT_ALERT_DAYS);
+    setGiftOn(false);
+    setIsModalOpen(true);
+  };
+
   const openModal = () => {
+    setEditing(null);
     setName('');
     setDate(null);
     setRemindMe(true);
@@ -67,7 +82,13 @@ export default function BirthdaysScreen() {
 
   const handleSave = () => {
     if (!name.trim() || !date) return;
-    addBirthday({ name, date, remindMe, remindTime, alertDaysBefore: alertOn ? alertDays : null });
+    const draft = { name, date, remindMe, remindTime, alertDaysBefore: alertOn ? alertDays : null };
+    if (editing) {
+      updateBirthday(editing.id, draft);
+      setIsModalOpen(false);
+      return;
+    }
+    addBirthday(draft);
     if (giftOn) {
       const leadDays = alertOn ? alertDays : DEFAULT_ALERT_DAYS;
       const birthdayDate = addDaysISO(today, nextBirthdayDayDiff(date, today));
@@ -129,7 +150,7 @@ export default function BirthdaysScreen() {
                   new Date(`${birthday.date}T00:00:00`),
                 );
                 return (
-                  <View key={birthday.id} style={styles.row}>
+                  <Pressable key={birthday.id} onPress={() => openEdit(birthday)} style={styles.row}>
                     <View style={styles.rowText}>
                       <ThemedText type="smallBold">{birthday.name}</ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
@@ -142,7 +163,7 @@ export default function BirthdaysScreen() {
                     <Pressable onPress={() => deleteBirthday(birthday.id)} hitSlop={8} style={styles.delete}>
                       <ThemedText themeColor="textSecondary">✕</ThemedText>
                     </Pressable>
-                  </View>
+                  </Pressable>
                 );
               })}
               <Pressable onPress={openModal} style={styles.freeArea} />
@@ -159,7 +180,7 @@ export default function BirthdaysScreen() {
           <ThemedView style={styles.sheet}>
             <SafeAreaView edges={['bottom']}>
               <View style={styles.modalHeader}>
-                <ThemedText type="smallBold">{t('birthdays.addTitle')}</ThemedText>
+                <ThemedText type="smallBold">{editing ? t('birthdays.editTitle') : t('birthdays.addTitle')}</ThemedText>
                 <Pressable onPress={() => setIsModalOpen(false)} hitSlop={8}>
                   <ThemedText style={styles.closeIcon}>✕</ThemedText>
                 </Pressable>
@@ -229,6 +250,8 @@ export default function BirthdaysScreen() {
                   </View>
                 )}
 
+                {!editing && (
+                  <>
                 <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
                 <View style={styles.remindRow}>
                   <View style={styles.rowText}>
@@ -260,6 +283,8 @@ export default function BirthdaysScreen() {
                       </Pressable>
                     ))}
                   </View>
+                )}
+                  </>
                 )}
                 <PrimaryButton title={t('birthdays.save')} onPress={handleSave} disabled={!name.trim() || !date} />
               </View>
