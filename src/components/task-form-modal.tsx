@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomSheetModal } from '@/components/bottom-sheet-modal';
 import { CustomDatePill } from '@/components/custom-date-pill';
+import { MicIcon } from '@/components/header-icons';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { TimeField } from '@/components/time-field';
 import { MAX_ACTIVE_TASKS_PER_QUADRANT } from '@/constants/quadrants';
 import { TAGS } from '@/constants/tags';
@@ -15,6 +16,7 @@ import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useToday } from '@/context/today-context';
 import { useTheme } from '@/hooks/use-theme';
+import { useVoiceInput } from '@/hooks/use-voice-input';
 import { hexToRgba } from '@/utils/colors';
 import { dayDiffFromToday } from '@/utils/dates';
 import { effectiveQuadrantId } from '@/utils/priority';
@@ -28,6 +30,8 @@ type Props = {
   defaultQuadrantId: QuadrantId;
   /** Due date a new task starts with (YYYY-MM-DD); defaults to today. */
   defaultDueDate?: string | null;
+  /** Start listening as soon as the form opens for a new task (the home screen's mic button). */
+  autoListen?: boolean;
   tasks: Task[];
   onClose: () => void;
   onSave: (draft: TaskDraft) => void;
@@ -96,6 +100,7 @@ export function TaskFormModal({
   initialTask,
   defaultQuadrantId,
   defaultDueDate,
+  autoListen = false,
   tasks,
   onClose,
   onSave,
@@ -117,6 +122,12 @@ export function TaskFormModal({
   const [remindTime, setRemindTime] = useState<string | null>(null);
   const [forceAdd, setForceAdd] = useState(false);
   const justResetRef = useRef(false);
+  // What was already typed when dictation started; the phrase heard so far is appended to it.
+  const dictationBaseRef = useRef('');
+  const voice = useVoiceInput({
+    onTranscript: (text) => setTitle(dictationBaseRef.current ? `${dictationBaseRef.current} ${text}` : text),
+  });
+  const { start: startListening, abort: abortListening } = voice;
 
   useEffect(() => {
     if (!visible) return;
@@ -132,6 +143,24 @@ export function TaskFormModal({
     setRemindTime(initialTask?.remindTime ?? null);
     setForceAdd(false);
   }, [visible, initialTask, defaultQuadrantId, defaultDueDate]);
+
+  useEffect(() => {
+    if (!visible) {
+      abortListening();
+    } else if (autoListen && !initialTask) {
+      dictationBaseRef.current = '';
+      startListening();
+    }
+  }, [visible, autoListen, initialTask, startListening, abortListening]);
+
+  const handleMicPress = () => {
+    if (voice.listening) {
+      voice.stop();
+    } else {
+      dictationBaseRef.current = title.trim();
+      voice.start();
+    }
+  };
 
   // Smart date + importance suggestion from the title text — only while creating a new task.
   useEffect(() => {
@@ -206,216 +235,231 @@ export function TaskFormModal({
       : t('taskForm.when.custom');
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ThemedView style={styles.sheet}>
-          <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-            <View style={styles.header}>
+    <BottomSheetModal
+      visible={visible}
+      onClose={onClose}
+      maxHeight="88%"
+      header={
+          <View style={styles.header}>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+              <ThemedText style={styles.closeIcon}>✕</ThemedText>
+            </Pressable>
+            <ThemedText type="smallBold" style={styles.headerTitle}>
+              {initialTask ? t('taskForm.editTitle') : t('taskForm.addTitle')}
+            </ThemedText>
+            {onDelete ? (
               <Pressable
-                onPress={onClose}
+                onPress={onDelete}
                 hitSlop={8}
                 style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-                <ThemedText style={styles.closeIcon}>✕</ThemedText>
+                <ThemedText style={styles.deleteIcon}>🗑</ThemedText>
               </Pressable>
-              <ThemedText type="smallBold" style={styles.headerTitle}>
-                {initialTask ? t('taskForm.editTitle') : t('taskForm.addTitle')}
-              </ThemedText>
-              {onDelete ? (
+            ) : (
+              <View style={styles.iconButton} />
+            )}
+          </View>
+            }>
+      <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.form}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive">
+            <TextField
+              value={title}
+              onChangeText={setTitle}
+              placeholder={voice.listening ? t('voice.listening') : t('taskForm.titlePlaceholder')}
+              autoFocus={!autoListen}
+              accessory={
                 <Pressable
-                  onPress={onDelete}
+                  onPress={handleMicPress}
                   hitSlop={8}
-                  style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-                  <ThemedText style={styles.deleteIcon}>🗑</ThemedText>
+                  accessibilityRole="button"
+                  accessibilityLabel={voice.listening ? t('voice.stop') : t('voice.start')}
+                  style={[
+                    styles.micButton,
+                    voice.listening
+                      ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                      : { backgroundColor: theme.glassBg, borderColor: theme.glassBorder },
+                  ]}>
+                  <MicIcon color={voice.listening ? theme.background : theme.primary} size={18} />
                 </Pressable>
-              ) : (
-                <View style={styles.iconButton} />
-              )}
-            </View>
-
-            <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.form}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive">
-              <TextField value={title} onChangeText={setTitle} placeholder={t('taskForm.titlePlaceholder')} autoFocus />
-              <TextField
-                label={t('taskForm.descriptionLabel')}
-                value={description}
-                onChangeText={setDescription}
-              />
-
-              <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-                {t('taskForm.whenLabel')}
+              }
+            />
+            {!!voice.error && (
+              <ThemedText type="small" style={[styles.hint, { color: theme.danger }]}>
+                {t(voice.error === 'denied' ? 'voice.denied' : 'voice.error')}
               </ThemedText>
-              <View style={styles.pillRow}>
-                {WHEN_OPTIONS.map((option) => (
-                  <Pressable key={option.id} onPress={() => handleWhenPress(option.id)}>
-                    <View
-                      style={[
-                        styles.pill,
-                        { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
-                        whenOption === option.id && { backgroundColor: theme.backgroundSelected },
-                      ]}>
-                      <ThemedText type="small" themeColor={whenOption === option.id ? 'text' : 'textSecondary'}>
-                        {t(option.labelKey)}
-                      </ThemedText>
-                    </View>
-                  </Pressable>
-                ))}
-                <CustomDatePill
-                  active={whenOption === 'custom'}
-                  label={customDateLabel}
-                  icon="📅"
-                  value={whenOption === 'custom' ? dueDate : null}
-                  onChange={handleCustomDate}
-                />
-              </View>
-              {!!dateHint && (
-                <ThemedText type="small" themeColor="primary" style={styles.hint}>
-                  {dateHint}
-                </ThemedText>
-              )}
+            )}
+            <TextField
+              label={t('taskForm.descriptionLabel')}
+              value={description}
+              onChangeText={setDescription}
+            />
 
-              <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-                {t('taskForm.importanceLabel')}
-              </ThemedText>
-              <View style={[styles.segmented, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-                <Pressable
-                  style={styles.segmentWrapper}
-                  onPress={() => {
-                    setIsImportant(false);
-                    setImportantTouched(true);
-                  }}>
-                  <View style={[styles.segment, !isImportant && { backgroundColor: theme.backgroundSelected }]}>
-                    <ThemedText type="smallBold" themeColor={!isImportant ? 'text' : 'textSecondary'}>
-                      {t('taskForm.importanceLow')}
-                    </ThemedText>
-                  </View>
-                </Pressable>
-                <Pressable
-                  style={styles.segmentWrapper}
-                  onPress={() => {
-                    setIsImportant(true);
-                    setImportantTouched(true);
-                  }}>
-                  <View style={[styles.segment, isImportant && { backgroundColor: theme.backgroundSelected }]}>
-                    <ThemedText type="smallBold" themeColor={isImportant ? 'text' : 'textSecondary'}>
-                      {t('taskForm.importanceHigh')}
-                    </ThemedText>
-                  </View>
-                </Pressable>
-              </View>
-              <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-                {t('taskForm.importanceHint')}
-              </ThemedText>
-
-              <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-                {t('taskForm.tagLabel')}
-              </ThemedText>
-              <View style={styles.categoryRow}>
-                {TAGS.map((tagOption) => {
-                  const isActive = tag === tagOption.id;
-                  return (
-                    <Pressable key={tagOption.id} style={styles.categoryItem} onPress={() => setTag(tagOption.id)}>
-                      <View
-                        style={[
-                          styles.pill,
-                          { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
-                          isActive && { backgroundColor: theme.backgroundSelected },
-                        ]}>
-                        <ThemedText style={styles.pillIcon}>{tagOption.icon}</ThemedText>
-                        <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
-                          {t(tagOption.labelKey)}
-                        </ThemedText>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-                <Pressable style={styles.categoryItem} onPress={() => setTag(null)}>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+              {t('taskForm.whenLabel')}
+            </ThemedText>
+            <View style={styles.pillRow}>
+              {WHEN_OPTIONS.map((option) => (
+                <Pressable key={option.id} onPress={() => handleWhenPress(option.id)}>
                   <View
                     style={[
                       styles.pill,
                       { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
-                      tag === null && { backgroundColor: theme.backgroundSelected },
+                      whenOption === option.id && { backgroundColor: theme.backgroundSelected },
                     ]}>
-                    <ThemedText type="small" themeColor={tag === null ? 'text' : 'textSecondary'}>
-                      {t('tag.none')}
+                    <ThemedText type="small" themeColor={whenOption === option.id ? 'text' : 'textSecondary'}>
+                      {t(option.labelKey)}
                     </ThemedText>
                   </View>
                 </Pressable>
-              </View>
+              ))}
+              <CustomDatePill
+                active={whenOption === 'custom'}
+                label={customDateLabel}
+                icon="📅"
+                value={whenOption === 'custom' ? dueDate : null}
+                onChange={handleCustomDate}
+              />
+            </View>
+            {!!dateHint && (
+              <ThemedText type="small" themeColor="primary" style={styles.hint}>
+                {dateHint}
+              </ThemedText>
+            )}
 
-              <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
+            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+              {t('taskForm.importanceLabel')}
+            </ThemedText>
+            <View style={[styles.segmented, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+              <Pressable
+                style={styles.segmentWrapper}
+                onPress={() => {
+                  setIsImportant(false);
+                  setImportantTouched(true);
+                }}>
+                <View style={[styles.segment, !isImportant && { backgroundColor: theme.backgroundSelected }]}>
+                  <ThemedText type="smallBold" themeColor={!isImportant ? 'text' : 'textSecondary'}>
+                    {t('taskForm.importanceLow')}
+                  </ThemedText>
+                </View>
+              </Pressable>
+              <Pressable
+                style={styles.segmentWrapper}
+                onPress={() => {
+                  setIsImportant(true);
+                  setImportantTouched(true);
+                }}>
+                <View style={[styles.segment, isImportant && { backgroundColor: theme.backgroundSelected }]}>
+                  <ThemedText type="smallBold" themeColor={isImportant ? 'text' : 'textSecondary'}>
+                    {t('taskForm.importanceHigh')}
+                  </ThemedText>
+                </View>
+              </Pressable>
+            </View>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
+              {t('taskForm.importanceHint')}
+            </ThemedText>
 
-              <View style={styles.remindRow}>
-                <ThemedText>🔔 {t('taskForm.remindLabel')}</ThemedText>
-                <Switch
-                  value={remindMe}
-                  onValueChange={handleRemindToggle}
-                  trackColor={{ false: theme.glassBorder, true: theme.primary }}
-                />
-              </View>
-              {remindMe && (
-                <TimeField
-                  label={t('taskForm.remindTimeLabel')}
-                  placeholder={t('taskForm.remindTimePlaceholder')}
-                  value={remindTime}
-                  onChange={setRemindTime}
-                />
-              )}
-
-              {isOverLimit && !forceAdd && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+              {t('taskForm.tagLabel')}
+            </ThemedText>
+            <View style={styles.categoryRow}>
+              {TAGS.map((tagOption) => {
+                const isActive = tag === tagOption.id;
+                return (
+                  <Pressable key={tagOption.id} style={styles.categoryItem} onPress={() => setTag(tagOption.id)}>
+                    <View
+                      style={[
+                        styles.pill,
+                        { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
+                        isActive && { backgroundColor: theme.backgroundSelected },
+                      ]}>
+                      <ThemedText style={styles.pillIcon}>{tagOption.icon}</ThemedText>
+                      <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
+                        {t(tagOption.labelKey)}
+                      </ThemedText>
+                    </View>
+                  </Pressable>
+                );
+              })}
+              <Pressable style={styles.categoryItem} onPress={() => setTag(null)}>
                 <View
                   style={[
-                    styles.swapPanel,
-                    { backgroundColor: hexToRgba(theme.danger, 0.12), borderColor: hexToRgba(theme.danger, 0.3) },
+                    styles.pill,
+                    { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
+                    tag === null && { backgroundColor: theme.backgroundSelected },
                   ]}>
-                  <ThemedText type="smallBold">
-                    {t('taskForm.swapTitle', { count: activeTasksInQuadrant.length })}
+                  <ThemedText type="small" themeColor={tag === null ? 'text' : 'textSecondary'}>
+                    {t('tag.none')}
                   </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {t('taskForm.swapSubtitle')}
-                  </ThemedText>
-                  {activeTasksInQuadrant.map((task) => (
-                    <Pressable key={task.id} style={styles.swapRow} onPress={() => onToggleTask(task.id)}>
-                      <View style={[styles.swapCheckbox, { borderColor: theme.border }]} />
-                      <ThemedText type="small" numberOfLines={1} style={styles.swapRowText}>
-                        {task.title}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                  <Pressable onPress={() => setForceAdd(true)} hitSlop={8} style={styles.swapForce}>
-                    <ThemedText type="small" themeColor="primary">
-                      {t('taskForm.swapForceAdd')}
+                </View>
+              </Pressable>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
+
+            <View style={styles.remindRow}>
+              <ThemedText>🔔 {t('taskForm.remindLabel')}</ThemedText>
+              <Switch
+                value={remindMe}
+                onValueChange={handleRemindToggle}
+                trackColor={{ false: theme.glassBorder, true: theme.primary }}
+              />
+            </View>
+            {remindMe && (
+              <TimeField
+                label={t('taskForm.remindTimeLabel')}
+                placeholder={t('taskForm.remindTimePlaceholder')}
+                value={remindTime}
+                onChange={setRemindTime}
+              />
+            )}
+
+            {isOverLimit && !forceAdd && (
+              <View
+                style={[
+                  styles.swapPanel,
+                  { backgroundColor: hexToRgba(theme.danger, 0.12), borderColor: hexToRgba(theme.danger, 0.3) },
+                ]}>
+                <ThemedText type="smallBold">
+                  {t('taskForm.swapTitle', { count: activeTasksInQuadrant.length })}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('taskForm.swapSubtitle')}
+                </ThemedText>
+                {activeTasksInQuadrant.map((task) => (
+                  <Pressable key={task.id} style={styles.swapRow} onPress={() => onToggleTask(task.id)}>
+                    <View style={[styles.swapCheckbox, { borderColor: theme.border }]} />
+                    <ThemedText type="small" numberOfLines={1} style={styles.swapRowText}>
+                      {task.title}
                     </ThemedText>
                   </Pressable>
-                </View>
-              )}
+                ))}
+                <Pressable onPress={() => setForceAdd(true)} hitSlop={8} style={styles.swapForce}>
+                  <ThemedText type="small" themeColor="primary">
+                    {t('taskForm.swapForceAdd')}
+                  </ThemedText>
+                </Pressable>
+              </View>
+            )}
 
-              <PrimaryButton
-                title={initialTask ? t('taskForm.save') : t('taskForm.addButton')}
-                onPress={handleSave}
-                disabled={!canSave}
-              />
-            </ScrollView>
-          </SafeAreaView>
-        </ThemedView>
-      </KeyboardAvoidingView>
-    </Modal>
+            <PrimaryButton
+              title={initialTask ? t('taskForm.save') : t('taskForm.addButton')}
+              onPress={handleSave}
+              disabled={!canSave}
+            />
+          </ScrollView>
+      </SafeAreaView>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(20,22,28,0.25)',
-  },
-  sheet: {
-    borderTopLeftRadius: Spacing.four,
-    borderTopRightRadius: Spacing.four,
-    maxHeight: '88%',
-  },
   safeArea: {
     flexShrink: 1,
   },
@@ -436,6 +480,14 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 11,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  micButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

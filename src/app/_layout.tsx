@@ -7,6 +7,7 @@ import { BirthdaysProvider } from '@/context/birthdays-context';
 import { EscalationProvider } from '@/context/escalation-context';
 import { NotificationsProvider } from '@/context/notifications-context';
 import { LocaleProvider } from '@/context/locale-context';
+import { SheetGesturesProvider } from '@/context/sheet-gestures-context';
 import { TasksProvider } from '@/context/tasks-context';
 import { useTheme } from '@/hooks/use-theme';
 import { useWidgetSync } from '@/hooks/use-widget-sync';
@@ -32,6 +33,7 @@ export default function RootLayout() {
           <LocaleProvider>
             <AuthProvider>
               <EscalationProvider>
+                <SheetGesturesProvider>
                 <TasksProvider>
                   <BirthdaysProvider>
                     <NotificationsProvider>
@@ -39,6 +41,7 @@ export default function RootLayout() {
                     </NotificationsProvider>
                   </BirthdaysProvider>
                 </TasksProvider>
+              </SheetGesturesProvider>
               </EscalationProvider>
             </AuthProvider>
           </LocaleProvider>

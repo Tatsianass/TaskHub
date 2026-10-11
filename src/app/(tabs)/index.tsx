@@ -7,7 +7,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 
 import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
-import { CheckCircleIcon, PlusIcon } from '@/components/header-icons';
+import { CheckCircleIcon, MicIcon, PlusIcon } from '@/components/header-icons';
 import { TaskFormModal } from '@/components/task-form-modal';
 import { TaskRow } from '@/components/task-row';
 import { ThemedText } from '@/components/themed-text';
@@ -50,6 +50,7 @@ export default function HomeScreen() {
   const [activeTagFilter, setActiveTagFilter] = useState<TagFilter>('all');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [voiceStart, setVoiceStart] = useState(false);
   // The task just checked off, offered for undo until the toast times out.
   const [justCompletedId, setJustCompletedId] = useState<string | null>(null);
   const isFocused = useIsFocused();
@@ -137,11 +138,19 @@ export default function HomeScreen() {
 
   const openCreateModal = () => {
     setEditingTask(null);
+    setVoiceStart(false);
+    setIsModalOpen(true);
+  };
+
+  const openVoiceCreateModal = () => {
+    setEditingTask(null);
+    setVoiceStart(true);
     setIsModalOpen(true);
   };
 
   const openEditModal = (task: Task) => {
     setEditingTask(task);
+    setVoiceStart(false);
     setIsModalOpen(true);
   };
 
@@ -273,9 +282,17 @@ export default function HomeScreen() {
               const quadrantTasks = tasksFor(quadrant.id);
               return (
                 <CrossFade key={quadrant.id} active={quadrant.id === activeQuadrantId}>
-                  <ThemedText type="smallBold" style={styles.sectionTitle}>
-                    {t(quadrant.titleKey)}
-                  </ThemedText>
+                  <View style={styles.sectionHeader}>
+                    <ThemedText type="smallBold">{t(quadrant.titleKey)}</ThemedText>
+                    <Pressable
+                      onPress={() => !justSwiped() && openVoiceCreateModal()}
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('voice.start')}
+                      style={[styles.micButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+                      <MicIcon color={theme.primary} size={18} />
+                    </Pressable>
+                  </View>
 
                   {isLoaded && (
                     <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
@@ -331,6 +348,7 @@ export default function HomeScreen() {
         visible={isModalOpen}
         initialTask={editingTask}
         defaultQuadrantId={activeQuadrantId}
+        autoListen={voiceStart}
         tasks={tasks}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
@@ -458,8 +476,19 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
   },
-  sectionTitle: {
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: Spacing.two,
+  },
+  micButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listPanel: {
     flex: 1,

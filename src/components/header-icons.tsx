@@ -48,6 +48,41 @@ export function PlusIcon({ color, size = 24 }: IconProps) {
   );
 }
 
+/** A microphone: capsule, pickup arc and stand (Tabler "microphone"). */
+export function MicIcon({ color, size = 24 }: IconProps) {
+  const scale = size / 24;
+  const stroke = 2 * scale;
+  return (
+    <View style={[styles.box, { width: size, height: size }]}>
+      <View
+        style={{
+          position: 'absolute',
+          top: 2 * scale,
+          width: 8 * scale,
+          height: 13 * scale,
+          borderRadius: 4 * scale,
+          borderWidth: stroke,
+          borderColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: 9 * scale,
+          width: 14 * scale,
+          height: 8 * scale,
+          borderBottomLeftRadius: 7 * scale,
+          borderBottomRightRadius: 7 * scale,
+          borderWidth: stroke,
+          borderTopWidth: 0,
+          borderColor: color,
+        }}
+      />
+      <View style={{ position: 'absolute', top: 17 * scale, width: stroke, height: 4 * scale, backgroundColor: color }} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   box: { alignItems: 'center', justifyContent: 'center' },
 });

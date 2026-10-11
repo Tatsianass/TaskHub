@@ -14,6 +14,7 @@ import type { ThemeMode } from '@/constants/theme';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
+import { useSheetGestures } from '@/context/sheet-gestures-context';
 import { useNotificationsSettings } from '@/context/notifications-context';
 import { useLocale } from '@/context/locale-context';
 import { useThemeMode } from '@/context/theme-mode-context';
@@ -43,6 +44,7 @@ export default function SettingsScreen() {
   const { mode, setMode } = useThemeMode();
   const { escalationDays, setEscalationDays } = useEscalationSettings();
   const { notificationsEnabled, setNotificationsEnabled } = useNotificationsSettings();
+  const { sheetGestures, setSheetGestures } = useSheetGestures();
   const [notificationsDenied, setNotificationsDenied] = useState(false);
   const theme = useTheme();
 
@@ -211,6 +213,16 @@ export default function SettingsScreen() {
               </ThemedText>
             </View>
             <Switch value={notificationsEnabled} onValueChange={handleNotificationsToggle} />
+          </GlassPanel>
+
+          <GlassPanel contentStyle={styles.switchRow}>
+            <View style={styles.switchText}>
+              <ThemedText type="smallBold">{t('settings.sheetGestures')}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t('settings.sheetGesturesHint')}
+              </ThemedText>
+            </View>
+            <Switch value={sheetGestures} onValueChange={setSheetGestures} />
           </GlassPanel>
 
           {!isLocal && <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />}

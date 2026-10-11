@@ -1,8 +1,9 @@
 import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomSheetModal } from '@/components/bottom-sheet-modal';
 import { DateField } from '@/components/date-field';
 import { ErrorBanner } from '@/components/error-banner';
 import { PlusIcon } from '@/components/header-icons';
@@ -11,7 +12,6 @@ import { PrimaryButton } from '@/components/primary-button';
 import { TimeField } from '@/components/time-field';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { MAX_ACTIVE_TASKS_PER_QUADRANT, QUADRANTS } from '@/constants/quadrants';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
@@ -173,19 +173,18 @@ export default function BirthdaysScreen() {
       </View>
       </SafeAreaView>
 
-      <Modal visible={isModalOpen} animationType="slide" transparent onRequestClose={() => setIsModalOpen(false)}>
-        <KeyboardAvoidingView
-          style={styles.backdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ThemedView style={styles.sheet}>
-            <SafeAreaView edges={['bottom']}>
-              <View style={styles.modalHeader}>
-                <ThemedText type="smallBold">{editing ? t('birthdays.editTitle') : t('birthdays.addTitle')}</ThemedText>
-                <Pressable onPress={() => setIsModalOpen(false)} hitSlop={8}>
-                  <ThemedText style={styles.closeIcon}>✕</ThemedText>
-                </Pressable>
-              </View>
-
+      <BottomSheetModal
+        visible={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        header={
+          <View style={styles.modalHeader}>
+            <ThemedText type="smallBold">{editing ? t('birthdays.editTitle') : t('birthdays.addTitle')}</ThemedText>
+            <Pressable onPress={() => setIsModalOpen(false)} hitSlop={8}>
+              <ThemedText style={styles.closeIcon}>✕</ThemedText>
+            </Pressable>
+          </View>
+        }>
+        <SafeAreaView edges={['bottom']}>
               <View style={styles.form}>
                 <TextField
                   label={t('birthdays.nameLabel')}
@@ -288,10 +287,8 @@ export default function BirthdaysScreen() {
                 )}
                 <PrimaryButton title={t('birthdays.save')} onPress={handleSave} disabled={!name.trim() || !date} />
               </View>
-            </SafeAreaView>
-          </ThemedView>
-        </KeyboardAvoidingView>
-      </Modal>
+        </SafeAreaView>
+      </BottomSheetModal>
     </>
   );
 }
@@ -356,15 +353,6 @@ const styles = StyleSheet.create({
   },
   delete: {
     paddingLeft: Spacing.one,
-  },
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(20,22,28,0.25)',
-  },
-  sheet: {
-    borderTopLeftRadius: Spacing.four,
-    borderTopRightRadius: Spacing.four,
   },
   modalHeader: {
     flexDirection: 'row',
