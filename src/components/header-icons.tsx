@@ -110,6 +110,40 @@ export function RestoreIcon({ color, size = 24 }: IconProps) {
   );
 }
 
+/** Tray with an arrow leaving it: share/export (Tabler "upload"). */
+export function ExportIcon({ color, size = 24 }: IconProps) {
+  return <TrayArrowIcon color={color} size={size} direction="up" />;
+}
+
+/** Tray with an arrow entering it: import (Tabler "download"). */
+export function ImportIcon({ color, size = 24 }: IconProps) {
+  return <TrayArrowIcon color={color} size={size} direction="down" />;
+}
+
+function TrayArrowIcon({ color, size = 24, direction }: IconProps & { direction: 'up' | 'down' }) {
+  const scale = size / 24;
+  const stroke = 2 * scale;
+  const up = direction === 'up';
+  return (
+    <View style={[styles.box, { width: size, height: size }]}>
+      <View style={{ position: 'absolute', bottom: 3 * scale, width: 18 * scale, height: 6 * scale, borderBottomLeftRadius: 3 * scale, borderBottomRightRadius: 3 * scale, borderWidth: stroke, borderTopWidth: 0, borderColor: color }} />
+      <View style={{ position: 'absolute', top: 3 * scale, width: stroke, height: 13 * scale, borderRadius: scale, backgroundColor: color }} />
+      <View
+        style={{
+          position: 'absolute',
+          top: (up ? 4.5 : 6.5) * scale,
+          width: 8 * scale,
+          height: 8 * scale,
+          borderLeftWidth: stroke,
+          borderTopWidth: stroke,
+          borderColor: color,
+          transform: [{ rotate: up ? '45deg' : '225deg' }],
+        }}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   box: { alignItems: 'center', justifyContent: 'center' },
 });

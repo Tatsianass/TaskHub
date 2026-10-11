@@ -25,17 +25,17 @@ type Translate = (key: string) => string;
 
 const isObject = (value: unknown): value is Raw => typeof value === 'object' && value !== null;
 
-const nonEmpty = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
+export const nonEmpty = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
 
 /** `YYYY-MM-DD` that is a real calendar date, else null (same rule as the server). */
-function validDate(value: unknown) {
+export function validDate(value: unknown) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [year, month, day] = value.split('-').map(Number);
   const parsed = new Date(Date.UTC(year, month - 1, day));
   return parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day ? value : null;
 }
 
-function validTime(value: unknown) {
+export function validTime(value: unknown) {
   if (typeof value !== 'string' || !/^\d{2}:\d{2}$/.test(value)) return null;
   const [hours, minutes] = value.split(':').map(Number);
   return hours < 24 && minutes < 60 ? value : null;

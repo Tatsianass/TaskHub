@@ -52,19 +52,31 @@
               "name": "TaskHubToday",
               "displayName": "TaskHub: Сегодня",
               "description": "Три ближайшие задачи на сегодня",
-              "ios": { "supportedFamilies": ["systemMedium"] }
+              "ios": {
+                "supportedFamilies": [
+                  "systemMedium"
+                ]
+              }
             },
             {
               "name": "TaskHubNext",
               "displayName": "TaskHub: Сейчас",
               "description": "Самая важная задача и прогресс дня",
-              "ios": { "supportedFamilies": ["systemSmall"] }
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall"
+                ]
+              }
             },
             {
               "name": "TaskHubMatrix",
               "displayName": "TaskHub: Матрица",
               "description": "Количество задач в квадрантах Эйзенхауэра",
-              "ios": { "supportedFamilies": ["systemSmall"] }
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall"
+                ]
+              }
             }
           ]
         }
@@ -75,7 +87,8 @@
           "microphonePermission": "TaskHub использует микрофон, чтобы вы могли создавать задачи голосом.",
           "speechRecognitionPermission": "TaskHub использует распознавание речи, чтобы превращать вашу речь в текст задачи."
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

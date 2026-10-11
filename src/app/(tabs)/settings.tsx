@@ -1,10 +1,11 @@
 import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Switch, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DropdownField } from '@/components/dropdown-field';
 import { GlassPanel } from '@/components/glass-panel';
+import { ExportIcon, ImportIcon } from '@/components/header-icons';
 import { InfoButton } from '@/components/info-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
@@ -15,11 +16,14 @@ import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useSheetGestures } from '@/context/sheet-gestures-context';
+import { useBirthdaysContext } from '@/context/birthdays-context';
+import { useTasksContext } from '@/context/tasks-context';
 import { useNotificationsSettings } from '@/context/notifications-context';
 import { useLocale } from '@/context/locale-context';
 import { useThemeMode } from '@/context/theme-mode-context';
 import { useTheme } from '@/hooks/use-theme';
 import { LOCALES } from '@/i18n/translations';
+import { BackupError, exportBackup, importBackup, pickBackup } from '@/lib/backup';
 
 const ESCALATION_PRESETS: { key: string; days: number | null }[] = [
   { key: 'off', days: null },
@@ -47,6 +51,9 @@ export default function SettingsScreen() {
   const { sheetGestures, setSheetGestures } = useSheetGestures();
   const [notificationsDenied, setNotificationsDenied] = useState(false);
   const theme = useTheme();
+  const { tasks, refresh: refreshTasks } = useTasksContext();
+  const { birthdays, refresh: refreshBirthdays } = useBirthdaysContext();
+  const [busy, setBusy] = useState<'export' | 'import' | null>(null);
 
   const isCustomEscalation = escalationDays !== null && !ESCALATION_PRESETS.some((p) => p.days === escalationDays);
   const [customInputForced, setCustomInputForced] = useState(false);
@@ -63,6 +70,39 @@ export default function SettingsScreen() {
 
   const handleNotificationsToggle = async (enabled: boolean) => {
     setNotificationsDenied(!(await setNotificationsEnabled(enabled)));
+  };
+
+  const notify = (message: string) => Alert.alert(message, undefined, [{ text: t('backup.ok') }]);
+
+  const handleExport = async () => {
+    setBusy('export');
+    try {
+      await exportBackup({ tasks, birthdays }, t('backup.shareTitle'));
+    } catch {
+      notify(t('backup.exportFailed'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleImport = async () => {
+    setBusy('import');
+    try {
+      const data = await pickBackup();
+      if (!data) return;
+      if (!data.tasks.length && !data.birthdays.length) return notify(t('backup.nothing'));
+      const result = await importBackup(data, {
+        taskIds: new Set(tasks.map((task) => task.id)),
+        birthdayIds: new Set(birthdays.map((birthday) => birthday.id)),
+      });
+      await Promise.all([refreshTasks(), refreshBirthdays()]);
+      const summary = t('backup.done', { n: result.added, skipped: result.skipped });
+      notify(result.failed ? `${summary}\n${t('backup.partialFail', { failed: result.failed })}` : summary);
+    } catch (e) {
+      notify(t(e instanceof BackupError ? e.message : 'backup.invalidFile'));
+    } finally {
+      setBusy(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -225,6 +265,34 @@ export default function SettingsScreen() {
             <Switch value={sheetGestures} onValueChange={setSheetGestures} />
           </GlassPanel>
 
+          <View>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+              {t('settings.data')}
+            </ThemedText>
+            <View style={styles.chipRow}>
+              {([
+                ['export', t('settings.export'), ExportIcon, handleExport],
+                ['import', t('settings.import'), ImportIcon, handleImport],
+              ] as const).map(([key, label, Icon, onPress]) => (
+                <Pressable
+                  key={key}
+                  onPress={onPress}
+                  disabled={busy !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  style={[styles.chipWrapper, busy !== null && busy !== key && { opacity: 0.5 }]}>
+                  <GlassPanel contentStyle={styles.dataButton}>
+                    {busy === key ? <ActivityIndicator color={theme.primary} /> : <Icon color={theme.primary} />}
+                    <ThemedText type="small">{label}</ThemedText>
+                  </GlassPanel>
+                </Pressable>
+              ))}
+            </View>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.escalationHint}>
+              {t('settings.dataHint')}
+            </ThemedText>
+          </View>
+
           {!isLocal && <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />}
         </ScrollView>
       </View>
@@ -290,6 +358,13 @@ const styles = StyleSheet.create({
   },
   chipWrapper: {
     flexShrink: 0,
+  },
+  dataButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
   },
   chipContent: {
     paddingHorizontal: Spacing.three,
