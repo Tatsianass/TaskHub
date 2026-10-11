@@ -15,7 +15,8 @@
       },
       "bundleIdentifier": "com.tatsianas.todomobile",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "TaskHub не использует вашу фотогалерею. Доступ нужен только системным компонентам для отображения изображений."
       }
     },
     "android": {
