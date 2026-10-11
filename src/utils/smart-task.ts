@@ -25,6 +25,32 @@ export function parseSmartDate(text: string, locale: string): string | null {
   return toISODate(results[0].start.date());
 }
 
+export type SpokenTask = {
+  /** The phrase with the date/time words taken out, e.g. "купить хлеб завтра" → "купить хлеб". */
+  title: string;
+  date: string | null;
+  /** HH:MM, only when a clock time was actually spoken. */
+  time: string | null;
+};
+
+/** Splits a dictated phrase into the task text and the date/time it mentions. */
+export function parseSpokenTask(text: string, locale: string): SpokenTask {
+  const parser = chronoByLocale[locale] ?? chrono.en;
+  const [result] = parser.parse(text, new Date(), { forwardDate: true });
+  if (!result) return { title: text.trim(), date: null, time: null };
+
+  const when = result.start.date();
+  const time = result.start.isCertain('hour')
+    ? `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`
+    : null;
+  const title = `${text.slice(0, result.index)} ${text.slice(result.index + result.text.length)}`
+    .replace(/\s+/g, ' ')
+    .replace(/\s+(на|в|во|к|до|on|at|by|for)$/i, '')
+    .trim();
+  // A phrase that was only a date ("завтра") leaves nothing to name the task; keep the original.
+  return { title: title || text.trim(), date: toISODate(when), time };
+}
+
 const URGENT_KEYWORDS: Record<string, string[]> = {
   ru: ['срочно', 'срочный', 'срочная', 'срочное', 'сейчас', 'немедленно', 'сегодня', 'завтра', 'дедлайн', 'скорее', 'горит'],
   en: ['urgent', 'asap', 'now', 'immediately', 'today', 'tomorrow', 'deadline', 'quickly'],

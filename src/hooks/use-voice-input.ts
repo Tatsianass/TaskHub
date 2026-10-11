@@ -15,8 +15,8 @@ const SPEECH_LANG: Record<Locale, string> = {
 };
 
 type Options = {
-  /** Called with the full phrase heard so far, as it grows. */
-  onTranscript: (text: string) => void;
+  /** Called with the full phrase heard so far as it grows, then once more with `isFinal` set. */
+  onTranscript: (text: string, isFinal: boolean) => void;
 };
 
 export type VoiceError = 'denied' | 'failed' | null;
@@ -31,7 +31,7 @@ export function useVoiceInput({ onTranscript }: Options) {
   useSpeechRecognitionEvent('end', () => setListening(false));
   useSpeechRecognitionEvent('result', (event) => {
     const text = event.results[0]?.transcript;
-    if (text) onTranscript(text);
+    if (text) onTranscript(text, event.isFinal);
   });
   useSpeechRecognitionEvent('error', (event) => {
     // "aborted" and "no-speech" are the user stopping or staying silent, not failures worth showing.

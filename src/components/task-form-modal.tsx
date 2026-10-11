@@ -20,7 +20,7 @@ import { useVoiceInput } from '@/hooks/use-voice-input';
 import { hexToRgba } from '@/utils/colors';
 import { dayDiffFromToday } from '@/utils/dates';
 import { effectiveQuadrantId } from '@/utils/priority';
-import { parseSmartDate, suggestImportance } from '@/utils/smart-task';
+import { parseSmartDate, parseSpokenTask, suggestImportance } from '@/utils/smart-task';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { QuadrantId, TagId, Task } from '@/types/task';
 
@@ -115,6 +115,8 @@ export function TaskFormModal({
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [dueDateAuto, setDueDateAuto] = useState(false);
+  // Set once the user picks a date themselves; from then on the title text no longer changes it.
+  const [dueDateManual, setDueDateManual] = useState(false);
   const [isImportant, setIsImportant] = useState(true);
   const [importantTouched, setImportantTouched] = useState(false);
   const [tag, setTag] = useState<TagId | null>(null);
@@ -125,7 +127,26 @@ export function TaskFormModal({
   // What was already typed when dictation started; the phrase heard so far is appended to it.
   const dictationBaseRef = useRef('');
   const voice = useVoiceInput({
-    onTranscript: (text) => setTitle(dictationBaseRef.current ? `${dictationBaseRef.current} ${text}` : text),
+    onTranscript: (text, isFinal) => {
+      const base = dictationBaseRef.current;
+      const join = (phrase: string) => (base ? `${base} ${phrase}` : phrase);
+      if (!isFinal) {
+        setTitle(join(text));
+        return;
+      }
+      // Once the phrase is complete, move the spoken date/time out of the title and into the fields.
+      const spoken = parseSpokenTask(text, locale);
+      setTitle(join(spoken.title));
+      if (spoken.date) {
+        setDueDate(spoken.date);
+        setDueDateAuto(false);
+        setForceAdd(false);
+      }
+      if (spoken.time) {
+        setRemindMe(true);
+        setRemindTime(spoken.time);
+      }
+    },
   });
   const { start: startListening, abort: abortListening } = voice;
 
@@ -136,6 +157,7 @@ export function TaskFormModal({
     setDescription(initialTask?.description ?? '');
     setDueDate(initialTask ? initialTask.dueDate : (defaultDueDate ?? dateForWhen('today')));
     setDueDateAuto(false);
+    setDueDateManual(false);
     setIsImportant(initialTask ? isImportantQuadrant(initialTask.quadrantId) : true);
     setImportantTouched(!!initialTask);
     setTag(initialTask?.tag ?? null);
@@ -175,11 +197,11 @@ export function TaskFormModal({
     if (!trimmed) return;
 
     const parsedDate = parseSmartDate(trimmed, locale);
-    if (parsedDate && (dueDate === null || dueDateAuto)) {
+    if (parsedDate && !dueDateManual) {
       setDueDate(parsedDate);
       setDueDateAuto(true);
     } else if (!parsedDate && dueDateAuto) {
-      setDueDate(null);
+      setDueDate(defaultDueDate ?? dateForWhen('today'));
       setDueDateAuto(false);
     }
 
@@ -197,7 +219,10 @@ export function TaskFormModal({
   const activeTasksInQuadrant = tasks.filter(
     (task) => effectiveQuadrantId(task, escalationDays, today) === quadrantId && !task.done && task.id !== initialTask?.id,
   );
-  const isOverLimit = activeTasksInQuadrant.length >= MAX_ACTIVE_TASKS_PER_QUADRANT;
+  // A task already sitting in this quadrant isn't being "added" to it, so the cap doesn't apply on edit.
+  const alreadyInQuadrant =
+    !!initialTask && !initialTask.done && effectiveQuadrantId(initialTask, escalationDays, today) === quadrantId;
+  const isOverLimit = !alreadyInQuadrant && activeTasksInQuadrant.length >= MAX_ACTIVE_TASKS_PER_QUADRANT;
   const canSave = !!title.trim() && (!isOverLimit || forceAdd);
 
   const handleSave = () => {
@@ -213,12 +238,14 @@ export function TaskFormModal({
   const handleWhenPress = (option: Exclude<WhenOption, 'custom'>) => {
     setDueDate(dateForWhen(option));
     setDueDateAuto(false);
+    setDueDateManual(true);
     setForceAdd(false);
   };
 
   const handleCustomDate = (value: string) => {
     setDueDate(value);
     setDueDateAuto(false);
+    setDueDateManual(true);
     setForceAdd(false);
   };
 
