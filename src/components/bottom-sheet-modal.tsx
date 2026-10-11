@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   PanResponder,
   Platform,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedView } from "@/components/themed-view";
 import { Spacing } from "@/constants/theme";
@@ -39,6 +42,30 @@ export function BottomSheetModal({
 }: Props) {
   const { sheetGestures } = useSheetGestures();
   const [translateY] = useState(() => new Animated.Value(0));
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  // On iOS the keyboard height is applied manually so the sheet can be capped to the space
+  // above the keyboard; otherwise a tall form slides up under the status bar.
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const show = Keyboard.addListener("keyboardWillChangeFrame", (e) =>
+      setKeyboardHeight(Math.max(0, windowHeight - e.endCoordinates.screenY)),
+    );
+    const hide = Keyboard.addListener("keyboardWillHide", () =>
+      setKeyboardHeight(0),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [windowHeight]);
+  const sheetMaxHeight = maxHeight
+    ? Math.min(
+        (parseFloat(maxHeight) / 100) * windowHeight,
+        windowHeight - keyboardHeight - insets.top - Spacing.two,
+      )
+    : undefined;
   useEffect(() => {
     if (visible) translateY.setValue(0);
   }, [visible, translateY]);
@@ -76,15 +103,18 @@ export function BottomSheetModal({
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        style={styles.backdrop}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={[
+          styles.backdrop,
+          Platform.OS === "ios" && { paddingBottom: keyboardHeight },
+        ]}
+        behavior={undefined}
       >
         {sheetGestures && (
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         )}
         <Animated.View
           style={[
-            maxHeight ? { maxHeight } : null,
+            sheetMaxHeight ? { maxHeight: sheetMaxHeight } : null,
             { transform: [{ translateY }] },
           ]}
         >

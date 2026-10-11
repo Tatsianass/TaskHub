@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomSheetModal } from '@/components/bottom-sheet-modal';
 import { CustomDatePill } from '@/components/custom-date-pill';
-import { MicIcon } from '@/components/header-icons';
+import { MicIcon, TrashIcon } from '@/components/header-icons';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
@@ -255,10 +255,10 @@ export function TaskFormModal({
                 onPress={onDelete}
                 hitSlop={8}
                 style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-                <ThemedText style={styles.deleteIcon}>🗑</ThemedText>
+                <TrashIcon color={theme.danger} size={18} />
               </Pressable>
             ) : (
-              <View style={styles.iconButton} />
+              <View style={styles.iconSpacer} />
             )}
           </View>
             }>
@@ -484,6 +484,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconSpacer: {
+    width: 34,
+    height: 34,
+  },
   micButton: {
     width: 34,
     height: 34,
@@ -491,9 +495,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  deleteIcon: {
-    fontSize: 15,
   },
   closeIcon: {
     fontSize: 15,

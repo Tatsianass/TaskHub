@@ -83,6 +83,33 @@ export function MicIcon({ color, size = 24 }: IconProps) {
   );
 }
 
+/** An outline trash can: lid with handle and a tapered bin (Tabler "trash"). */
+export function TrashIcon({ color, size = 24 }: IconProps) {
+  const scale = size / 24;
+  const stroke = 2 * scale;
+  return (
+    <View style={[styles.box, { width: size, height: size }]}>
+      <View style={{ position: 'absolute', top: 3 * scale, width: 6 * scale, height: 3 * scale, borderTopLeftRadius: 2 * scale, borderTopRightRadius: 2 * scale, borderWidth: stroke, borderBottomWidth: 0, borderColor: color }} />
+      <View style={{ position: 'absolute', top: 5 * scale, width: 18 * scale, height: stroke, borderRadius: scale, backgroundColor: color }} />
+      <View style={{ position: 'absolute', top: 7 * scale, width: 14 * scale, height: 14 * scale, borderBottomLeftRadius: 3 * scale, borderBottomRightRadius: 3 * scale, borderWidth: stroke, borderTopWidth: 0, borderColor: color }} />
+      <View style={{ position: 'absolute', top: 11 * scale, left: 9.5 * scale, width: stroke, height: 6 * scale, borderRadius: scale, backgroundColor: color }} />
+      <View style={{ position: 'absolute', top: 11 * scale, right: 9.5 * scale, width: stroke, height: 6 * scale, borderRadius: scale, backgroundColor: color }} />
+    </View>
+  );
+}
+
+/** A U-turn arrow pointing back-left (Tabler "arrow-back-up"). */
+export function RestoreIcon({ color, size = 24 }: IconProps) {
+  const scale = size / 24;
+  const stroke = 2 * scale;
+  return (
+    <View style={[styles.box, { width: size, height: size }]}>
+      <View style={{ position: 'absolute', left: 6 * scale, top: 7 * scale, width: 12 * scale, height: 10 * scale, borderTopRightRadius: 5 * scale, borderBottomRightRadius: 5 * scale, borderWidth: stroke, borderLeftWidth: 0, borderColor: color }} />
+      <View style={{ position: 'absolute', left: 3.5 * scale, top: 4.5 * scale, width: 7 * scale, height: 7 * scale, borderLeftWidth: stroke, borderTopWidth: stroke, borderColor: color, transform: [{ rotate: '-45deg' }] }} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   box: { alignItems: 'center', justifyContent: 'center' },
 });

@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
 import { GlassPanel } from '@/components/glass-panel';
+import { RestoreIcon, TrashIcon } from '@/components/header-icons';
 import { ThemedText } from '@/components/themed-text';
 import { QUADRANTS } from '@/constants/quadrants';
 import { Spacing } from '@/constants/theme';
@@ -215,7 +216,7 @@ function CompletedRow({ task, subtitle, first, onRestore, onDelete }: RowProps) 
         style={[styles.action, { backgroundColor: theme.text }]}
         accessibilityRole="button"
         accessibilityLabel={t('completed.restore')}>
-        <ThemedText style={[styles.actionIcon, { color: theme.background }]}>↩</ThemedText>
+        <RestoreIcon color={theme.background} size={20} />
         <ThemedText style={[styles.actionText, { color: theme.background }]}>{t('completed.restore')}</ThemedText>
       </Pressable>
       <Pressable
@@ -223,7 +224,7 @@ function CompletedRow({ task, subtitle, first, onRestore, onDelete }: RowProps) 
         style={[styles.action, { backgroundColor: theme.danger }]}
         accessibilityRole="button"
         accessibilityLabel={t('completed.delete')}>
-        <ThemedText style={[styles.actionIcon, { color: theme.background }]}>🗑</ThemedText>
+        <TrashIcon color={theme.background} size={20} />
         <ThemedText style={[styles.actionText, { color: theme.background }]}>{t('completed.delete')}</ThemedText>
       </Pressable>
     </View>
@@ -285,7 +286,6 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 15, textDecorationLine: 'line-through', opacity: 0.6 },
   actions: { width: ACTIONS_WIDTH, flexDirection: 'row' },
   action: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  actionIcon: { fontSize: 18, lineHeight: 22 },
   actionText: { fontSize: 11, fontWeight: '700' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two },
   emptyIcon: { fontSize: 40, lineHeight: 52 },
