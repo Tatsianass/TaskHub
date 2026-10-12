@@ -15,13 +15,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedView } from "@/components/themed-view";
 import { Spacing } from "@/constants/theme";
-import { useSheetGestures } from "@/context/sheet-gestures-context";
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
-  /** Header content; dragging it down closes the sheet when gestures are enabled. */
+  /** Header content; dragging it down closes the sheet. */
   header: ReactNode;
   maxHeight?: `${number}%`;
 };
@@ -30,8 +29,7 @@ const CLOSE_DISTANCE = 90;
 const CLOSE_VELOCITY = 0.8;
 
 /**
- * Bottom sheet. With the "sheet gestures" setting on it also closes by tapping the dimmed area
- * or dragging the header down; with it off, only the controls inside `header` can close it.
+ * Bottom sheet. Closes by tapping the dimmed area or dragging the header down.
  */
 export function BottomSheetModal({
   visible,
@@ -40,7 +38,6 @@ export function BottomSheetModal({
   header,
   maxHeight,
 }: Props) {
-  const { sheetGestures } = useSheetGestures();
   const [translateY] = useState(() => new Animated.Value(0));
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -74,7 +71,7 @@ export function BottomSheetModal({
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, g) =>
-          sheetGestures && g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+          g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
         onPanResponderMove: (_, g) => translateY.setValue(Math.max(0, g.dy)),
         onPanResponderRelease: (_, g) => {
           if (g.dy > CLOSE_DISTANCE || g.vy > CLOSE_VELOCITY) {
@@ -92,7 +89,7 @@ export function BottomSheetModal({
             useNativeDriver: true,
           }).start(),
       }),
-    [sheetGestures, translateY, onClose],
+    [translateY, onClose],
   );
 
   return (
@@ -109,9 +106,7 @@ export function BottomSheetModal({
         ]}
         behavior={undefined}
       >
-        {sheetGestures && (
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        )}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <Animated.View
           style={[
             sheetMaxHeight ? { maxHeight: sheetMaxHeight } : null,

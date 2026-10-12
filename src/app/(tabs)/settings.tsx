@@ -15,7 +15,6 @@ import type { ThemeMode } from '@/constants/theme';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
-import { useSheetGestures } from '@/context/sheet-gestures-context';
 import { useBirthdaysContext } from '@/context/birthdays-context';
 import { useTasksContext } from '@/context/tasks-context';
 import { useNotificationsSettings } from '@/context/notifications-context';
@@ -48,7 +47,6 @@ export default function SettingsScreen() {
   const { mode, setMode } = useThemeMode();
   const { escalationDays, setEscalationDays } = useEscalationSettings();
   const { notificationsEnabled, setNotificationsEnabled } = useNotificationsSettings();
-  const { sheetGestures, setSheetGestures } = useSheetGestures();
   const [notificationsDenied, setNotificationsDenied] = useState(false);
   const theme = useTheme();
   const { tasks, refresh: refreshTasks } = useTasksContext();
@@ -253,16 +251,6 @@ export default function SettingsScreen() {
               </ThemedText>
             </View>
             <Switch value={notificationsEnabled} onValueChange={handleNotificationsToggle} />
-          </GlassPanel>
-
-          <GlassPanel contentStyle={styles.switchRow}>
-            <View style={styles.switchText}>
-              <ThemedText type="smallBold">{t('settings.sheetGestures')}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {t('settings.sheetGesturesHint')}
-              </ThemedText>
-            </View>
-            <Switch value={sheetGestures} onValueChange={setSheetGestures} />
           </GlassPanel>
 
           <View>
