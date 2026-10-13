@@ -176,6 +176,7 @@ export default function BirthdaysScreen() {
       <BottomSheetModal
         visible={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        maxHeight="92%"
         header={
           <View style={styles.modalHeader}>
             <ThemedText type="smallBold">{editing ? t('birthdays.editTitle') : t('birthdays.addTitle')}</ThemedText>
@@ -184,7 +185,8 @@ export default function BirthdaysScreen() {
             </Pressable>
           </View>
         }>
-        <SafeAreaView edges={['bottom']}>
+        <SafeAreaView edges={['bottom']} style={styles.sheetBody}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <View style={styles.form}>
                 <TextField
                   label={t('birthdays.nameLabel')}
@@ -287,6 +289,7 @@ export default function BirthdaysScreen() {
                 )}
                 <PrimaryButton title={t('birthdays.save')} onPress={handleSave} disabled={!name.trim() || !date} />
               </View>
+          </ScrollView>
         </SafeAreaView>
       </BottomSheetModal>
     </>
@@ -381,6 +384,9 @@ const styles = StyleSheet.create({
   },
   closeIcon: {
     fontSize: 18,
+  },
+  sheetBody: {
+    flexShrink: 1,
   },
   form: {
     paddingHorizontal: Spacing.three,
