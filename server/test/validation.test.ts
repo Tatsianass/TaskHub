@@ -25,6 +25,7 @@ const validTask: Task = {
   dueDate: '2026-09-27',
   remindMe: true,
   remindTime: '09:30',
+  remindOffsets: [0, 60],
 };
 
 const validBirthday: Birthday = {
@@ -50,6 +51,12 @@ describe('parseTask', () => {
     assert.deepEqual(parseTask(validTask), validTask);
   });
 
+  test('a client that sends no remindOffsets keeps the old behaviour', () => {
+    const { remindOffsets, ...legacy } = validTask;
+    assert.deepEqual(parseTask(legacy).remindOffsets, [0]);
+    assert.deepEqual(parseTask({ ...legacy, remindMe: false, remindTime: null }).remindOffsets, []);
+  });
+
   const valid: [string, Partial<Task>][] = [
     ['null tag', { tag: null }],
     ['null dueDate', { dueDate: null }],
@@ -57,6 +64,8 @@ describe('parseTask', () => {
     ['empty description', { description: '' }],
     ['leap day', { dueDate: '2028-02-29' }],
     ['midnight', { remindTime: '00:00' }],
+    ['no alerts', { remindOffsets: [] }],
+    ['five alerts', { remindOffsets: [0, 5, 60, 1440, 43200] }],
     ['last minute of day', { remindTime: '23:59' }],
     ['done task', { done: true }],
     ['id of max length', { id: 'x'.repeat(MAX_ID_LENGTH) }],
@@ -124,6 +133,13 @@ describe('parseTask', () => {
     ['remindTime minute 60', { ...validTask, remindTime: '09:60' }],
     ['remindTime 12h format', { ...validTask, remindTime: '09:30 PM' }],
     ['missing remindTime', { ...validTask, remindTime: undefined }],
+    ['remindOffsets not an array', { ...validTask, remindOffsets: 60 }],
+    ['remindOffsets with a string', { ...validTask, remindOffsets: [0, '60'] }],
+    ['remindOffsets negative', { ...validTask, remindOffsets: [-5] }],
+    ['remindOffsets fractional', { ...validTask, remindOffsets: [1.5] }],
+    ['remindOffsets over 30 days', { ...validTask, remindOffsets: [43201] }],
+    ['remindOffsets duplicated', { ...validTask, remindOffsets: [60, 60] }],
+    ['remindOffsets over the cap', { ...validTask, remindOffsets: [0, 1, 2, 3, 4, 5] }],
   ];
   for (const [name, body] of invalid) {
     test(`rejects ${name} with 400 INVALID_TASK`, () => {

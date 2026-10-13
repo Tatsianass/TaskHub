@@ -19,4 +19,6 @@ export type Task = {
   dueDate: string | null;
   remindMe: boolean;
   remindTime: string | null;
+  /** Minutes before `remindTime` at which to alert; `[0]` is the reminder itself, `[]` means none. */
+  remindOffsets: number[];
 };

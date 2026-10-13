@@ -34,6 +34,7 @@ describe('/tasks CRUD', () => {
       dueDate: '2026-10-01',
       remindMe: true,
       remindTime: '09:30',
+      remindOffsets: [0, 60, 1440],
     });
 
     const created = await app.request('POST', '/tasks', { token, body: task });

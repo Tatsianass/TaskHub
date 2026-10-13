@@ -15,10 +15,20 @@ type TaskRow = {
   due_date: string | null;
   remind_me: 0 | 1;
   remind_time: string | null;
+  remind_offsets: string;
 };
 
 const COLUMNS =
-  'id, title, description, quadrant_id, tag, done, completed_at, created_at, due_date, remind_me, remind_time';
+  'id, title, description, quadrant_id, tag, done, completed_at, created_at, due_date, remind_me, remind_time, remind_offsets';
+
+function parseOffsets(json: string): number[] {
+  try {
+    const value: unknown = JSON.parse(json);
+    return Array.isArray(value) ? value.filter((item): item is number => typeof item === 'number') : [];
+  } catch {
+    return [];
+  }
+}
 
 function toTask(row: TaskRow): Task {
   return {
@@ -33,6 +43,7 @@ function toTask(row: TaskRow): Task {
     dueDate: row.due_date,
     remindMe: row.remind_me === 1,
     remindTime: row.remind_time,
+    remindOffsets: parseOffsets(row.remind_offsets),
   };
 }
 
@@ -50,6 +61,7 @@ function toParams(userId: string, id: string, task: Task) {
     task.dueDate,
     task.remindMe ? 1 : 0,
     task.remindTime,
+    JSON.stringify(task.remindOffsets),
   ] as const;
 }
 
@@ -62,15 +74,15 @@ export function tasksRepo(db: DatabaseSync) {
     `SELECT ${COLUMNS} FROM tasks WHERE user_id = ? ORDER BY created_at DESC, rowid DESC`,
   );
   const INSERT = `INSERT INTO tasks (id, user_id, title, description, quadrant_id, tag, done,
-                                     completed_at, created_at, due_date, remind_me, remind_time)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                                     completed_at, created_at, due_date, remind_me, remind_time, remind_offsets)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   const insert = db.prepare(INSERT);
   const insertOrSkip = db.prepare(`${INSERT} ON CONFLICT(id) DO NOTHING`);
   const selectOwner = db.prepare('SELECT user_id FROM tasks WHERE id = ?');
   const update = db.prepare(
     `UPDATE tasks
      SET title = ?, description = ?, quadrant_id = ?, tag = ?, done = ?, completed_at = ?, due_date = ?,
-         remind_me = ?, remind_time = ?
+         remind_me = ?, remind_time = ?, remind_offsets = ?
      WHERE id = ? AND user_id = ?
      RETURNING ${COLUMNS}`,
   );
@@ -116,6 +128,7 @@ export function tasksRepo(db: DatabaseSync) {
         fields.dueDate,
         fields.remindMe ? 1 : 0,
         fields.remindTime,
+        JSON.stringify(fields.remindOffsets),
         id,
         userId,
       ) as TaskRow | undefined;

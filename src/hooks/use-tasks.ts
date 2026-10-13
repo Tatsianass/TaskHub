@@ -10,9 +10,16 @@ export type TaskDraft = {
   quadrantId: QuadrantId;
   tag: TagId | null;
   dueDate: string | null;
-  remindMe: boolean;
   remindTime: string | null;
+  /** Alerts as minutes before `remindTime`; empty means no reminder. */
+  remindOffsets: number[];
 };
+
+/** `remindMe` and `remindTime` stay in step with the alerts so older readers (widgets, backups) keep working. */
+function reminderFields(draft: TaskDraft) {
+  const remindMe = draft.remindOffsets.length > 0;
+  return { remindMe, remindTime: remindMe ? draft.remindTime : null, remindOffsets: draft.remindOffsets };
+}
 
 const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
 
@@ -30,8 +37,7 @@ export function useTasks() {
         quadrantId: draft.quadrantId,
         tag: draft.tag,
         dueDate: draft.dueDate,
-        remindMe: draft.remindMe,
-        remindTime: draft.remindTime,
+        ...reminderFields(draft),
         done: false,
         completedAt: null,
         createdAt: Date.now(),
@@ -71,8 +77,7 @@ export function useTasks() {
         quadrantId: draft.quadrantId,
         tag: draft.tag,
         dueDate: draft.dueDate,
-        remindMe: draft.remindMe,
-        remindTime: draft.remindTime,
+        ...reminderFields(draft),
       }));
     },
     [replaceTask],

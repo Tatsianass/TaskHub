@@ -58,11 +58,18 @@ const V4_SQL = `
 ALTER TABLE birthdays ADD COLUMN alert_days_before INTEGER CHECK (alert_days_before IS NULL OR alert_days_before BETWEEN 1 AND 60);
 `;
 
+// Minutes before the task's reminder time at which to alert, as a JSON array (up to 5 entries).
+// A task that had a reminder keeps exactly one alert, at the reminder time.
+const V5_SQL = `
+ALTER TABLE tasks ADD COLUMN remind_offsets TEXT NOT NULL DEFAULT '[]';
+UPDATE tasks SET remind_offsets = '[0]' WHERE remind_me = 1;
+`;
+
 /**
  * Append-only list: index 0 upgrades user_version 0 → 1, and so on.
  * Never edit or reorder a migration that has shipped; add a new one.
  */
-export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL, V4_SQL];
+export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL, V4_SQL, V5_SQL];
 
 export function getUserVersion(db: DatabaseSync) {
   const row = db.prepare('PRAGMA user_version').get() as { user_version: number };

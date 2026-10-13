@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { nonEmpty, validDate, validTime } from '@/lib/legacy-import';
 import type { Birthday } from '@/types/birthday';
 import type { QuadrantId, TagId, Task } from '@/types/task';
+import { sanitizeOffsets } from '@/utils/reminders';
 
 const FORMAT = 'taskhub-backup';
 const VERSION = 1;
@@ -48,6 +49,7 @@ function parseTask(raw: unknown): Task | null {
     dueDate: validDate(raw.dueDate),
     remindMe: raw.remindMe === true,
     remindTime: validTime(raw.remindTime),
+    remindOffsets: sanitizeOffsets(raw.remindOffsets, raw.remindMe === true ? [0] : []),
   };
 }
 

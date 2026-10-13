@@ -78,6 +78,7 @@ export function makeTask(overrides: Record<string, unknown> = {}) {
     dueDate: null,
     remindMe: false,
     remindTime: null,
+    remindOffsets: [],
     ...overrides,
   };
 }

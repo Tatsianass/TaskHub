@@ -4,6 +4,7 @@ import { Alert, Platform } from 'react-native';
 import { api } from '@/lib/api';
 import type { Birthday } from '@/types/birthday';
 import type { QuadrantId, TagId, Task } from '@/types/task';
+import { sanitizeOffsets } from '@/utils/reminders';
 
 // Where the app kept everything before data moved to the server (R6).
 const TASKS_KEY = 'task-manager:tasks:v3';
@@ -66,6 +67,7 @@ function toTask(raw: unknown): Task | null {
     dueDate: validDate(raw.dueDate),
     remindMe: raw.remindMe === true,
     remindTime: validTime(raw.remindTime),
+    remindOffsets: sanitizeOffsets(raw.remindOffsets, raw.remindMe === true ? [0] : []),
   };
 }
 

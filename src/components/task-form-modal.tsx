@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomSheetModal } from '@/components/bottom-sheet-modal';
 import { CustomDatePill } from '@/components/custom-date-pill';
 import { MicIcon, TrashIcon } from '@/components/header-icons';
 import { PrimaryButton } from '@/components/primary-button';
+import { RemindersSection } from '@/components/reminders-section';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
-import { TimeField } from '@/components/time-field';
 import { MAX_ACTIVE_TASKS_PER_QUADRANT } from '@/constants/quadrants';
 import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
@@ -20,6 +20,7 @@ import { useVoiceInput } from '@/hooks/use-voice-input';
 import { hexToRgba } from '@/utils/colors';
 import { dayDiffFromToday } from '@/utils/dates';
 import { effectiveQuadrantId } from '@/utils/priority';
+import { DEFAULT_REMIND_TIME, taskOffsets } from '@/utils/reminders';
 import { parseSmartDate, parseSpokenTask, suggestImportance } from '@/utils/smart-task';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { QuadrantId, TagId, Task } from '@/types/task';
@@ -120,8 +121,9 @@ export function TaskFormModal({
   const [isImportant, setIsImportant] = useState(true);
   const [importantTouched, setImportantTouched] = useState(false);
   const [tag, setTag] = useState<TagId | null>(null);
-  const [remindMe, setRemindMe] = useState(false);
-  const [remindTime, setRemindTime] = useState<string | null>(null);
+  // A new task starts with one alert at 09:00; removing it leaves the task without a reminder.
+  const [remindOffsets, setRemindOffsets] = useState<number[]>([0]);
+  const [remindTime, setRemindTime] = useState(DEFAULT_REMIND_TIME);
   const [forceAdd, setForceAdd] = useState(false);
   const justResetRef = useRef(false);
   // What was already typed when dictation started; the phrase heard so far is appended to it.
@@ -143,7 +145,7 @@ export function TaskFormModal({
         setForceAdd(false);
       }
       if (spoken.time) {
-        setRemindMe(true);
+        setRemindOffsets((offsets) => (offsets.length ? offsets : [0]));
         setRemindTime(spoken.time);
       }
     },
@@ -161,8 +163,8 @@ export function TaskFormModal({
     setIsImportant(initialTask ? isImportantQuadrant(initialTask.quadrantId) : true);
     setImportantTouched(!!initialTask);
     setTag(initialTask?.tag ?? null);
-    setRemindMe(initialTask?.remindMe ?? false);
-    setRemindTime(initialTask?.remindTime ?? null);
+    setRemindOffsets(initialTask ? taskOffsets(initialTask) : [0]);
+    setRemindTime(initialTask?.remindTime ?? DEFAULT_REMIND_TIME);
     setForceAdd(false);
   }, [visible, initialTask, defaultQuadrantId, defaultDueDate]);
 
@@ -227,12 +229,7 @@ export function TaskFormModal({
 
   const handleSave = () => {
     if (!canSave) return;
-    onSave({ title, description, quadrantId, tag, dueDate, remindMe, remindTime: remindMe ? remindTime : null });
-  };
-
-  const handleRemindToggle = (value: boolean) => {
-    setRemindMe(value);
-    if (value && !remindTime) setRemindTime('09:00');
+    onSave({ title, description, quadrantId, tag, dueDate, remindOffsets, remindTime });
   };
 
   const handleWhenPress = (option: Exclude<WhenOption, 'custom'>) => {
@@ -430,22 +427,13 @@ export function TaskFormModal({
 
             <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
 
-            <View style={styles.remindRow}>
-              <ThemedText>🔔 {t('taskForm.remindLabel')}</ThemedText>
-              <Switch
-                value={remindMe}
-                onValueChange={handleRemindToggle}
-                trackColor={{ false: theme.glassBorder, true: theme.primary }}
-              />
-            </View>
-            {remindMe && (
-              <TimeField
-                label={t('taskForm.remindTimeLabel')}
-                placeholder={t('taskForm.remindTimePlaceholder')}
-                value={remindTime}
-                onChange={setRemindTime}
-              />
-            )}
+            <RemindersSection
+              offsets={remindOffsets}
+              onOffsetsChange={setRemindOffsets}
+              time={remindTime}
+              onTimeChange={setRemindTime}
+              dueDate={dueDate}
+            />
 
             {isOverLimit && !forceAdd && (
               <View
@@ -579,11 +567,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-  },
-  remindRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   swapPanel: {
     borderRadius: Spacing.three,

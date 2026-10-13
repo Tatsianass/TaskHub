@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from 'node:sqlite';
 import { after, describe, test } from 'node:test';
 
 import { closeDatabase, openDatabase } from '../src/db/connection.js';
@@ -133,6 +133,28 @@ describe('runMigrations', () => {
       assert.equal(count.n, 1);
     } finally {
       closeDatabase(db);
+    }
+  });
+
+  test('v5 turns an existing reminder into one alert at the reminder time', () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+      runMigrations(db, MIGRATIONS.slice(0, 4));
+      insertUser(db, 'u1', 'a@example.com');
+      const insert = db.prepare(
+        `INSERT INTO tasks (id, user_id, title, quadrant_id, created_at, remind_me, remind_time)
+         VALUES (?, 'u1', 't', 'urgent-important', 1, ?, ?)`,
+      );
+      insert.run('on', 1, '09:00');
+      insert.run('off', 0, null);
+      runMigrations(db);
+      const rows = db.prepare('SELECT id, remind_offsets FROM tasks ORDER BY id').all();
+      assert.deepEqual(rows.map((row) => ({ ...row })), [
+        { id: 'off', remind_offsets: '[]' },
+        { id: 'on', remind_offsets: '[0]' },
+      ]);
+    } finally {
+      db.close();
     }
   });
 

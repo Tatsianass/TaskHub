@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 import type { Birthday } from '@/types/birthday';
 import type { Task } from '@/types/task';
+import { offsetLabel, reminderDate, taskOffsets } from '@/utils/reminders';
 
 /** iOS keeps at most 64 pending local notifications; stay safely below it. */
 const MAX_SCHEDULED = 60;
@@ -47,12 +48,12 @@ export async function cancelAllReminders() {
 function taskReminders(tasks: Task[], now: Date, t: Translate): Planned[] {
   const planned: Planned[] = [];
   for (const task of tasks) {
-    if (task.done || !task.remindMe || !task.dueDate || !task.remindTime) continue;
-    const [year, month, day] = task.dueDate.split('-').map(Number);
-    const [hours, minutes] = task.remindTime.split(':').map(Number);
-    const date = new Date(year, month - 1, day, hours, minutes);
-    if (date <= now) continue;
-    planned.push({ date, title: task.title, body: t('notifications.taskBody') });
+    if (task.done || !task.dueDate || !task.remindTime) continue;
+    for (const offset of taskOffsets(task)) {
+      const date = reminderDate(task.dueDate, task.remindTime, offset);
+      if (date <= now) continue;
+      planned.push({ date, title: task.title, body: offset === 0 ? t('notifications.taskBody') : offsetLabel(t, offset) });
+    }
   }
   return planned;
 }

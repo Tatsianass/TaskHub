@@ -101,8 +101,8 @@ export default function BirthdaysScreen() {
         quadrantId: active >= MAX_ACTIVE_TASKS_PER_QUADRANT ? 'not-urgent-important' : giftQuadrant,
         tag: null,
         dueDate: dayDiffFromToday(dueDate, today) < 0 ? today : dueDate,
-        remindMe: false,
         remindTime: null,
+        remindOffsets: [],
       });
     }
     setIsModalOpen(false);

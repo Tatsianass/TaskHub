@@ -27,6 +27,8 @@ export type Task = {
   dueDate: string | null;
   remindMe: boolean;
   remindTime: string | null;
+  /** Minutes before `remindTime` to alert at; `[0]` is the reminder itself. Empty means no alerts. */
+  remindOffsets: number[];
 };
 
 /** The fields `PUT /tasks/:id` may change: everything except `id` and `createdAt`. */
@@ -120,6 +122,25 @@ function parseObject<T>(body: unknown, checks: { [K in keyof T]: Check<T[K]> }, 
 const optionalNullableNumber: Check<number | null> = (value) =>
   value === undefined || value === null ? null : finiteNumber(value);
 
+export const MAX_REMIND_OFFSETS = 5;
+export const MAX_REMIND_OFFSET_MINUTES = 30 * 24 * 60;
+
+/** Up to 5 distinct whole minute counts in 0..30 days; a missing field (older clients) reads as `[]`. */
+const remindOffsets: Check<number[]> = (value) => {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_REMIND_OFFSETS) return undefined;
+  const valid = value.every(
+    (item) => typeof item === 'number' && Number.isInteger(item) && item >= 0 && item <= MAX_REMIND_OFFSET_MINUTES,
+  );
+  return valid && new Set(value).size === value.length ? (value as number[]) : undefined;
+};
+
+/** Older clients send only `remindMe`; it then means the single alert at the reminder time. */
+function withLegacyOffsets(body: unknown, task: TaskUpdate): TaskUpdate {
+  const sentOffsets = (body as Fields).remindOffsets !== undefined;
+  return sentOffsets || !task.remindMe ? task : { ...task, remindOffsets: [0] };
+}
+
 const taskUpdateChecks: { [K in keyof TaskUpdate]: Check<TaskUpdate[K]> } = {
   title: nonEmptyTrimmed,
   description: text,
@@ -130,15 +151,17 @@ const taskUpdateChecks: { [K in keyof TaskUpdate]: Check<TaskUpdate[K]> } = {
   dueDate: nullable(date),
   remindMe: bool,
   remindTime: nullable(time),
+  remindOffsets,
 };
 
 /** A full `Task` (POST /tasks, /import). Throws 400 `INVALID_TASK`. */
 export function parseTask(body: unknown): Task {
-  return parseObject<Task>(
+  const task = parseObject<Task>(
     body,
     { id, createdAt: finiteNumber, ...taskUpdateChecks },
     'INVALID_TASK',
   );
+  return { ...task, ...withLegacyOffsets(body, task) };
 }
 
 /**
@@ -146,7 +169,7 @@ export function parseTask(body: unknown): Task {
  * (the client sends the whole task). Throws 400 `INVALID_TASK`.
  */
 export function parseTaskUpdate(body: unknown): TaskUpdate {
-  return parseObject<TaskUpdate>(body, taskUpdateChecks, 'INVALID_TASK');
+  return withLegacyOffsets(body, parseObject<TaskUpdate>(body, taskUpdateChecks, 'INVALID_TASK'));
 }
 
 /** A missing field (older clients) reads as the old behaviour: remind at 09:00. */
