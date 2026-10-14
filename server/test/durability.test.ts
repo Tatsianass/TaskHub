@@ -59,7 +59,7 @@ async function startServerProcess(dbPath: string) {
   const port = await new Promise<number>((resolve, reject) => {
     const onData = (chunk: Buffer) => {
       output += chunk.toString();
-      const match = /listening on http:\/\/localhost:(\d+)/.exec(output);
+      const match = /listening on http:\/\/[^:]+:(\d+)/.exec(output);
       if (match) resolve(Number(match[1]));
     };
     child.stdout!.on('data', onData);
