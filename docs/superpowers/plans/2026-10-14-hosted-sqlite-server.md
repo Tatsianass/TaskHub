@@ -293,7 +293,7 @@ EOF
 - Consumes: the image from Task 2, `PORT`, `HOST`, and `DB_PATH` read by `loadConfig`.
 - Produces: `server/fly.toml` with `app = "taskhub-api"`, volume source `taskhub_data`, destination `/data`, internal port 8080. Deploy still happens in Task 4.
 
-- [ ] **Step 1: Write `server/fly.toml`**
+- [x] **Step 1: Write `server/fly.toml`**
 
 ```toml
 # One Machine. SQLite on this API has a single writer.
@@ -337,7 +337,7 @@ kill_timeout = "15s"
 
 Do not put `CORS_ORIGIN` in this file. Task 4 sets it as a secret.
 
-- [ ] **Step 2: Reject a second machine in review**
+- [x] **Step 2: Reject a second machine in review**
 
 Open `server/fly.toml` and check, before committing:
 
@@ -347,7 +347,7 @@ Open `server/fly.toml` and check, before committing:
 - There is no `[[services]]` block and no second `[[mounts]]` entry.
 - There is no dedicated IP line.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add server/fly.toml
