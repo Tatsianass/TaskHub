@@ -197,7 +197,7 @@ EOF
 - Consumes: `npm run build` writes `server/dist/`, `npm start` runs `node dist/index.js`, `Config.host` from Task 1.
 - Produces: an image whose process is `node dist/index.js` running as user `node`, with `/data` owned by that user. No database file is baked into the image.
 
-- [ ] **Step 1: Add the ignore file and the entrypoint**
+- [x] **Step 1: Add the ignore file and the entrypoint**
 
 Create `server/.dockerignore`:
 
@@ -221,7 +221,7 @@ chown node:node /data
 exec runuser -u node -- node /app/dist/index.js
 ```
 
-- [ ] **Step 2: Add the Dockerfile**
+- [x] **Step 2: Add the Dockerfile**
 
 Create `server/Dockerfile`:
 
@@ -247,7 +247,7 @@ EXPOSE 8080
 ENTRYPOINT ["docker-entrypoint.sh"]
 ```
 
-- [ ] **Step 3: Build the image**
+- [x] **Step 3: Build the image**
 
 Run from the repository root:
 
@@ -259,7 +259,7 @@ Expected: the build finishes and prints `naming to docker.io/library/taskhub-api
 
 If `docker` is not installed, stop and ask the owner to install Docker Desktop or to confirm that `fly deploy` (Task 4) may be the first build. Do not skip the file contents above.
 
-- [ ] **Step 4: Confirm the image does not contain a database**
+- [x] **Step 4: Confirm the image does not contain a database**
 
 ```bash
 docker run --rm --entrypoint sh taskhub-api:local -c "ls /data; ls /app/dist/index.js"
@@ -269,7 +269,7 @@ Expected: `/data` is empty (the directory exists because of `mkdir` only when th
 
 A missing `/data` in this probe is acceptable. An `app.db` inside the image is not. If you see one, the `.dockerignore` or the `COPY` lines are wrong. Fix them before continuing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/Dockerfile server/docker-entrypoint.sh server/.dockerignore
