@@ -56,7 +56,7 @@ Spec (already written, do not rewrite): `specs/server-hosting/`.
 - Consumes: `loadConfig(env)` already returns `{ port, dbPath, corsOrigins }`.
 - Produces: `Config.host: string`. `loadConfig` returns `host`. Empty or missing `HOST` yields `0.0.0.0`. `index.ts` calls `listen(config.port, config.host, callback)`.
 
-- [ ] **Step 1: Update the default assertion so it fails until `host` exists**
+- [x] **Step 1: Update the default assertion so it fails until `host` exists**
 
 In `server/test/config.test.ts`, replace the `defaults` test body with:
 
@@ -91,13 +91,13 @@ Add this test after the `overrides` test. Leave the `overrides` test as it is; i
   });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npm --prefix server test -- test/config.test.ts`
 
 Expected: FAIL. `loadConfig({}).host` is `undefined` (the returned object has no `host`).
 
-- [ ] **Step 3: Add `host` to config and bind it**
+- [x] **Step 3: Add `host` to config and bind it**
 
 In `server/src/config.ts`, change the type and the loader:
 
@@ -165,13 +165,13 @@ HOST=0.0.0.0
 # DB_PATH=/data/app.db
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npm --prefix server test`
 
 Expected: all server tests PASS, including the new host assertions. The rest of the suite must stay green because `listen` is not imported by the tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/src/config.ts server/src/index.ts server/test/config.test.ts server/.env.example

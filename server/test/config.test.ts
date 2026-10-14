@@ -14,14 +14,16 @@ describe('config', () => {
   test('defaults', () => {
     assert.deepEqual(loadConfig({}), {
       port: 4000,
+      host: '0.0.0.0',
       dbPath: join(SERVER_DIR, 'data', 'app.db'),
       corsOrigins: ['http://localhost:8081'],
     });
   });
 
   test('blank values fall back to defaults', () => {
-    const config = loadConfig({ PORT: ' ', DB_PATH: '', CORS_ORIGIN: ' , ' });
+    const config = loadConfig({ PORT: ' ', HOST: ' ', DB_PATH: '', CORS_ORIGIN: ' , ' });
     assert.equal(config.port, 4000);
+    assert.equal(config.host, '0.0.0.0');
     assert.equal(config.dbPath, join(SERVER_DIR, 'data', 'app.db'));
     assert.deepEqual(config.corsOrigins, ['http://localhost:8081']);
   });
@@ -38,6 +40,10 @@ describe('config', () => {
       'http://localhost:8081',
       'http://192.168.1.10:8081',
     ]);
+  });
+
+  test('HOST override is trimmed', () => {
+    assert.equal(loadConfig({ HOST: ' 127.0.0.1 ' }).host, '127.0.0.1');
   });
 
   test('relative DB_PATH resolves against server/, not cwd', () => {
