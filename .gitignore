@@ -49,3 +49,5 @@ server/data/*.db-*
 server/.env
 server/dist/
 server/node_modules/
+
+.idea/
