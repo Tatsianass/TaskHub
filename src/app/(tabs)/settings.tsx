@@ -9,6 +9,7 @@ import { ExportIcon, ImportIcon } from '@/components/header-icons';
 import { InfoButton } from '@/components/info-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
+import { TimePickerSheet } from '@/components/time-picker-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { QUADRANTS } from '@/constants/quadrants';
 import type { ThemeMode } from '@/constants/theme';
@@ -46,7 +47,8 @@ export default function SettingsScreen() {
   const { t, locale, setLocale } = useLocale();
   const { mode, setMode } = useThemeMode();
   const { escalationDays, setEscalationDays } = useEscalationSettings();
-  const { notificationsEnabled, setNotificationsEnabled } = useNotificationsSettings();
+  const { notificationsEnabled, setNotificationsEnabled, morningTime, setMorningTime } = useNotificationsSettings();
+  const [morningOpen, setMorningOpen] = useState(false);
   const [notificationsDenied, setNotificationsDenied] = useState(false);
   const theme = useTheme();
   const { tasks, refresh: refreshTasks } = useTasksContext();
@@ -253,6 +255,29 @@ export default function SettingsScreen() {
             <Switch value={notificationsEnabled} onValueChange={handleNotificationsToggle} />
           </GlassPanel>
 
+          {notificationsEnabled && (
+            <Pressable onPress={() => setMorningOpen(true)} accessibilityRole="button">
+              <GlassPanel contentStyle={styles.switchRow}>
+                <View style={styles.switchText}>
+                  <ThemedText type="smallBold">{t('settings.morningTime')}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {t('settings.morningTimeHint')}
+                  </ThemedText>
+                </View>
+                <View style={[styles.timePill, { backgroundColor: theme.backgroundSelected }]}>
+                  <ThemedText type="small">{morningTime}</ThemedText>
+                </View>
+              </GlassPanel>
+            </Pressable>
+          )}
+          <TimePickerSheet
+            visible={morningOpen}
+            value={morningTime}
+            title={t('settings.morningTime')}
+            onClose={() => setMorningOpen(false)}
+            onChange={setMorningTime}
+          />
+
           <View>
             <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
               {t('settings.data')}
@@ -290,6 +315,7 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  timePill: { height: 32, minWidth: 64, paddingHorizontal: Spacing.three, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   safeArea: {
     flex: 1,
   },

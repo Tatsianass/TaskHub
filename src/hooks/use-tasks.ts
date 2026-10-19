@@ -10,15 +10,15 @@ export type TaskDraft = {
   quadrantId: QuadrantId;
   tag: TagId | null;
   dueDate: string | null;
+  /** The task's time of day; null means all-day, so alerts use the default reminder time. */
   remindTime: string | null;
-  /** Alerts as minutes before `remindTime`; empty means no reminder. */
+  /** Alerts as minutes before the task's time; empty means no reminder. */
   remindOffsets: number[];
 };
 
-/** `remindMe` and `remindTime` stay in step with the alerts so older readers (widgets, backups) keep working. */
+/** `remindMe` stays in step with the alerts so older readers (widgets, backups) keep working. */
 function reminderFields(draft: TaskDraft) {
-  const remindMe = draft.remindOffsets.length > 0;
-  return { remindMe, remindTime: remindMe ? draft.remindTime : null, remindOffsets: draft.remindOffsets };
+  return { remindMe: draft.remindOffsets.length > 0, remindTime: draft.remindTime, remindOffsets: draft.remindOffsets };
 }
 
 const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;

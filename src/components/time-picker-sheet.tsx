@@ -15,6 +15,10 @@ type Props = {
   value: string;
   onClose: () => void;
   onChange: (value: string) => void;
+  /** When given, offers an "All day" button that clears the time. */
+  onClear?: () => void;
+  /** Heading of the sheet; defaults to "Task time". */
+  title?: string;
 };
 
 const QUICK_TIMES = ['08:00', '09:00', '12:00', '18:00', '21:00'];
@@ -50,7 +54,7 @@ function Stepper({ value, onUp, onDown }: { value: number; onUp: () => void; onD
 }
 
 /** Our own time picker: the native one opens as a white popup that covers the form. */
-export function TimePickerSheet({ visible, value, onClose, onChange }: Props) {
+export function TimePickerSheet({ visible, value, onClose, onChange, onClear, title }: Props) {
   const { t } = useLocale();
   const theme = useTheme();
 
@@ -61,7 +65,7 @@ export function TimePickerSheet({ visible, value, onClose, onChange }: Props) {
       header={
         <View style={styles.header}>
           <View style={styles.headerSide} />
-          <ThemedText type="smallBold">{t('reminders.timePickerTitle')}</ThemedText>
+          <ThemedText type="smallBold">{title ?? t('reminders.timePickerTitle')}</ThemedText>
           <Pressable
             onPress={onClose}
             hitSlop={8}
@@ -77,12 +81,27 @@ export function TimePickerSheet({ visible, value, onClose, onChange }: Props) {
           onChange(next);
           onClose();
         }}
+        onClear={
+          onClear &&
+          (() => {
+            onClear();
+            onClose();
+          })
+        }
       />
     </BottomSheetModal>
   );
 }
 
-function TimePickerBody({ value, onDone }: { value: string; onDone: (value: string) => void }) {
+function TimePickerBody({
+  value,
+  onDone,
+  onClear,
+}: {
+  value: string;
+  onDone: (value: string) => void;
+  onClear?: () => void;
+}) {
   const { t } = useLocale();
   const theme = useTheme();
   const [initialHours, initialMinutes] = value.split(':').map(Number);
@@ -127,6 +146,7 @@ function TimePickerBody({ value, onDone }: { value: string; onDone: (value: stri
         ))}
       </View>
       <PrimaryButton title={t('picker.done')} onPress={() => onDone(current)} />
+      {onClear && <PrimaryButton title={t('reminders.allDay')} onPress={onClear} variant="ghost" />}
     </SafeAreaView>
   );
 }

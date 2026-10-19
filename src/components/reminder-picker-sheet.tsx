@@ -8,7 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
 import { useTheme } from '@/hooks/use-theme';
-import { MAX_OFFSET_MINUTES, PRESET_OFFSETS, offsetLabel } from '@/utils/reminders';
+import { MAX_OFFSET_MINUTES, offsetLabel } from '@/utils/reminders';
 
 type Props = {
   visible: boolean;
@@ -107,8 +107,6 @@ function ReminderPickerBody({ taken, mine, fireText, onPick, onForget }: Props) 
   return (
     <SafeAreaView edges={['bottom']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <View>{PRESET_OFFSETS.map((minutes) => renderOption(minutes, false))}</View>
-
           {mine.length > 0 && (
             <>
               <ThemedText type="small" themeColor="textSecondary">

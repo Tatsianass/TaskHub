@@ -20,7 +20,7 @@ import { useVoiceInput } from '@/hooks/use-voice-input';
 import { hexToRgba } from '@/utils/colors';
 import { dayDiffFromToday } from '@/utils/dates';
 import { effectiveQuadrantId } from '@/utils/priority';
-import { DEFAULT_REMIND_TIME, taskOffsets } from '@/utils/reminders';
+import { taskOffsets } from '@/utils/reminders';
 import { parseSmartDate, parseSpokenTask, suggestImportance } from '@/utils/smart-task';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { QuadrantId, TagId, Task } from '@/types/task';
@@ -121,9 +121,9 @@ export function TaskFormModal({
   const [isImportant, setIsImportant] = useState(true);
   const [importantTouched, setImportantTouched] = useState(false);
   const [tag, setTag] = useState<TagId | null>(null);
-  // A new task starts with one alert at 09:00; removing it leaves the task without a reminder.
+  // A new task starts as all-day with one alert on the day; switching it off leaves no reminder.
   const [remindOffsets, setRemindOffsets] = useState<number[]>([0]);
-  const [remindTime, setRemindTime] = useState(DEFAULT_REMIND_TIME);
+  const [remindTime, setRemindTime] = useState<string | null>(null);
   const [forceAdd, setForceAdd] = useState(false);
   const justResetRef = useRef(false);
   // What was already typed when dictation started; the phrase heard so far is appended to it.
@@ -164,7 +164,7 @@ export function TaskFormModal({
     setImportantTouched(!!initialTask);
     setTag(initialTask?.tag ?? null);
     setRemindOffsets(initialTask ? taskOffsets(initialTask) : [0]);
-    setRemindTime(initialTask?.remindTime ?? DEFAULT_REMIND_TIME);
+    setRemindTime(initialTask?.remindTime ?? null);
     setForceAdd(false);
   }, [visible, initialTask, defaultQuadrantId, defaultDueDate]);
 
