@@ -46,6 +46,7 @@ type ProContextValue = {
   /** The store is connected (a key is set and the native module is there). */
   storeAvailable: boolean;
   packages: PurchasesPackage[];
+  loadPackages: () => void;
   openPaywall: (feature?: ProFeature) => void;
   closePaywall: () => void;
   paywallFeature: ProFeature | null;
@@ -85,14 +86,14 @@ export function ProProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Prices are only needed once the paywall is shown.
-  useEffect(() => {
-    if (!purchases || paywallFeature === null) return;
+  // Prices are only needed where plans are shown (the paywall and the subscription page).
+  const loadPackages = useCallback(() => {
+    if (!purchases) return;
     purchases
       .getOfferings()
       .then((offerings) => setPackages(offerings.current?.availablePackages ?? []))
       .catch(() => setPackages([]));
-  }, [paywallFeature]);
+  }, []);
 
   const purchase = useCallback(
     async (pkg: PurchasesPackage): Promise<PurchaseOutcome> => {
@@ -132,6 +133,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
       ready,
       storeAvailable: !!purchases,
       packages,
+      loadPackages,
       openPaywall,
       closePaywall,
       paywallFeature,
@@ -139,7 +141,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
       restore,
       devToggle,
     }),
-    [isPro, ready, packages, openPaywall, closePaywall, paywallFeature, purchase, restore, devToggle],
+    [isPro, ready, packages, loadPackages, openPaywall, closePaywall, paywallFeature, purchase, restore, devToggle],
   );
 
   return (

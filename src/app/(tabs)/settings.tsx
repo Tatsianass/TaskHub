@@ -167,9 +167,9 @@ export default function SettingsScreen() {
             </GlassPanel>
           )}
 
-          <Pressable onPress={() => !isPro && openPaywall('general')} accessibilityRole="button" disabled={isPro}>
+          <Pressable onPress={() => router.push('/subscription')} accessibilityRole="button">
             <GlassPanel contentStyle={styles.card}>
-              <ThemedText type="smallBold">{t('pro.title')}</ThemedText>
+              <ThemedText type="smallBold">{t('pro.title')} ›</ThemedText>
               <ThemedText type="small" themeColor={isPro ? 'primary' : 'textSecondary'}>
                 {isPro ? t('pro.settingsActive') : t('pro.settingsGetHint')}
               </ThemedText>
