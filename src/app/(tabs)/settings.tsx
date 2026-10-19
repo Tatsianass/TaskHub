@@ -12,14 +12,14 @@ import { TextField } from '@/components/text-field';
 import { TimePickerSheet } from '@/components/time-picker-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { QUADRANTS } from '@/constants/quadrants';
-import type { ThemeMode } from '@/constants/theme';
-import { Spacing } from '@/constants/theme';
+import { PRO_THEMES, Spacing, type ThemeMode } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useBirthdaysContext } from '@/context/birthdays-context';
 import { useTasksContext } from '@/context/tasks-context';
 import { useNotificationsSettings } from '@/context/notifications-context';
 import { useLocale } from '@/context/locale-context';
+import { usePro } from '@/context/pro-context';
 import { useThemeMode } from '@/context/theme-mode-context';
 import { useTheme } from '@/hooks/use-theme';
 import { LOCALES } from '@/i18n/translations';
@@ -46,6 +46,7 @@ export default function SettingsScreen() {
   const { user, logout, isLocal } = useAuth();
   const { t, locale, setLocale } = useLocale();
   const { mode, setMode } = useThemeMode();
+  const { isPro, openPaywall } = usePro();
   const { escalationDays, setEscalationDays } = useEscalationSettings();
   const { notificationsEnabled, setNotificationsEnabled, morningTime, setMorningTime } = useNotificationsSettings();
   const [morningOpen, setMorningOpen] = useState(false);
@@ -75,6 +76,7 @@ export default function SettingsScreen() {
   const notify = (message: string) => Alert.alert(message, undefined, [{ text: t('backup.ok') }]);
 
   const handleExport = async () => {
+    if (!isPro) return openPaywall('backup');
     setBusy('export');
     try {
       await exportBackup({ tasks, birthdays }, t('backup.shareTitle'));
@@ -86,6 +88,7 @@ export default function SettingsScreen() {
   };
 
   const handleImport = async () => {
+    if (!isPro) return openPaywall('backup');
     setBusy('import');
     try {
       const data = await pickBackup();
@@ -164,19 +167,31 @@ export default function SettingsScreen() {
             </GlassPanel>
           )}
 
+          <Pressable onPress={() => !isPro && openPaywall('general')} accessibilityRole="button" disabled={isPro}>
+            <GlassPanel contentStyle={styles.card}>
+              <ThemedText type="smallBold">{t('pro.title')}</ThemedText>
+              <ThemedText type="small" themeColor={isPro ? 'primary' : 'textSecondary'}>
+                {isPro ? t('pro.settingsActive') : t('pro.settingsGetHint')}
+              </ThemedText>
+            </GlassPanel>
+          </Pressable>
+
           <View>
             <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
               {t('settings.theme')}
             </ThemedText>
             <View style={styles.chipRow}>
               {themeOptions.map((option) => (
-                <Pressable key={option.value} onPress={() => setMode(option.value)} style={styles.chipWrapper}>
+                <Pressable
+                  key={option.value}
+                  onPress={() => (PRO_THEMES.includes(option.value) && !isPro ? openPaywall('themes') : setMode(option.value))}
+                  style={styles.chipWrapper}>
                   <GlassPanel
                     contentStyle={styles.chipContent}
                     tintColor={mode === option.value ? theme.glassBgStrong : theme.glassBg}
                     style={mode === option.value ? { borderColor: theme.primary } : undefined}>
                     <ThemedText type="small" themeColor={mode === option.value ? 'primary' : 'text'}>
-                      {option.label}
+                      {PRO_THEMES.includes(option.value) && !isPro ? `🔒 ${option.label}` : option.label}
                     </ThemedText>
                   </GlassPanel>
                 </Pressable>

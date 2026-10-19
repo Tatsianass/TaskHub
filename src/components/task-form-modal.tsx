@@ -16,6 +16,7 @@ import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useToday } from '@/context/today-context';
 import { useTheme } from '@/hooks/use-theme';
+import { usePro } from '@/context/pro-context';
 import { useVoiceInput } from '@/hooks/use-voice-input';
 import { hexToRgba } from '@/utils/colors';
 import { dayDiffFromToday } from '@/utils/dates';
@@ -110,6 +111,7 @@ export function TaskFormModal({
 }: Props) {
   const { t, locale } = useLocale();
   const theme = useTheme();
+  const { isPro, openPaywall } = usePro();
   const { escalationDays } = useEscalationSettings();
   const today = useToday();
   const [title, setTitle] = useState('');
@@ -178,6 +180,10 @@ export function TaskFormModal({
   }, [visible, autoListen, initialTask, startListening, abortListening]);
 
   const handleMicPress = () => {
+    if (!isPro) {
+      openPaywall('voice');
+      return;
+    }
     if (voice.listening) {
       voice.stop();
     } else {

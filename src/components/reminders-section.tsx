@@ -8,6 +8,7 @@ import { TimePickerSheet } from '@/components/time-picker-sheet';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
 import { useNotificationsSettings } from '@/context/notifications-context';
+import { FREE_REMINDERS, usePro } from '@/context/pro-context';
 import { useCustomReminderOffsets } from '@/hooks/use-custom-reminder-offsets';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
@@ -40,6 +41,7 @@ export function RemindersSection({ offsets, onOffsetsChange, time, onTimeChange,
   const { t, locale } = useLocale();
   const theme = useTheme();
   const { morningTime } = useNotificationsSettings();
+  const { isPro, openPaywall } = usePro();
   const custom = useCustomReminderOffsets();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
@@ -67,15 +69,23 @@ export function RemindersSection({ offsets, onOffsetsChange, time, onTimeChange,
   const chipLabel = (offset: number) =>
     offset === 0 ? t(time ? 'reminders.atTime' : 'reminders.onDay') : offsetLabel(t, offset);
 
+  // The free plan has one alert per task; a further one is what Pro unlocks.
+  const needsPro = !isPro && offsets.length >= FREE_REMINDERS;
+
   const toggle = (offset: number) => {
     if (offsets.includes(offset)) onOffsetsChange(offsets.filter((item) => item !== offset));
+    else if (needsPro) openPaywall('reminders');
     else if (!full) onOffsetsChange([...offsets, offset]);
   };
 
   const pickCustom = (minutes: number) => {
+    setPickerOpen(false);
+    if (needsPro) {
+      openPaywall('reminders');
+      return;
+    }
     custom.remember(minutes);
     if (!full) onOffsetsChange([...offsets, minutes]);
-    setPickerOpen(false);
   };
 
   const fireText = (offset: number) => {
@@ -131,7 +141,7 @@ export function RemindersSection({ offsets, onOffsetsChange, time, onTimeChange,
                 disabled && styles.chipDisabled,
               ]}>
               <ThemedText type="small" themeColor={active ? 'text' : 'textSecondary'}>
-                {active ? '🔔 ' : ''}
+                {active ? '🔔 ' : !active && needsPro ? '🔒 ' : ''}
                 {chipLabel(offset)}
               </ThemedText>
             </Pressable>

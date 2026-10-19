@@ -101,6 +101,9 @@ export type ThemeColor =
   | 'glassBorder';
 export type ThemeMode = keyof typeof Colors;
 
+/** Themes that are part of Pro; light and dark stay free. */
+export const PRO_THEMES: ThemeMode[] = ['coral', 'emerald'];
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */

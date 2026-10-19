@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '@/context/auth-context';
 import { BirthdaysProvider } from '@/context/birthdays-context';
 import { EscalationProvider } from '@/context/escalation-context';
+import { ProProvider } from '@/context/pro-context';
 import { NotificationsProvider } from '@/context/notifications-context';
 import { LocaleProvider } from '@/context/locale-context';
 import { TasksProvider } from '@/context/tasks-context';
@@ -30,6 +31,7 @@ export default function RootLayout() {
       <TodayProvider>
         <ThemeModeProvider>
           <LocaleProvider>
+            <ProProvider>
             <AuthProvider>
               <EscalationProvider>
                 <TasksProvider>
@@ -41,6 +43,7 @@ export default function RootLayout() {
                 </TasksProvider>
               </EscalationProvider>
             </AuthProvider>
+            </ProProvider>
           </LocaleProvider>
         </ThemeModeProvider>
       </TodayProvider>

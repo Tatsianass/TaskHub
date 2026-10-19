@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { QUADRANTS } from '@/constants/quadrants';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
+import { usePro } from '@/context/pro-context';
 import { useTasksContext } from '@/context/tasks-context';
 import { useToday } from '@/context/today-context';
 import { formatDueDate } from '@/utils/dates';
@@ -56,11 +57,23 @@ export function useWidgetSync() {
   const { escalationDays } = useEscalationSettings();
   const { t, locale } = useLocale();
   const today = useToday();
+  const { isPro, ready } = usePro();
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !ready) return;
     const widgets = loadWidgets();
     if (!widgets) return;
+
+    // Widgets are Pro: without it they show a lock message instead of the user's tasks.
+    if (!isPro) {
+      const locked = t('pro.widgetLocked');
+      widgets.today.updateSnapshot({ heading: t('calendar.today'), progress: '', empty: locked, rows: [] });
+      widgets.next.updateSnapshot({ label: t('widget.now'), title: locked, due: '', color: '#2FB8B0', done: 0, total: 0 });
+      widgets.matrix.updateSnapshot({
+        cells: QUADRANTS.map((quadrant) => ({ label: t(quadrant.titleKey), count: 0, color: CELL_COLORS[quadrant.id] })),
+      });
+      return;
+    }
 
     const withQuadrant = tasks.map((task) => ({ task, quadrantId: effectiveQuadrantId(task, escalationDays, today) }));
     const byPriority = (a: (typeof withQuadrant)[number], b: (typeof withQuadrant)[number]) =>
@@ -107,5 +120,5 @@ export function useWidgetSync() {
         color: CELL_COLORS[quadrant.id],
       })),
     });
-  }, [tasks, isLoaded, escalationDays, t, locale, today]);
+  }, [tasks, isLoaded, ready, isPro, escalationDays, t, locale, today]);
 }

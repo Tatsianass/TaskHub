@@ -18,6 +18,7 @@ import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
+import { usePro } from '@/context/pro-context';
 import { useTasksContext } from '@/context/tasks-context';
 import { useToday } from '@/context/today-context';
 import { useEscalationSeen } from '@/hooks/use-escalation-seen';
@@ -40,6 +41,7 @@ function currentTime() {
 export default function HomeScreen() {
   const { user } = useAuth();
   const { t } = useLocale();
+  const { isPro, openPaywall } = usePro();
   const theme = useTheme();
   const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError, refresh } = useTasksContext();
   const { escalationDays } = useEscalationSettings();
@@ -143,6 +145,10 @@ export default function HomeScreen() {
   };
 
   const openVoiceCreateModal = () => {
+    if (!isPro) {
+      openPaywall('voice');
+      return;
+    }
     setEditingTask(null);
     setVoiceStart(true);
     setIsModalOpen(true);

@@ -5,3 +5,7 @@ export const LOCAL_MODE = process.env.EXPO_PUBLIC_STORAGE_MODE !== 'server';
 
 /** The one implicit user of local mode. */
 export const LOCAL_USER = { id: 'local', email: '' };
+
+// Shown on the paywall (the stores require both links). Apple's standard EULA is the default terms page.
+export const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+export const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? '';
