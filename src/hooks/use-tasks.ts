@@ -88,6 +88,11 @@ export function useTasks() {
     [replaceTask],
   );
 
+  const rescheduleTask = useCallback(
+    (id: string, dueDate: string) => replaceTask(id, (task) => ({ ...task, dueDate })),
+    [replaceTask],
+  );
+
   const deleteTask = useCallback(
     (id: string) => {
       const removed = tasks.find((task) => task.id === id);
@@ -105,5 +110,5 @@ export function useTasks() {
     for (const task of tasks) if (task.done) deleteTask(task.id);
   }, [tasks, deleteTask]);
 
-  return { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, clearCompleted, error, clearError, refresh };
+  return { tasks, isLoaded, addTask, updateTask, toggleTask, rescheduleTask, deleteTask, clearCompleted, error, clearError, refresh };
 }

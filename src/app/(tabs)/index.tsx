@@ -7,6 +7,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 
 import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
+import { OverdueBanner } from '@/components/overdue-banner';
 import { CheckCircleIcon, MicIcon, PlusIcon } from '@/components/header-icons';
 import { TaskFormModal } from '@/components/task-form-modal';
 import { TaskRow } from '@/components/task-row';
@@ -26,6 +27,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
 import { isoDateOf } from '@/utils/dates';
+import { overdueTasks } from '@/utils/overdue';
 import { effectiveQuadrantId, isEscalated } from '@/utils/priority';
 import type { TaskDraft } from '@/hooks/use-tasks';
 import type { QuadrantId, TagId, Task } from '@/types/task';
@@ -43,7 +45,7 @@ export default function HomeScreen() {
   const { t } = useLocale();
   const { isPro, openPaywall } = usePro();
   const theme = useTheme();
-  const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError, refresh } = useTasksContext();
+  const { tasks, isLoaded, addTask, updateTask, toggleTask, rescheduleTask, deleteTask, error, clearError, refresh } = useTasksContext();
   const { escalationDays } = useEscalationSettings();
   const today = useToday();
   const { refreshing, onRefresh } = usePullToRefresh(refresh);
@@ -209,6 +211,17 @@ export default function HomeScreen() {
         </View>
 
         <ErrorBanner code={error} onDismiss={clearError} />
+
+        {isLoaded && (
+          <OverdueBanner
+            tasks={overdueTasks(tasks, today)}
+            today={today}
+            onDone={handleToggle}
+            onMoveToToday={(task) => rescheduleTask(task.id, today)}
+            onDelete={(task) => deleteTask(task.id)}
+            onOpen={openEditModal}
+          />
+        )}
 
         <View style={styles.tagFilterRow}>
           <Pressable onPress={() => setActiveTagFilter('all')}>

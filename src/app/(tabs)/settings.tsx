@@ -48,7 +48,8 @@ export default function SettingsScreen() {
   const { mode, setMode } = useThemeMode();
   const { isPro, openPaywall } = usePro();
   const { escalationDays, setEscalationDays } = useEscalationSettings();
-  const { notificationsEnabled, setNotificationsEnabled, morningTime, setMorningTime } = useNotificationsSettings();
+  const { notificationsEnabled, setNotificationsEnabled, morningTime, setMorningTime, overdueNudges, setOverdueNudges } =
+    useNotificationsSettings();
   const [morningOpen, setMorningOpen] = useState(false);
   const [notificationsDenied, setNotificationsDenied] = useState(false);
   const theme = useTheme();
@@ -284,6 +285,18 @@ export default function SettingsScreen() {
                 </View>
               </GlassPanel>
             </Pressable>
+          )}
+
+          {notificationsEnabled && (
+            <GlassPanel contentStyle={styles.switchRow}>
+              <View style={styles.switchText}>
+                <ThemedText type="smallBold">{t('settings.overdueNudges')}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('settings.overdueNudgesHint')}
+                </ThemedText>
+              </View>
+              <Switch value={overdueNudges} onValueChange={setOverdueNudges} />
+            </GlassPanel>
           )}
           <TimePickerSheet
             visible={morningOpen}

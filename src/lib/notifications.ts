@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 
 import type { Birthday } from '@/types/birthday';
 import type { Task } from '@/types/task';
+import { overdueTasks } from '@/utils/overdue';
 import { DEFAULT_REMIND_TIME, anchorTime, offsetLabel, reminderDate, taskOffsets } from '@/utils/reminders';
 
 /** iOS keeps at most 64 pending local notifications; stay safely below it. */
@@ -12,9 +13,12 @@ const DEFAULT_BIRTHDAY_TIME = '09:00';
 const CHANNEL_ID = 'default';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
-type Planned = { date: Date; title: string; body: string; taskId?: string };
+type Planned = { date: Date; title: string; body: string; taskId?: string; category?: string };
 
 const TASK_CATEGORY = 'task';
+const OVERDUE_CATEGORY = 'overdue';
+/** How many mornings ahead the overdue nudges are queued; each app launch refills them. */
+const OVERDUE_DAYS_AHEAD = 7;
 const SNOOZES_KEY = 'reminders:snoozed';
 
 /** Buttons under a task notification; `resolveAction` turns a tapped one into what to do. */
@@ -22,8 +26,14 @@ export const ACTION_DONE = 'done';
 const ACTION_SNOOZE_15 = 'snooze15';
 const ACTION_SNOOZE_60 = 'snooze60';
 const ACTION_SNOOZE_TOMORROW = 'snoozeTomorrow';
+const ACTION_POSTPONE = 'postponeTomorrow';
+const ACTION_DELETE = 'delete';
 
-export type NotificationAction = { type: 'done' } | { type: 'snooze'; at: Date };
+export type NotificationAction =
+  | { type: 'done' }
+  | { type: 'snooze'; at: Date }
+  | { type: 'postpone'; dueDate: string }
+  | { type: 'delete' };
 
 /** What a tapped notification button means; null for a plain tap on the notification itself. */
 export function resolveAction(actionId: string, now: Date, morningTime: string): NotificationAction | null {
@@ -36,6 +46,10 @@ export function resolveAction(actionId: string, now: Date, morningTime: string):
       return { type: 'snooze', at: new Date(now.getTime() + 60 * 60_000) };
     case ACTION_SNOOZE_TOMORROW:
       return { type: 'snooze', at: reminderDate(toDateString(addDays(now, 1)), morningTime, 0) };
+    case ACTION_POSTPONE:
+      return { type: 'postpone', dueDate: toDateString(addDays(now, 1)) };
+    case ACTION_DELETE:
+      return { type: 'delete' };
     default:
       return null;
   }
@@ -93,6 +107,11 @@ async function registerCategories(t: Translate) {
     { identifier: ACTION_SNOOZE_60, buttonTitle: t('notifications.snooze60'), options },
     { identifier: ACTION_SNOOZE_TOMORROW, buttonTitle: t('notifications.snoozeTomorrow'), options },
   ]);
+  await Notifications.setNotificationCategoryAsync(OVERDUE_CATEGORY, [
+    { identifier: ACTION_DONE, buttonTitle: t('notifications.actionDone'), options },
+    { identifier: ACTION_POSTPONE, buttonTitle: t('notifications.actionPostpone'), options },
+    { identifier: ACTION_DELETE, buttonTitle: t('notifications.actionDelete'), options: { ...options, isDestructive: true } },
+  ]);
 }
 
 Notifications.setNotificationHandler({
@@ -143,6 +162,31 @@ function taskReminders(tasks: Task[], now: Date, t: Translate, morningTime: stri
   return planned;
 }
 
+/**
+ * A nudge every morning for the next week while tasks stay overdue. One overdue task gets its own
+ * notification with Done / Move / Delete buttons; several are rolled into a single summary so a
+ * backlog doesn't produce a burst. Each day counts the tasks that will be overdue by then.
+ */
+function overdueReminders(tasks: Task[], now: Date, t: Translate, morningTime: string): Planned[] {
+  const planned: Planned[] = [];
+  for (let ahead = 0; ahead < OVERDUE_DAYS_AHEAD; ahead++) {
+    const day = toDateString(addDays(now, ahead));
+    const date = reminderDate(day, morningTime, 0);
+    if (date <= now) continue;
+    const overdue = overdueTasks(tasks, day);
+    if (overdue.length === 0) continue;
+    if (overdue.length === 1) {
+      const [task] = overdue;
+      planned.push({ date, title: task.title, body: t('notifications.overdueBody'), taskId: task.id, category: OVERDUE_CATEGORY });
+    } else {
+      const titles = overdue.slice(0, 3).map((task) => task.title).join(', ');
+      const more = overdue.length > 3 ? '…' : '';
+      planned.push({ date, title: t('notifications.overdueTitle', { count: overdue.length }), body: `${titles}${more}` });
+    }
+  }
+  return planned;
+}
+
 function birthdayReminders(birthdays: Birthday[], now: Date, t: Translate): Planned[] {
   const planned: Planned[] = [];
   for (const birthday of birthdays) {
@@ -182,7 +226,13 @@ function inOrder<T>(job: () => Promise<T>): Promise<T> {
  * next birthday of each person. Rerun whenever the data changes and whenever the app comes back to
  * the foreground, which refills the 64-notification window and rolls birthdays over to next year.
  */
-export function syncReminders(tasks: Task[], birthdays: Birthday[], t: Translate, morningTime = DEFAULT_REMIND_TIME) {
+export function syncReminders(
+  tasks: Task[],
+  birthdays: Birthday[],
+  t: Translate,
+  morningTime = DEFAULT_REMIND_TIME,
+  overdueNudges = true,
+) {
   if (Platform.OS === 'web') return Promise.resolve();
   return inOrder(async () => {
     await registerCategories(t).catch(() => {});
@@ -191,13 +241,16 @@ export function syncReminders(tasks: Task[], birthdays: Birthday[], t: Translate
     const planned = [
       ...taskReminders(tasks, now, t, morningTime),
       ...(await snoozeReminders(tasks, now, t)),
+      ...(overdueNudges ? overdueReminders(tasks, now, t, morningTime) : []),
       ...birthdayReminders(birthdays, now, t),
     ]
       .sort((a, b) => a.date.getTime() - b.date.getTime())
       .slice(0, MAX_SCHEDULED);
-    for (const { date, title, body, taskId } of planned) {
+    for (const { date, title, body, taskId, category } of planned) {
       await Notifications.scheduleNotificationAsync({
-        content: taskId ? { title, body, data: { taskId }, categoryIdentifier: TASK_CATEGORY } : { title, body },
+        content: taskId
+          ? { title, body, data: { taskId }, categoryIdentifier: category ?? TASK_CATEGORY }
+          : { title, body },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date, channelId: CHANNEL_ID },
       });
     }
