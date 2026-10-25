@@ -1,6 +1,6 @@
 # One Machine. SQLite on this API has a single writer.
 # Deploy only with: fly deploy --ha=false
-app = "taskhub-api"
+app = "taskhub-api-tatianas"
 primary_region = "fra"
 kill_timeout = "15s"
 
