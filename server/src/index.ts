@@ -15,14 +15,15 @@ if (expired > 0) console.log(`[server] removed ${expired} expired session(s)`);
 
 const server = createApp(db, { corsOrigins: config.corsOrigins }).listen(
   config.port,
+  config.host,
   (error) => {
     if (error) {
-      console.error(`[server] failed to listen on port ${config.port}: ${error.message}`);
+      console.error(`[server] failed to listen on ${config.host}:${config.port}: ${error.message}`);
       closeDatabase(db);
       process.exit(1);
     }
     const { port } = server.address() as AddressInfo;
-    console.log(`[server] listening on http://localhost:${port}`);
+    console.log(`[server] listening on http://${config.host}:${port}`);
   },
 );
 

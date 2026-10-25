@@ -6,12 +6,15 @@ export const SERVER_DIR = resolve(import.meta.dirname, '..');
 
 export type Config = {
   port: number;
+  /** Interface to bind. `0.0.0.0` accepts connections from outside the container. */
+  host: string;
   /** Absolute path to the SQLite DB file. */
   dbPath: string;
   corsOrigins: string[];
 };
 
 export const DEFAULT_PORT = 4000;
+export const DEFAULT_HOST = '0.0.0.0';
 export const DEFAULT_DB_PATH = 'data/app.db';
 export const DEFAULT_CORS_ORIGIN = 'http://localhost:8081';
 
@@ -26,6 +29,7 @@ export function loadEnvFile(path = resolve(SERVER_DIR, '.env')) {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     port: parsePort(env.PORT),
+    host: parseHost(env.HOST),
     // Relative paths resolve against server/, never process.cwd().
     dbPath: resolve(SERVER_DIR, env.DB_PATH?.trim() || DEFAULT_DB_PATH),
     corsOrigins: parseOrigins(env.CORS_ORIGIN),
@@ -39,6 +43,11 @@ function parsePort(value: string | undefined) {
     throw new Error(`Invalid PORT: "${value}"`);
   }
   return port;
+}
+
+function parseHost(value: string | undefined) {
+  const host = value?.trim() ?? '';
+  return host === '' ? DEFAULT_HOST : host;
 }
 
 function parseOrigins(value: string | undefined) {

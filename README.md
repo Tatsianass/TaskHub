@@ -134,6 +134,19 @@ rm server/data/app.db*
 The next start creates an empty database. Signed-in clients will be
 logged out, because their session tokens no longer exist.
 
+## Hosted API, local client
+
+The API can run on Fly.io with the SQLite file on a volume. The Expo
+client can stay on your machine and still use that API.
+
+1. Leave `eas.json` alone. Its builds stay in local mode.
+2. In the root `.env` (this file is gitignored), set `EXPO_PUBLIC_STORAGE_MODE=server` and `EXPO_PUBLIC_API_URL=https://taskhub-api-tatianas.fly.dev`.
+3. Restart the client so the public variables are inlined: `npx expo start --clear`.
+4. The app opens on the login screen. Register there. That account is stored in `/data/app.db` on the Fly volume, not on the phone.
+5. iOS Simulator, Android Emulator, and a phone on the same Wi-Fi all use that HTTPS URL. Do not use `http://` for the hosted API.
+
+Deploying a new API release does not publish the client. Release the API from `server/` with `fly deploy --ha=false`.
+
 ## Tests and checks
 
 ```bash
