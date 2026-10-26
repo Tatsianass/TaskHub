@@ -11,7 +11,7 @@ import { useLocale } from '@/context/locale-context';
 import { usePro } from '@/context/pro-context';
 import { useTheme } from '@/hooks/use-theme';
 
-const BENEFITS = ['voice', 'reminders', 'widgets', 'backup', 'themes'] as const;
+const BENEFITS = ['voice', 'reminders', 'widgets', 'themes'] as const;
 
 /** Slides up from anywhere in the app (see `openPaywall`) when a Pro feature is used on the free plan. */
 export function PaywallSheet() {

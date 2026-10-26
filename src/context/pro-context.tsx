@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 import { PaywallSheet } from '@/components/paywall-sheet';
 
 /** What the paywall was opened for; it picks the headline the user sees. */
-export type ProFeature = 'voice' | 'reminders' | 'widgets' | 'backup' | 'themes' | 'general';
+export type ProFeature = 'voice' | 'reminders' | 'widgets' | 'themes' | 'general';
 
 /**
  * While true every feature is unlocked for everyone and the Pro entry is hidden in settings. Flip it

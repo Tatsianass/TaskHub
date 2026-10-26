@@ -24,7 +24,6 @@ const ROWS: { key: string; free: Cell; pro: Cell }[] = [
   { key: 'reminders', free: '1', pro: String(MAX_REMINDERS) },
   { key: 'voice', free: false, pro: true },
   { key: 'widgets', free: false, pro: true },
-  { key: 'backup', free: false, pro: true },
   { key: 'themes', free: '2', pro: '4' },
 ];
 

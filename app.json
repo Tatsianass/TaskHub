@@ -87,8 +87,7 @@
           "microphonePermission": "TaskHub использует микрофон, чтобы вы могли создавать задачи голосом.",
           "speechRecognitionPermission": "TaskHub использует распознавание речи, чтобы превращать вашу речь в текст задачи."
         }
-      ],
-      "expo-sharing"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
