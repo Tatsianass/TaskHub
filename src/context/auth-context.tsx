@@ -18,6 +18,8 @@ type AuthContextValue = {
   register: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Permanently deletes the account and all its data on the server, then signs out. */
+  deleteAccount: () => Promise<void>;
   /** Local mode: data lives on this device, there are no accounts. */
   isLocal: boolean;
 };
@@ -111,8 +113,16 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
     await clearSession();
   }, [clearSession]);
 
+  const deleteAccount = useCallback(async () => {
+    // Unlike logout, a failure must surface: the account still exists.
+    await api('/auth/account', { method: 'DELETE' });
+    await clearSession();
+  }, [clearSession]);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, register, login, logout, isLocal: false }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, isLoading, register, login, logout, deleteAccount, isLocal: false }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 
@@ -122,6 +132,7 @@ const LOCAL_VALUE: AuthContextValue = {
   register: async () => {},
   login: async () => {},
   logout: async () => {},
+  deleteAccount: async () => {},
   isLocal: true,
 };
 

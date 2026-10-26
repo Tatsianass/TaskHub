@@ -23,6 +23,7 @@ export function usersRepo(db: DatabaseSync) {
     `SELECT id, email, password_hash, password_salt, password_params FROM users WHERE email = ?`,
   );
   const selectById = db.prepare('SELECT id, email FROM users WHERE id = ?');
+  const deleteById = db.prepare('DELETE FROM users WHERE id = ?');
 
   return {
     /**
@@ -52,6 +53,11 @@ export function usersRepo(db: DatabaseSync) {
     findById(id: string): User | undefined {
       const row = selectById.get(id) as User | undefined;
       return row && { id: row.id, email: row.email };
+    },
+
+    /** Deletes the user; sessions, tasks and birthdays go with it (ON DELETE CASCADE). */
+    delete(id: string) {
+      deleteById.run(id);
     },
   };
 }

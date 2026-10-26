@@ -7,7 +7,7 @@ import { after, before, describe, test } from 'node:test';
 
 import { closeDatabase, openDatabase } from '../src/db/connection.js';
 import { SESSION_TTL_MS, sessionsRepo } from '../src/repos/sessions.js';
-import { startApp } from './helpers.js';
+import { makeBirthday, makeTask, startApp } from './helpers.js';
 
 const tmpRoot = mkdtempSync(join(tmpdir(), 'todo-auth-'));
 let db: DatabaseSync;
@@ -222,5 +222,35 @@ describe('persistence of credentials', () => {
     const { token } = await register();
     const dump = JSON.stringify(db.prepare('SELECT * FROM sessions').all());
     assert.equal(dump.includes(token), false);
+  });
+});
+
+describe('DELETE /auth/account', () => {
+  test('204, removes the user with sessions, tasks and birthdays; other users stay', async () => {
+    const { token, user } = await register();
+    const other = await register();
+    await app.request('POST', '/tasks', { token, body: makeTask() });
+    await app.request('POST', '/birthdays', { token, body: makeBirthday() });
+    await app.request('POST', '/tasks', { token: other.token, body: makeTask() });
+
+    const res = await app.request('DELETE', '/auth/account', { token });
+    assert.equal(res.status, 204);
+    assert.equal(res.body, undefined);
+
+    for (const table of ['users', 'sessions', 'tasks', 'birthdays']) {
+      const column = table === 'users' ? 'id' : 'user_id';
+      const row = db.prepare(`SELECT count(*) AS n FROM ${table} WHERE ${column} = ?`).get(user.id);
+      assert.equal(row?.n, 0, table);
+    }
+    assert.equal((await app.request('GET', '/auth/me', { token })).status, 401);
+    assert.equal((await app.request('GET', '/tasks', { token: other.token })).body.length, 1);
+
+    const login = await app.request('POST', '/auth/login', { body: { email: user.email, password: PASSWORD } });
+    assert.equal(login.status, 404);
+  });
+
+  test('without a token -> 401 UNAUTHORIZED', async () => {
+    const res = await app.request('DELETE', '/auth/account');
+    assert.equal(res.status, 401);
   });
 });

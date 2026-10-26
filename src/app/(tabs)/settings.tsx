@@ -43,7 +43,7 @@ const ESCALATION_MOVES = [
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, logout, isLocal } = useAuth();
+  const { user, logout, deleteAccount, isLocal } = useAuth();
   const { t, locale, setLocale } = useLocale();
   const { mode, setMode } = useThemeMode();
   const { isPro, openPaywall } = usePro();
@@ -118,6 +118,25 @@ export default function SettingsScreen() {
         onPress: async () => {
           await logout();
           router.replace('/login');
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(t('settings.deleteAccountTitle'), t('settings.deleteAccountMessage'), [
+      { text: t('completed.cancel'), style: 'cancel' },
+      {
+        text: t('settings.deleteAccount'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteAccount();
+            router.replace('/login');
+          } catch (e) {
+            const code = e instanceof Error && 'code' in e ? String((e as { code: unknown }).code) : '';
+            notify(t(code === 'SERVER_UNREACHABLE' ? 'errors.SERVER_UNREACHABLE' : 'settings.deleteAccountFailed'));
+          }
         },
       },
     ]);
@@ -346,6 +365,7 @@ export default function SettingsScreen() {
           </View>
 
           {!isLocal && <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />}
+          {!isLocal && <PrimaryButton title={t('settings.deleteAccount')} onPress={handleDeleteAccount} variant="danger" />}
         </ScrollView>
       </View>
       </SafeAreaView>

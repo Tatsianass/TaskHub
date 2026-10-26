@@ -68,10 +68,16 @@ export function authRouter(users: UsersRepo, sessions: SessionsRepo) {
     res.status(204).end();
   };
 
+  const deleteAccount: RequestHandler = (req, res) => {
+    users.delete(req.userId!);
+    res.status(204).end();
+  };
+
   router.post('/register', register);
   router.post('/login', login);
   router.get('/me', requireAuth(sessions), me);
   router.post('/logout', requireAuth(sessions), logout);
+  router.delete('/account', requireAuth(sessions), deleteAccount);
 
   return router;
 }
