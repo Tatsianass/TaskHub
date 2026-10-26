@@ -7,6 +7,7 @@ import { offerLegacyImport } from '@/lib/legacy-import';
 import { clearToken, getToken, setToken } from '@/lib/token-storage';
 
 const MIN_PASSWORD_LENGTH = 8;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type User = { id: string; email: string };
 type AuthResponse = { token: string; user: User };
@@ -83,6 +84,7 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
     async (rawEmail: string, password: string) => {
       const email = normalizeEmail(rawEmail);
       if (!email || !password) throw new Error('ENTER_EMAIL_PASSWORD');
+      if (!EMAIL_PATTERN.test(email)) throw new Error('INVALID_EMAIL');
       if (password.length < MIN_PASSWORD_LENGTH) throw new Error('PASSWORD_TOO_SHORT');
 
       await startSession(await api<AuthResponse>('/auth/register', { method: 'POST', body: { email, password } }));

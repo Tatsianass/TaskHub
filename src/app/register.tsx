@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuroraBackground } from '@/components/aurora-background';
 import { GlassPanel } from '@/components/glass-panel';
 import { PrimaryButton } from '@/components/primary-button';
+import { PasswordField } from '@/components/password-field';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/context/auth-context';
@@ -59,21 +60,32 @@ export default function RegisterScreen() {
               onChangeText={setEmail}
               placeholder={t('auth.emailPlaceholder')}
               autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
               keyboardType="email-address"
+              returnKeyType="next"
+              submitBehavior="submit"
             />
-            <TextField
+            <PasswordField
               label={t('auth.password')}
               value={password}
               onChangeText={setPassword}
               placeholder={t('auth.passwordPlaceholderMin')}
-              secureTextEntry
+              autoComplete="new-password"
+              textContentType="newPassword"
+              returnKeyType="next"
+              submitBehavior="submit"
             />
-            <TextField
+            <PasswordField
               label={t('auth.confirmPassword')}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               placeholder={t('auth.passwordPlaceholderDots')}
-              secureTextEntry
+              autoComplete="new-password"
+              textContentType="newPassword"
+              returnKeyType="go"
+              onSubmitEditing={handleSubmit}
             />
 
             {!!error && (

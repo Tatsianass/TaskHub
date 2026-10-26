@@ -7,6 +7,12 @@ import { PaywallSheet } from '@/components/paywall-sheet';
 /** What the paywall was opened for; it picks the headline the user sees. */
 export type ProFeature = 'voice' | 'reminders' | 'widgets' | 'backup' | 'themes' | 'general';
 
+/**
+ * While true every feature is unlocked for everyone and the Pro entry is hidden in settings. Flip it
+ * to false to bring the paywall back (the plan is a 14-day trial, then a monthly subscription).
+ */
+export const ALL_FEATURES_FREE = true;
+
 /** Reminders per task on the free plan. */
 export const FREE_REMINDERS = 1;
 
@@ -123,7 +129,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
   const openPaywall = useCallback((feature: ProFeature = 'general') => setPaywallFeature(feature), []);
   const closePaywall = useCallback(() => setPaywallFeature(null), []);
 
-  const isPro = !!info?.entitlements.active[ENTITLEMENT] || devPro;
+  const isPro = ALL_FEATURES_FREE || !!info?.entitlements.active[ENTITLEMENT] || devPro;
   const toggleDev = useCallback(() => setDevPro((value) => !value), []);
   const devToggle = __DEV__ && !purchases ? toggleDev : null;
 

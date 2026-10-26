@@ -19,7 +19,7 @@ import { useBirthdaysContext } from '@/context/birthdays-context';
 import { useTasksContext } from '@/context/tasks-context';
 import { useNotificationsSettings } from '@/context/notifications-context';
 import { useLocale } from '@/context/locale-context';
-import { usePro } from '@/context/pro-context';
+import { ALL_FEATURES_FREE, usePro } from '@/context/pro-context';
 import { useThemeMode } from '@/context/theme-mode-context';
 import { useTheme } from '@/hooks/use-theme';
 import { LOCALES } from '@/i18n/translations';
@@ -109,9 +109,18 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace('/login');
+  const handleLogout = () => {
+    Alert.alert(t('settings.logoutTitle'), t('settings.logoutMessage'), [
+      { text: t('completed.cancel'), style: 'cancel' },
+      {
+        text: t('settings.logout'),
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          router.replace('/login');
+        },
+      },
+    ]);
   };
 
   const handleCustomEscalationChange = (text: string) => {
@@ -168,14 +177,16 @@ export default function SettingsScreen() {
             </GlassPanel>
           )}
 
-          <Pressable onPress={() => router.push('/subscription')} accessibilityRole="button">
-            <GlassPanel contentStyle={styles.card}>
-              <ThemedText type="smallBold">{t('pro.title')} ›</ThemedText>
-              <ThemedText type="small" themeColor={isPro ? 'primary' : 'textSecondary'}>
-                {isPro ? t('pro.settingsActive') : t('pro.settingsGetHint')}
-              </ThemedText>
-            </GlassPanel>
-          </Pressable>
+          {!ALL_FEATURES_FREE && (
+            <Pressable onPress={() => router.push('/subscription')} accessibilityRole="button">
+              <GlassPanel contentStyle={styles.card}>
+                <ThemedText type="smallBold">{t('pro.title')} ›</ThemedText>
+                <ThemedText type="small" themeColor={isPro ? 'primary' : 'textSecondary'}>
+                  {isPro ? t('pro.settingsActive') : t('pro.settingsGetHint')}
+                </ThemedText>
+              </GlassPanel>
+            </Pressable>
+          )}
 
           <View>
             <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>

@@ -15,7 +15,10 @@
     "production": {
       "autoIncrement": true,
       "environment": "production",
-      "env": { "EXPO_PUBLIC_STORAGE_MODE": "local" }
+      "env": {
+        "EXPO_PUBLIC_STORAGE_MODE": "server",
+        "EXPO_PUBLIC_API_URL": "https://taskhub-api-tatianas.fly.dev"
+      }
     }
   },
   "submit": { "production": {} }
