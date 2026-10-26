@@ -6,6 +6,11 @@ const URGENT_COUNTERPART: Partial<Record<QuadrantId, QuadrantId>> = {
   'not-urgent-not-important': 'urgent-not-important',
 };
 
+/** The urgent quadrant a "not urgent" quadrant escalates into, or undefined if it never does. */
+export function urgentCounterpart(quadrantId: QuadrantId): QuadrantId | undefined {
+  return URGENT_COUNTERPART[quadrantId];
+}
+
 /**
  * The quadrant a task should be grouped/displayed under on `today` (YYYY-MM-DD). Never mutates
  * the task's stored `quadrantId` — an approaching deadline only escalates a "not urgent" task to

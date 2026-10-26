@@ -5,6 +5,7 @@ import { AppState, Platform } from 'react-native';
 
 import { useAuth } from '@/context/auth-context';
 import { useBirthdaysContext } from '@/context/birthdays-context';
+import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { useTasksContext } from '@/context/tasks-context';
 import {
@@ -19,6 +20,7 @@ import { DEFAULT_REMIND_TIME } from '@/utils/reminders';
 const NOTIFICATIONS_KEY = 'settings:notificationsEnabled';
 const MORNING_TIME_KEY = 'settings:morningTime';
 const OVERDUE_NUDGES_KEY = 'settings:overdueNudges';
+const MORNING_DIGEST_KEY = 'settings:morningDigest';
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 type NotificationsContextValue = {
@@ -31,6 +33,9 @@ type NotificationsContextValue = {
   /** Whether a daily nudge repeats every morning while tasks stay overdue. */
   overdueNudges: boolean;
   setOverdueNudges: (enabled: boolean) => void;
+  /** Whether the morning summary announces tasks that became urgent and tasks due today or tomorrow. */
+  morningDigest: boolean;
+  setMorningDigest: (enabled: boolean) => void;
 };
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
@@ -39,7 +44,16 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(nul
  * Buttons on a task notification: tick it off, or push it to later. Handled once data is ready, since
  * tapping one from a killed app launches us first. Native only: the hook has no web implementation.
  */
-function NotificationActions({ morningTime, overdueNudges }: { morningTime: string; overdueNudges: boolean }) {
+function NotificationActions({
+  morningTime,
+  overdueNudges,
+  morningDigest,
+}: {
+  morningTime: string;
+  overdueNudges: boolean;
+  morningDigest: boolean;
+}) {
+  const { escalationDays } = useEscalationSettings();
   const { user } = useAuth();
   const { t } = useLocale();
   const { tasks, isLoaded: tasksLoaded, toggleTask, rescheduleTask, deleteTask } = useTasksContext();
@@ -64,10 +78,10 @@ function NotificationActions({ morningTime, overdueNudges }: { morningTime: stri
       deleteTask(task.id);
     } else {
       addSnooze(task.id, action.at)
-        .then(() => syncReminders(tasks, birthdays, t, morningTime, overdueNudges))
+        .then(() => syncReminders(tasks, birthdays, t, morningTime, overdueNudges, { escalationDays, enabled: morningDigest }))
         .catch(() => {});
     }
-  }, [response, user, tasksLoaded, tasks, birthdays, t, morningTime, overdueNudges, toggleTask, rescheduleTask, deleteTask]);
+  }, [response, user, tasksLoaded, tasks, birthdays, t, morningTime, overdueNudges, morningDigest, escalationDays, toggleTask, rescheduleTask, deleteTask]);
 
   return null;
 }
@@ -75,11 +89,13 @@ function NotificationActions({ morningTime, overdueNudges }: { morningTime: stri
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { t } = useLocale();
+  const { escalationDays } = useEscalationSettings();
   const { tasks, isLoaded: tasksLoaded } = useTasksContext();
   const { birthdays, isLoaded: birthdaysLoaded } = useBirthdaysContext();
   const [notificationsEnabled, setEnabledState] = useState(true);
   const [morningTime, setMorningTimeState] = useState(DEFAULT_REMIND_TIME);
   const [overdueNudges, setOverdueNudgesState] = useState(true);
+  const [morningDigest, setMorningDigestState] = useState(true);
   const [prefLoaded, setPrefLoaded] = useState(false);
   // Bumped when the app returns to the foreground so the schedule is rebuilt from the current clock.
   const [resumes, setResumes] = useState(0);
@@ -89,11 +105,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       AsyncStorage.getItem(NOTIFICATIONS_KEY),
       AsyncStorage.getItem(MORNING_TIME_KEY),
       AsyncStorage.getItem(OVERDUE_NUDGES_KEY),
+      AsyncStorage.getItem(MORNING_DIGEST_KEY),
     ])
-      .then(([enabled, morning, nudges]) => {
+      .then(([enabled, morning, nudges, digest]) => {
         if (enabled !== null) setEnabledState(enabled === 'true');
         if (morning && TIME_PATTERN.test(morning)) setMorningTimeState(morning);
         if (nudges !== null) setOverdueNudgesState(nudges === 'true');
+        if (digest !== null) setMorningDigestState(digest === 'true');
       })
       .catch(() => {})
       .finally(() => setPrefLoaded(true));
@@ -118,13 +136,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     ensureNotificationPermission()
       .then((granted) => {
-        if (granted && !cancelled) return syncReminders(tasks, birthdays, t, morningTime, overdueNudges);
+        if (granted && !cancelled) return syncReminders(tasks, birthdays, t, morningTime, overdueNudges, { escalationDays, enabled: morningDigest });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [prefLoaded, user, notificationsEnabled, tasksLoaded, birthdaysLoaded, tasks, birthdays, t, morningTime, overdueNudges, resumes]);
+  }, [prefLoaded, user, notificationsEnabled, tasksLoaded, birthdaysLoaded, tasks, birthdays, t, morningTime, overdueNudges, morningDigest, escalationDays, resumes]);
 
   const setNotificationsEnabled = useCallback(async (enabled: boolean) => {
     if (enabled && !(await ensureNotificationPermission())) return false;
@@ -144,10 +162,26 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(OVERDUE_NUDGES_KEY, String(enabled)).catch(() => {});
   }, []);
 
+  const setMorningDigest = useCallback((enabled: boolean) => {
+    setMorningDigestState(enabled);
+    AsyncStorage.setItem(MORNING_DIGEST_KEY, String(enabled)).catch(() => {});
+  }, []);
+
   return (
     <NotificationsContext.Provider
-      value={{ notificationsEnabled, setNotificationsEnabled, morningTime, setMorningTime, overdueNudges, setOverdueNudges }}>
-      {Platform.OS !== 'web' && <NotificationActions morningTime={morningTime} overdueNudges={overdueNudges} />}
+      value={{
+        notificationsEnabled,
+        setNotificationsEnabled,
+        morningTime,
+        setMorningTime,
+        overdueNudges,
+        setOverdueNudges,
+        morningDigest,
+        setMorningDigest,
+      }}>
+      {Platform.OS !== 'web' && (
+        <NotificationActions morningTime={morningTime} overdueNudges={overdueNudges} morningDigest={morningDigest} />
+      )}
       {children}
     </NotificationsContext.Provider>
   );

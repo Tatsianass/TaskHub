@@ -1,6 +1,6 @@
 import { Redirect, useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -95,6 +95,22 @@ export default function HomeScreen() {
   }, [isFocused, activeQuadrantId, arrivedKey, markSeen]);
 
   useFocusEffect(useCallback(() => clearArrivals, [clearArrivals]));
+
+  // Pop-up for tasks that moved to urgent since the user last looked: once per launch, only when
+  // something is new, with a shortcut to the section they landed in.
+  const announcedRef = useRef(false);
+  useEffect(() => {
+    if (announcedRef.current || !isFocused || unseen.size === 0) return;
+    announcedRef.current = true;
+    const moved = tasks.filter((task) => unseen.has(task.id));
+    const target = effectiveQuadrantId(moved[0], escalationDays, today);
+    const lines = moved.slice(0, 5).map((task) => `• ${task.title}`);
+    if (moved.length > 5) lines.push('…');
+    Alert.alert(t('notifications.digest.escalated', { count: moved.length }), lines.join('\n'), [
+      { text: t('escalation.popupLater'), style: 'cancel' },
+      { text: t('escalation.popupOpen'), onPress: () => setActiveQuadrantId(target) },
+    ]);
+  }, [isFocused, unseen, tasks, escalationDays, today, t]);
 
   // The widget's "+" button opens the app at `?add=1`: show the new-task form, then clear the param.
   useFocusEffect(

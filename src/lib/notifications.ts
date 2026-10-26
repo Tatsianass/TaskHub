@@ -4,7 +4,8 @@ import { Platform } from 'react-native';
 
 import type { Birthday } from '@/types/birthday';
 import type { Task } from '@/types/task';
-import { overdueTasks } from '@/utils/overdue';
+import { QUADRANTS } from '@/constants/quadrants';
+import { DIGEST_KINDS, morningDigest, type DigestItem, type DigestKind, type DigestOptions } from '@/utils/morning-digest';
 import { DEFAULT_REMIND_TIME, anchorTime, offsetLabel, reminderDate, taskOffsets } from '@/utils/reminders';
 
 /** iOS keeps at most 64 pending local notifications; stay safely below it. */
@@ -17,7 +18,7 @@ type Planned = { date: Date; title: string; body: string; taskId?: string; categ
 
 const TASK_CATEGORY = 'task';
 const OVERDUE_CATEGORY = 'overdue';
-/** How many mornings ahead the overdue nudges are queued; each app launch refills them. */
+/** How many mornings ahead the morning notifications are queued; each app launch refills them. */
 const OVERDUE_DAYS_AHEAD = 7;
 const SNOOZES_KEY = 'reminders:snoozed';
 
@@ -162,27 +163,48 @@ function taskReminders(tasks: Task[], now: Date, t: Translate, morningTime: stri
   return planned;
 }
 
+const DIGEST_BODY_KEY: Record<DigestKind, string> = {
+  escalated: 'notifications.escalatedBody',
+  overdue: 'notifications.overdueBody',
+  today: 'notifications.dueTodayBody',
+  tomorrow: 'notifications.dueTomorrowBody',
+};
+
+function digestNotification(items: DigestItem[], date: Date, t: Translate): Planned {
+  if (items.length === 1) {
+    const [{ task, kind }] = items;
+    const urgent = t(QUADRANTS[0].shortLabelKey);
+    return {
+      date,
+      title: task.title,
+      body: t(DIGEST_BODY_KEY[kind], { urgent }),
+      taskId: task.id,
+      category: kind === 'overdue' ? OVERDUE_CATEGORY : TASK_CATEGORY,
+    };
+  }
+  const parts = DIGEST_KINDS.map((kind) => [kind, items.filter((item) => item.kind === kind).length] as const)
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => t(`notifications.digest.${kind}`, { count }));
+  const titles = items.slice(0, 3).map((item) => item.task.title).join(', ');
+  const more = items.length > 3 ? '…' : '';
+  return { date, title: t('notifications.digestTitle', { count: items.length }), body: `${parts.join(' · ')}\n${titles}${more}` };
+}
+
 /**
- * A nudge every morning for the next week while tasks stay overdue. One overdue task gets its own
- * notification with Done / Move / Delete buttons; several are rolled into a single summary so a
- * backlog doesn't produce a burst. Each day counts the tasks that will be overdue by then.
+ * At most ONE notification per morning for the next week, however many things happened: tasks
+ * that moved to urgent that day, tasks still overdue, and tasks due today or tomorrow. A single
+ * task gets its own notification (with action buttons); several are rolled into one summary, so a
+ * backlog never produces a burst. Days with nothing to say stay silent. Each day is evaluated as
+ * of that day, since the app may not be opened again before then.
  */
-function overdueReminders(tasks: Task[], now: Date, t: Translate, morningTime: string): Planned[] {
+function morningReminders(tasks: Task[], now: Date, t: Translate, morningTime: string, options: DigestOptions): Planned[] {
   const planned: Planned[] = [];
   for (let ahead = 0; ahead < OVERDUE_DAYS_AHEAD; ahead++) {
     const day = toDateString(addDays(now, ahead));
     const date = reminderDate(day, morningTime, 0);
     if (date <= now) continue;
-    const overdue = overdueTasks(tasks, day);
-    if (overdue.length === 0) continue;
-    if (overdue.length === 1) {
-      const [task] = overdue;
-      planned.push({ date, title: task.title, body: t('notifications.overdueBody'), taskId: task.id, category: OVERDUE_CATEGORY });
-    } else {
-      const titles = overdue.slice(0, 3).map((task) => task.title).join(', ');
-      const more = overdue.length > 3 ? '…' : '';
-      planned.push({ date, title: t('notifications.overdueTitle', { count: overdue.length }), body: `${titles}${more}` });
-    }
+    const items = morningDigest(tasks, day, options);
+    if (items.length > 0) planned.push(digestNotification(items, date, t));
   }
   return planned;
 }
@@ -232,6 +254,7 @@ export function syncReminders(
   t: Translate,
   morningTime = DEFAULT_REMIND_TIME,
   overdueNudges = true,
+  digest: { escalationDays: number | null; enabled: boolean } = { escalationDays: null, enabled: false },
 ) {
   if (Platform.OS === 'web') return Promise.resolve();
   return inOrder(async () => {
@@ -241,7 +264,11 @@ export function syncReminders(
     const planned = [
       ...taskReminders(tasks, now, t, morningTime),
       ...(await snoozeReminders(tasks, now, t)),
-      ...(overdueNudges ? overdueReminders(tasks, now, t, morningTime) : []),
+      ...morningReminders(tasks, now, t, morningTime, {
+        escalationDays: digest.escalationDays,
+        soon: digest.enabled,
+        overdue: overdueNudges,
+      }),
       ...birthdayReminders(birthdays, now, t),
     ]
       .sort((a, b) => a.date.getTime() - b.date.getTime())
