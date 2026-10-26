@@ -17,6 +17,7 @@ describe('config', () => {
       host: '0.0.0.0',
       dbPath: join(SERVER_DIR, 'data', 'app.db'),
       corsOrigins: ['http://localhost:8081'],
+      trustProxy: 0,
     });
   });
 
@@ -79,5 +80,13 @@ describe('config', () => {
 
   test('loadEnvFile ignores a missing file', () => {
     assert.doesNotThrow(() => loadEnvFile(join(tmpdir(), 'does-not-exist.env')));
+  });
+});
+
+describe('TRUST_PROXY', () => {
+  test('defaults to 0, parses hop counts, rejects junk', () => {
+    assert.equal(loadConfig({}).trustProxy, 0);
+    assert.equal(loadConfig({ TRUST_PROXY: '1' }).trustProxy, 1);
+    assert.throws(() => loadConfig({ TRUST_PROXY: 'yes' }), /Invalid TRUST_PROXY/);
   });
 });

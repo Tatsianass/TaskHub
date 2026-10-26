@@ -11,6 +11,8 @@ export type Config = {
   /** Absolute path to the SQLite DB file. */
   dbPath: string;
   corsOrigins: string[];
+  /** Proxy hops in front of the server (Fly = 1); 0 when exposed directly. */
+  trustProxy: number;
 };
 
 export const DEFAULT_PORT = 4000;
@@ -33,6 +35,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // Relative paths resolve against server/, never process.cwd().
     dbPath: resolve(SERVER_DIR, env.DB_PATH?.trim() || DEFAULT_DB_PATH),
     corsOrigins: parseOrigins(env.CORS_ORIGIN),
+    trustProxy: parseTrustProxy(env.TRUST_PROXY),
   };
 }
 
@@ -56,4 +59,11 @@ function parseOrigins(value: string | undefined) {
     .map((origin) => origin.trim())
     .filter(Boolean);
   return origins.length > 0 ? origins : [DEFAULT_CORS_ORIGIN];
+}
+
+function parseTrustProxy(value: string | undefined) {
+  if (value === undefined || value.trim() === '') return 0;
+  const hops = Number(value);
+  if (!Number.isInteger(hops) || hops < 0) throw new Error(`Invalid TRUST_PROXY: "${value}"`);
+  return hops;
 }

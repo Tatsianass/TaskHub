@@ -9,17 +9,20 @@ import { birthdaysRepo } from './repos/birthdays.js';
 import { sessionsRepo } from './repos/sessions.js';
 import { tasksRepo } from './repos/tasks.js';
 import { usersRepo } from './repos/users.js';
-import { authRouter } from './routes/auth.js';
+import { authRouter, type AuthRateLimits } from './routes/auth.js';
 import { birthdaysRouter } from './routes/birthdays.js';
 import { importRouter } from './routes/import.js';
 import { tasksRouter } from './routes/tasks.js';
 
 export type AppOptions = {
   corsOrigins?: string[];
+  /** Express `trust proxy` hop count, so `req.ip` is the client behind Fly's proxy. */
+  trustProxy?: number;
+  authRateLimits?: AuthRateLimits;
 };
 
 export function createApp(db: DatabaseSync, options: AppOptions = {}) {
-  const { corsOrigins = [DEFAULT_CORS_ORIGIN] } = options;
+  const { corsOrigins = [DEFAULT_CORS_ORIGIN], trustProxy = 0, authRateLimits } = options;
   const app = express();
   const users = usersRepo(db);
   const sessions = sessionsRepo(db);
@@ -27,6 +30,7 @@ export function createApp(db: DatabaseSync, options: AppOptions = {}) {
   const birthdays = birthdaysRepo(db);
 
   app.disable('x-powered-by');
+  app.set('trust proxy', trustProxy);
   app.use(cors({ origin: corsOrigins }));
   app.use(express.json({ limit: '1mb' }));
 
@@ -34,7 +38,7 @@ export function createApp(db: DatabaseSync, options: AppOptions = {}) {
     res.json({ ok: db.isOpen });
   });
 
-  app.use('/auth', authRouter(users, sessions));
+  app.use('/auth', authRouter(users, sessions, authRateLimits));
   app.use('/tasks', tasksRouter(tasks, sessions));
   app.use('/birthdays', birthdaysRouter(birthdays, sessions));
   app.use('/import', importRouter(db, tasks, birthdays, sessions));

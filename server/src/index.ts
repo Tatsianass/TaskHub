@@ -13,7 +13,7 @@ console.log(`[server] database: ${config.dbPath}`);
 const expired = sessionsRepo(db).deleteExpired();
 if (expired > 0) console.log(`[server] removed ${expired} expired session(s)`);
 
-const server = createApp(db, { corsOrigins: config.corsOrigins }).listen(
+const server = createApp(db, { corsOrigins: config.corsOrigins, trustProxy: config.trustProxy }).listen(
   config.port,
   config.host,
   (error) => {

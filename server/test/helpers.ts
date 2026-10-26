@@ -2,7 +2,7 @@ import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 
-import { createApp } from '../src/app.js';
+import { createApp, type AppOptions } from '../src/app.js';
 
 export type TestResponse = { status: number; body: any };
 
@@ -27,8 +27,10 @@ export function requester(baseUrl: string) {
 }
 
 /** Serves `createApp(db)` on an ephemeral port. */
-export async function startApp(db: DatabaseSync) {
-  const server = createApp(db).listen(0);
+export async function startApp(db: DatabaseSync, options: AppOptions = {}) {
+  // Generous auth limits: suites register many users from one IP.
+  const authRateLimits = { ipMax: 100_000, emailMax: 100_000, windowMs: 60_000 };
+  const server = createApp(db, { authRateLimits, ...options }).listen(0);
   await once(server, 'listening');
   const baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;
   const request = requester(baseUrl);
