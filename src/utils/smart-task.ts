@@ -45,6 +45,7 @@ export function parseSpokenTask(text: string, locale: string): SpokenTask {
     : null;
   const title = `${text.slice(0, result.index)} ${text.slice(result.index + result.text.length)}`
     .replace(/\s+/g, ' ')
+    .trim()
     .replace(/\s+(на|в|во|к|до|on|at|by|for)$/i, '')
     .trim();
   // A phrase that was only a date ("завтра") leaves nothing to name the task; keep the original.
@@ -71,13 +72,32 @@ const IMPORTANT_KEYWORDS: Record<string, string[]> = {
   zh: ['重要', '关键', '必须', '优先'],
 };
 
+const NEGATIONS = new Set(['не', 'ни', 'not', 'no', 'nicht', 'kein', 'keine', 'non', 'pas', 'não', 'nao']);
+/** Keywords at least this long also match inflected forms ("важного", "urgently"); shorter ones must match whole words. */
+const PREFIX_MIN_LENGTH = 5;
+
+/**
+ * Whether `text` contains one of `words` as a word of its own - not inside another word ("keyboard"
+ * is not "key", "неважно" is not "важно") and not right after a negation ("не срочно").
+ * Chinese has no spaces between words, so it falls back to a plain substring match.
+ */
+function hasKeyword(text: string, words: string[], locale: string): boolean {
+  if (locale === 'zh') return words.some((word) => text.includes(word));
+  const tokens = text.match(/[\p{L}\p{N}']+/gu) ?? [];
+  return tokens.some(
+    (token, index) =>
+      words.some((word) => token === word || (word.length >= PREFIX_MIN_LENGTH && token.startsWith(word))) &&
+      !(index > 0 && NEGATIONS.has(tokens[index - 1])),
+  );
+}
+
 /** Suggests whether a task is important from keywords in the text. Returns null when no signal is found. */
 export function suggestImportance(text: string, locale: string): boolean | null {
   const lower = text.toLowerCase();
   const urgentWords = URGENT_KEYWORDS[locale] ?? URGENT_KEYWORDS.en;
   const importantWords = IMPORTANT_KEYWORDS[locale] ?? IMPORTANT_KEYWORDS.en;
 
-  if (importantWords.some((word) => lower.includes(word))) return true;
-  if (urgentWords.some((word) => lower.includes(word))) return false;
+  if (hasKeyword(lower, importantWords, locale)) return true;
+  if (hasKeyword(lower, urgentWords, locale)) return false;
   return null;
 }

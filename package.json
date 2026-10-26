@@ -39,9 +39,11 @@
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
+    "@types/node": "^24.19.2",
     "@types/react": "~19.2.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -52,7 +54,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "server": "npm --prefix server run dev",
-    "server:test": "npm --prefix server test"
+    "server:test": "npm --prefix server test",
+    "test": "node --import tsx --experimental-test-module-mocks --test \"tests/**/*.test.ts\""
   },
   "private": true
 }
