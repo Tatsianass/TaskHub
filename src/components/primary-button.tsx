@@ -18,8 +18,9 @@ type Props = {
 export function PrimaryButton({ title, onPress, disabled, loading, variant = 'primary', style, textColor }: Props) {
   const theme = useTheme();
   const isGhost = variant === 'ghost';
+  const isDanger = variant === 'danger';
   const isGradient = variant === 'primary';
-  const resolvedTextColor = textColor ?? (isGhost ? theme.text : '#ffffff');
+  const resolvedTextColor = textColor ?? (isGhost ? theme.text : isDanger ? theme.danger : '#ffffff');
 
   const content = loading ? (
     <ActivityIndicator color={resolvedTextColor} />
@@ -43,7 +44,7 @@ export function PrimaryButton({ title, onPress, disabled, loading, variant = 'pr
     );
   }
 
-  const backgroundColor = isGhost ? 'transparent' : theme.danger;
+  const backgroundColor = isGhost ? 'transparent' : theme.glassBg;
 
   return (
     <Pressable
@@ -53,6 +54,7 @@ export function PrimaryButton({ title, onPress, disabled, loading, variant = 'pr
         styles.button,
         { backgroundColor, opacity: disabled ? 0.5 : 1 },
         isGhost && { borderWidth: 1, borderColor: theme.border },
+        isDanger && { borderWidth: 1, borderColor: theme.danger },
         style,
       ]}>
       {content}
