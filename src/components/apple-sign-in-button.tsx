@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native';
 
 import { useAuth } from '@/context/auth-context';
 import { useLocale } from '@/context/locale-context';
+import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
   /** Called with a translated message when sign-in fails; the user cancelling is not an error. */
@@ -15,6 +16,7 @@ type Props = {
 export function AppleSignInButton({ onError, onBusyChange }: Props) {
   const { loginWithApple } = useAuth();
   const { t } = useLocale();
+  const theme = useTheme();
   const [available, setAvailable] = useState(false);
 
   useEffect(() => {
@@ -41,7 +43,12 @@ export function AppleSignInButton({ onError, onBusyChange }: Props) {
   return (
     <AppleAuthentication.AppleAuthenticationButton
       buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+      // Apple's guidelines: white on dark backgrounds, black on light ones.
+      buttonStyle={
+        theme.scheme === 'dark'
+          ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+          : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+      }
       cornerRadius={14}
       style={styles.button}
       onPress={handlePress}
