@@ -13,11 +13,14 @@ export type Config = {
   corsOrigins: string[];
   /** Proxy hops in front of the server (Fly = 1); 0 when exposed directly. */
   trustProxy: number;
+  /** Accepted audiences of Sign in with Apple identity tokens: the app's bundle id. */
+  appleAudiences: string[];
 };
 
 export const DEFAULT_PORT = 4000;
 export const DEFAULT_HOST = '0.0.0.0';
 export const DEFAULT_DB_PATH = 'data/app.db';
+export const DEFAULT_APPLE_AUDIENCE = 'com.tatsianas.todomobile';
 export const DEFAULT_CORS_ORIGIN = 'http://localhost:8081';
 
 /**
@@ -36,6 +39,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dbPath: resolve(SERVER_DIR, env.DB_PATH?.trim() || DEFAULT_DB_PATH),
     corsOrigins: parseOrigins(env.CORS_ORIGIN),
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
+    appleAudiences: parseList(env.APPLE_BUNDLE_IDS, [DEFAULT_APPLE_AUDIENCE]),
   };
 }
 
@@ -53,12 +57,16 @@ function parseHost(value: string | undefined) {
   return host === '' ? DEFAULT_HOST : host;
 }
 
-function parseOrigins(value: string | undefined) {
-  const origins = (value ?? '')
+function parseList(value: string | undefined, fallback: string[]) {
+  const items = (value ?? '')
     .split(',')
-    .map((origin) => origin.trim())
+    .map((item) => item.trim())
     .filter(Boolean);
-  return origins.length > 0 ? origins : [DEFAULT_CORS_ORIGIN];
+  return items.length > 0 ? items : fallback;
+}
+
+function parseOrigins(value: string | undefined) {
+  return parseList(value, [DEFAULT_CORS_ORIGIN]);
 }
 
 function parseTrustProxy(value: string | undefined) {

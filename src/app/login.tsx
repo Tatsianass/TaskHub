@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
+import { AppleSignInButton } from '@/components/apple-sign-in-button';
 import { GlassPanel } from '@/components/glass-panel';
 import { PrimaryButton } from '@/components/primary-button';
 import { PasswordField } from '@/components/password-field';
@@ -80,6 +81,10 @@ export default function LoginScreen() {
             )}
 
             <PrimaryButton title={t('auth.loginButton')} onPress={handleSubmit} loading={isSubmitting} />
+            <ThemedText type="small" themeColor="textSecondary" style={styles.or}>
+              {t('auth.or')}
+            </ThemedText>
+            <AppleSignInButton onError={setError} onBusyChange={setIsSubmitting} />
           </GlassPanel>
 
           <View style={styles.footer}>
@@ -124,6 +129,9 @@ const styles = StyleSheet.create({
   form: {
     gap: Spacing.three,
     padding: Spacing.four,
+  },
+  or: {
+    textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',

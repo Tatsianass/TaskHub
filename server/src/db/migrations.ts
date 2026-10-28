@@ -65,11 +65,17 @@ ALTER TABLE tasks ADD COLUMN remind_offsets TEXT NOT NULL DEFAULT '[]';
 UPDATE tasks SET remind_offsets = '[0]' WHERE remind_me = 1;
 `;
 
+// Sign in with Apple: the stable Apple user id. Email-only accounts keep it NULL.
+const V6_SQL = `
+ALTER TABLE users ADD COLUMN apple_sub TEXT;
+CREATE UNIQUE INDEX idx_users_apple_sub ON users(apple_sub) WHERE apple_sub IS NOT NULL;
+`;
+
 /**
  * Append-only list: index 0 upgrades user_version 0 → 1, and so on.
  * Never edit or reorder a migration that has shipped; add a new one.
  */
-export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL, V4_SQL, V5_SQL];
+export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL, V4_SQL, V5_SQL, V6_SQL];
 
 export function getUserVersion(db: DatabaseSync) {
   const row = db.prepare('PRAGMA user_version').get() as { user_version: number };

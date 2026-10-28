@@ -1,3 +1,5 @@
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { useLocale } from '@/context/locale-context';
@@ -18,6 +20,8 @@ type AuthContextValue = {
   isLoading: boolean;
   register: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  /** Shows Apple's sign-in sheet, then signs in or creates the account. Throws 'APPLE_CANCELED' if dismissed. */
+  loginWithApple: () => Promise<void>;
   logout: () => Promise<void>;
   /** Permanently deletes the account and all its data on the server, then signs out. */
   deleteAccount: () => Promise<void>;
@@ -106,6 +110,22 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
     [startSession],
   );
 
+  const loginWithApple = useCallback(async () => {
+    // Apple puts the SHA-256 of this nonce in the token; the server checks it, so a stolen token can't be replayed.
+    const rawNonce = Crypto.randomUUID();
+    const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+    let identityToken: string | null;
+    try {
+      ({ identityToken } = await AppleAuthentication.signInAsync({ nonce: hashedNonce }));
+    } catch (e) {
+      if ((e as { code?: string }).code === 'ERR_REQUEST_CANCELED') throw new Error('APPLE_CANCELED');
+      throw new Error('APPLE_FAILED');
+    }
+    if (!identityToken) throw new Error('APPLE_FAILED');
+
+    await startSession(await api<AuthResponse>('/auth/apple', { method: 'POST', body: { identityToken, nonce: rawNonce } }));
+  }, [startSession]);
+
   const logout = useCallback(async () => {
     try {
       await api('/auth/logout', { method: 'POST' });
@@ -122,7 +142,7 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, register, login, logout, deleteAccount, isLocal: false }}>
+    <AuthContext.Provider value={{ user, isLoading, register, login, loginWithApple, logout, deleteAccount, isLocal: false }}>
       {children}
     </AuthContext.Provider>
   );
@@ -133,6 +153,7 @@ const LOCAL_VALUE: AuthContextValue = {
   isLoading: false,
   register: async () => {},
   login: async () => {},
+  loginWithApple: async () => {},
   logout: async () => {},
   deleteAccount: async () => {},
   isLocal: true,

@@ -1,6 +1,9 @@
+import { randomBytes } from 'node:crypto';
+
 import { Router, type RequestHandler } from 'express';
 
 import { requireAuth } from '../auth/middleware.js';
+import type { AppleVerifier } from '../auth/apple.js';
 import { rateLimit } from '../auth/rate-limit.js';
 import { DUMMY_HASH, hashPassword, verifyPassword } from '../auth/password.js';
 import { ApiError, SQLITE_CONSTRAINT_UNIQUE, isSqliteError } from '../errors.js';
@@ -42,6 +45,7 @@ function readCredentials(body: unknown) {
 export function authRouter(
   users: UsersRepo,
   sessions: SessionsRepo,
+  verifyApple: AppleVerifier,
   limits: AuthRateLimits = DEFAULT_AUTH_RATE_LIMITS,
 ) {
   const router = Router();
@@ -86,6 +90,49 @@ export function authRouter(
     res.json({ token, user: { id: found.id, email: found.email } });
   };
 
+  /** Largest identity token we will parse; real ones are about 1 KB. */
+  const MAX_APPLE_TOKEN_LENGTH = 8192;
+
+  const loginWithApple: RequestHandler = async (req, res) => {
+    const { identityToken, nonce } = (req.body ?? {}) as Record<string, unknown>;
+    if (
+      typeof identityToken !== 'string' ||
+      identityToken.length > MAX_APPLE_TOKEN_LENGTH ||
+      typeof nonce !== 'string' ||
+      nonce === ''
+    ) {
+      throw new ApiError(400, 'INVALID_APPLE_TOKEN');
+    }
+    const identity = await verifyApple(identityToken, nonce);
+
+    const existing = users.findByAppleSub(identity.sub);
+    if (existing) {
+      const { token } = sessions.create(existing.id);
+      res.json({ token, user: existing });
+      return;
+    }
+
+    // Never attach Apple to an existing email account: email sign-up is unverified, so anyone could
+    // have registered this address first. Use the Apple email only while it is free and verified.
+    const email =
+      identity.email && identity.emailVerified && !users.findByEmail(identity.email)
+        ? identity.email
+        : `${identity.sub}@apple.invalid`;
+    const unusable = await hashPassword(randomBytes(32).toString('hex'));
+    let user;
+    try {
+      user = users.createApple(identity.sub, email, unusable);
+    } catch (error) {
+      if (!isSqliteError(error, SQLITE_CONSTRAINT_UNIQUE)) throw error;
+      // Lost a race with a concurrent request for the same Apple id (or email).
+      const winner = users.findByAppleSub(identity.sub);
+      if (!winner) throw new ApiError(409, 'EMAIL_TAKEN');
+      user = winner;
+    }
+    const { token } = sessions.create(user.id);
+    res.status(201).json({ token, user });
+  };
+
   const me: RequestHandler = (req, res) => {
     const user = users.findById(req.userId!);
     if (!user) throw new ApiError(401, 'UNAUTHORIZED');
@@ -104,6 +151,7 @@ export function authRouter(
 
   router.post('/register', byIp, register);
   router.post('/login', byIp, byEmail, login);
+  router.post('/apple', byIp, loginWithApple);
   router.get('/me', requireAuth(sessions), me);
   router.post('/logout', requireAuth(sessions), logout);
   router.delete('/account', requireAuth(sessions), deleteAccount);

@@ -22,6 +22,11 @@ export function usersRepo(db: DatabaseSync) {
   const selectByEmail = db.prepare(
     `SELECT id, email, password_hash, password_salt, password_params FROM users WHERE email = ?`,
   );
+  const selectByAppleSub = db.prepare('SELECT id, email FROM users WHERE apple_sub = ?');
+  const insertApple = db.prepare(
+    `INSERT INTO users (id, email, password_hash, password_salt, password_params, created_at, apple_sub)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
   const selectById = db.prepare('SELECT id, email FROM users WHERE id = ?');
   const deleteById = db.prepare('DELETE FROM users WHERE id = ?');
 
@@ -48,6 +53,20 @@ export function usersRepo(db: DatabaseSync) {
           params: JSON.parse(row.password_params),
         },
       };
+    },
+
+    findByAppleSub(sub: string): User | undefined {
+      return selectByAppleSub.get(sub) as User | undefined;
+    },
+
+    /**
+     * Inserts a user that signs in with Apple. `password` is a throwaway nobody knows, because the
+     * columns are NOT NULL. Throws the UNIQUE constraint error if the email or Apple id is taken.
+     */
+    createApple(sub: string, email: string, password: StoredPassword): User {
+      const id = randomUUID();
+      insertApple.run(id, email, password.hash, password.salt, JSON.stringify(password.params), Date.now(), sub);
+      return { id, email };
     },
 
     findById(id: string): User | undefined {

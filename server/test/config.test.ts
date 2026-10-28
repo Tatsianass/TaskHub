@@ -18,6 +18,7 @@ describe('config', () => {
       dbPath: join(SERVER_DIR, 'data', 'app.db'),
       corsOrigins: ['http://localhost:8081'],
       trustProxy: 0,
+      appleAudiences: ['com.tatsianas.todomobile'],
     });
   });
 
@@ -87,6 +88,7 @@ describe('TRUST_PROXY', () => {
   test('defaults to 0, parses hop counts, rejects junk', () => {
     assert.equal(loadConfig({}).trustProxy, 0);
     assert.equal(loadConfig({ TRUST_PROXY: '1' }).trustProxy, 1);
+    assert.deepEqual(loadConfig({ APPLE_BUNDLE_IDS: ' a.b , host.exp.Exponent ' }).appleAudiences, ['a.b', 'host.exp.Exponent']);
     assert.throws(() => loadConfig({ TRUST_PROXY: 'yes' }), /Invalid TRUST_PROXY/);
   });
 });

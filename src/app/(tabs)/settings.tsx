@@ -152,7 +152,9 @@ export default function SettingsScreen() {
               <ThemedText type="small" themeColor="textSecondary">
                 {t('settings.account')}
               </ThemedText>
-              <ThemedText type="smallBold">{user.email}</ThemedText>
+              <ThemedText type="smallBold">
+                {user.email.endsWith('@apple.invalid') ? t('settings.appleAccount') : user.email}
+              </ThemedText>
             </GlassPanel>
           )}
 
