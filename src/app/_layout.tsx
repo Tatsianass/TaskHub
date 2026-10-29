@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { BirthdaysProvider } from '@/context/birthdays-context';
 import { EscalationProvider } from '@/context/escalation-context';
+import { OnboardingProvider, useOnboarding } from '@/context/onboarding-context';
 import { ProProvider } from '@/context/pro-context';
 import { NotificationsProvider } from '@/context/notifications-context';
 import { LocaleProvider } from '@/context/locale-context';
@@ -20,20 +21,25 @@ SplashScreen.preventAutoHideAsync();
 function Navigation() {
   const theme = useTheme();
   const { user, isLoading } = useAuth();
+  const { seen: onboardingSeen } = useOnboarding();
   useWidgetSync();
 
   // Keep the splash up until we know whether a saved session is still valid,
-  // so a signed-in user never flashes the login screen.
+  // so a signed-in user never flashes the login screen, nor the intro slides when they've seen them.
+  const ready = !isLoading && (!user || onboardingSeen !== null);
   useEffect(() => {
-    if (!isLoading) SplashScreen.hide();
-  }, [isLoading]);
-  if (isLoading) return null;
+    if (ready) SplashScreen.hide();
+  }, [ready]);
+  if (!ready) return null;
 
   return (
     <ThemeProvider value={theme.scheme === 'dark' ? DarkTheme : DefaultTheme}>
       <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Protected guard={!!user}>
+        <Stack.Protected guard={!!user && onboardingSeen === false}>
+          <Stack.Screen name="onboarding" />
+        </Stack.Protected>
+        <Stack.Protected guard={!!user && onboardingSeen === true}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="completed" />
           <Stack.Screen name="subscription" />
@@ -59,7 +65,9 @@ export default function RootLayout() {
                 <TasksProvider>
                   <BirthdaysProvider>
                     <NotificationsProvider>
-                      <Navigation />
+                      <OnboardingProvider>
+                        <Navigation />
+                      </OnboardingProvider>
                     </NotificationsProvider>
                   </BirthdaysProvider>
                 </TasksProvider>
