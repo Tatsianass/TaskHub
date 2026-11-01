@@ -8,15 +8,15 @@ import { PaywallSheet } from '@/components/paywall-sheet';
 export type ProFeature = 'voice' | 'reminders' | 'widgets' | 'themes' | 'general';
 
 /**
- * While true every feature is unlocked for everyone and the Pro entry is hidden in settings. Flip it
- * to false to bring the paywall back (the plan is a 14-day trial, then a monthly subscription).
+ * While true every feature is unlocked for everyone and the paywall never shows. The app is paid:
+ * a store free trial (14 days, set up in App Store Connect / Google Play), then a monthly subscription.
  */
-export const ALL_FEATURES_FREE = true;
+export const ALL_FEATURES_FREE = false;
 
 /** Reminders per task on the free plan. */
 export const FREE_REMINDERS = 1;
 
-/** The entitlement id set up in the RevenueCat dashboard; the 7-day trial and the paid plans all unlock it. */
+/** The entitlement id set up in the RevenueCat dashboard; the free trial and the paid plans all unlock it. */
 const ENTITLEMENT = 'pro';
 
 // Must be referenced literally as process.env.EXPO_PUBLIC_* so Expo inlines them.
@@ -49,6 +49,14 @@ type ProContextValue = {
   isPro: boolean;
   /** False until the first answer from the store, so Pro features don't flash locked at launch. */
   ready: boolean;
+  /**
+   * The app must show the paywall instead of its content: the store has answered and there is no
+   * trial or subscription. Never true where nothing can be bought (web, or a build without a store key),
+   * except in development, so the paywall can be tried with the dev toggle.
+   */
+  locked: boolean;
+  /** Ties purchases to the signed-in account (null on sign-out), so the subscription follows it across devices. */
+  identify: (userId: string | null) => void;
   /** The store is connected (a key is set and the native module is there). */
   storeAvailable: boolean;
   packages: PurchasesPackage[];
@@ -126,10 +134,27 @@ export function ProProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const identify = useCallback((userId: string | null) => {
+    if (!purchases) return;
+    if (userId) {
+      purchases
+        .logIn(userId)
+        .then(({ customerInfo }) => setInfo(customerInfo))
+        .catch(() => {});
+    } else {
+      // Throws when already anonymous, which is the state we want anyway.
+      purchases
+        .logOut()
+        .then(setInfo)
+        .catch(() => setInfo(null));
+    }
+  }, []);
+
   const openPaywall = useCallback((feature: ProFeature = 'general') => setPaywallFeature(feature), []);
   const closePaywall = useCallback(() => setPaywallFeature(null), []);
 
   const isPro = ALL_FEATURES_FREE || !!info?.entitlements.active[ENTITLEMENT] || devPro;
+  const locked = !isPro && ready && (!!purchases || __DEV__);
   const toggleDev = useCallback(() => setDevPro((value) => !value), []);
   const devToggle = __DEV__ && !purchases ? toggleDev : null;
 
@@ -137,6 +162,8 @@ export function ProProvider({ children }: { children: ReactNode }) {
     () => ({
       isPro,
       ready,
+      locked,
+      identify,
       storeAvailable: !!purchases,
       packages,
       loadPackages,
@@ -147,7 +174,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
       restore,
       devToggle,
     }),
-    [isPro, ready, packages, loadPackages, openPaywall, closePaywall, paywallFeature, purchase, restore, devToggle],
+    [isPro, ready, locked, identify, packages, loadPackages, openPaywall, closePaywall, paywallFeature, purchase, restore, devToggle],
   );
 
   return (

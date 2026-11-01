@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from '@/context/auth-context';
 import { BirthdaysProvider } from '@/context/birthdays-context';
 import { EscalationProvider } from '@/context/escalation-context';
 import { OnboardingProvider, useOnboarding } from '@/context/onboarding-context';
-import { ProProvider } from '@/context/pro-context';
+import { ProProvider, usePro } from '@/context/pro-context';
 import { NotificationsProvider } from '@/context/notifications-context';
 import { LocaleProvider } from '@/context/locale-context';
 import { TasksProvider } from '@/context/tasks-context';
@@ -20,9 +20,16 @@ SplashScreen.preventAutoHideAsync();
 
 function Navigation() {
   const theme = useTheme();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isLocal } = useAuth();
   const { seen: onboardingSeen } = useOnboarding();
+  const { locked, identify } = usePro();
   useWidgetSync();
+
+  // Purchases follow the account, not the device. Local mode has no accounts (one shared 'local' user), so it stays anonymous.
+  const userId = user && !isLocal ? user.id : null;
+  useEffect(() => {
+    identify(userId);
+  }, [identify, userId]);
 
   // Keep the splash up until we know whether a saved session is still valid,
   // so a signed-in user never flashes the login screen, nor the intro slides when they've seen them.
@@ -39,7 +46,10 @@ function Navigation() {
         <Stack.Protected guard={!!user && onboardingSeen === false}>
           <Stack.Screen name="onboarding" />
         </Stack.Protected>
-        <Stack.Protected guard={!!user && onboardingSeen === true}>
+        <Stack.Protected guard={!!user && onboardingSeen === true && locked}>
+          <Stack.Screen name="paywall" />
+        </Stack.Protected>
+        <Stack.Protected guard={!!user && onboardingSeen === true && !locked}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="completed" />
           <Stack.Screen name="subscription" />
