@@ -12,9 +12,39 @@ import { useLocale } from '@/context/locale-context';
 import { usePro } from '@/context/pro-context';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
+import { MAX_REMINDERS } from '@/utils/reminders';
+
+/** A cell is a check, a dash (not included) or a short value such as a count. */
+type Cell = boolean | string;
+
+const ROWS: { key: string; free: Cell; pro: Cell }[] = [
+  { key: 'tasks', free: true, pro: true },
+  { key: 'smartDate', free: true, pro: true },
+  { key: 'birthdays', free: true, pro: true },
+  { key: 'reminders', free: '1', pro: String(MAX_REMINDERS) },
+  { key: 'voice', free: false, pro: true },
+  { key: 'widgets', free: false, pro: true },
+  { key: 'themes', free: '2', pro: '4' },
+];
 
 const MANAGE_URL =
   Platform.OS === 'ios' ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions';
+
+function CellMark({ value, highlight }: { value: Cell; highlight?: boolean }) {
+  const theme = useTheme();
+  if (value === false) {
+    return (
+      <ThemedText themeColor="textSecondary" style={styles.cellText}>
+        —
+      </ThemedText>
+    );
+  }
+  return (
+    <ThemedText type="smallBold" style={[styles.cellText, { color: highlight ? theme.primary : theme.text }]}>
+      {value === true ? '✓' : value}
+    </ThemedText>
+  );
+}
 
 export default function SubscriptionScreen() {
   const router = useRouter();
@@ -51,6 +81,34 @@ export default function SubscriptionScreen() {
               </ThemedText>
             </GlassPanel>
 
+            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+              {t('pro.compareTitle')}
+            </ThemedText>
+            <GlassPanel contentStyle={styles.table}>
+              <View style={styles.row}>
+                <View style={styles.feature} />
+                <ThemedText type="small" themeColor="textSecondary" style={styles.cell}>
+                  {t('pro.compare.free')}
+                </ThemedText>
+                <ThemedText type="smallBold" themeColor="primary" style={styles.cell}>
+                  {t('pro.compare.pro')}
+                </ThemedText>
+              </View>
+              {ROWS.map((row) => (
+                <View key={row.key} style={[styles.row, styles.rowBorder, { borderTopColor: theme.glassBorder }]}>
+                  <View style={styles.feature}>
+                    <ThemedText type="small">{t(`pro.row.${row.key}`)}</ThemedText>
+                  </View>
+                  <View style={styles.cell}>
+                    <CellMark value={row.free} />
+                  </View>
+                  <View style={[styles.cell, styles.proCell, { backgroundColor: hexToRgba(theme.primary, 0.1) }]}>
+                    <CellMark value={row.pro} highlight />
+                  </View>
+                </View>
+              ))}
+            </GlassPanel>
+
             <PlansPanel />
 
             {isPro && (
@@ -76,5 +134,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 24 },
   scroll: { gap: Spacing.three, paddingTop: Spacing.two, paddingBottom: Spacing.five },
   status: { gap: Spacing.one, padding: Spacing.three },
+  sectionLabel: { marginBottom: -Spacing.one, paddingHorizontal: Spacing.one },
+  table: { paddingVertical: Spacing.one },
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 46 },
+  rowBorder: { borderTopWidth: StyleSheet.hairlineWidth },
+  feature: { flex: 1, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  cell: { width: 76, alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
+  proCell: { alignSelf: 'stretch' },
+  cellText: { textAlign: 'center' },
   manage: { textAlign: 'center' },
 });

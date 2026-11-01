@@ -17,6 +17,7 @@ import { QUADRANTS } from '@/constants/quadrants';
 import { Spacing } from '@/constants/theme';
 import { useLocale } from '@/context/locale-context';
 import { useOnboarding } from '@/context/onboarding-context';
+import { usePro } from '@/context/pro-context';
 import { useTheme } from '@/hooks/use-theme';
 import { hexToRgba } from '@/utils/colors';
 
@@ -115,6 +116,7 @@ export default function OnboardingScreen() {
   const { t } = useLocale();
   const theme = useTheme();
   const { markSeen } = useOnboarding();
+  const { isPro, storeAvailable, openPaywall } = usePro();
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [page, setPage] = useState(0);
@@ -124,8 +126,14 @@ export default function OnboardingScreen() {
     setPage(Math.round(event.nativeEvent.contentOffset.x / width));
   };
 
+  // Leaving the slides (finished or skipped) is when the trial is offered, once; the app stays usable on the free plan.
+  const finish = () => {
+    markSeen();
+    if (storeAvailable && !isPro) openPaywall('general');
+  };
+
   const handleNext = () => {
-    if (isLast) markSeen();
+    if (isLast) finish();
     else scrollRef.current?.scrollTo({ x: (page + 1) * width, animated: true });
   };
 
@@ -134,7 +142,7 @@ export default function OnboardingScreen() {
       <SafeAreaView style={styles.flex}>
         <View style={styles.skipRow}>
           {!isLast && (
-            <Pressable onPress={markSeen} hitSlop={12}>
+            <Pressable onPress={finish} hitSlop={12}>
               <ThemedText type="small" themeColor="textSecondary">
                 {t('onboarding.skip')}
               </ThemedText>

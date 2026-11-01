@@ -22,7 +22,7 @@ function Navigation() {
   const theme = useTheme();
   const { user, isLoading, isLocal } = useAuth();
   const { seen: onboardingSeen } = useOnboarding();
-  const { locked, identify } = usePro();
+  const { identify } = usePro();
   useWidgetSync();
 
   // Purchases follow the account, not the device. Local mode has no accounts (one shared 'local' user), so it stays anonymous.
@@ -46,10 +46,7 @@ function Navigation() {
         <Stack.Protected guard={!!user && onboardingSeen === false}>
           <Stack.Screen name="onboarding" />
         </Stack.Protected>
-        <Stack.Protected guard={!!user && onboardingSeen === true && locked}>
-          <Stack.Screen name="paywall" />
-        </Stack.Protected>
-        <Stack.Protected guard={!!user && onboardingSeen === true && !locked}>
+        <Stack.Protected guard={!!user && onboardingSeen === true}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="completed" />
           <Stack.Screen name="subscription" />
