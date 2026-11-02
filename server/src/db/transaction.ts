@@ -1,14 +1,22 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { PoolClient } from 'pg';
 
-/** Runs `fn` in one BEGIN … COMMIT; rolls back and rethrows if it throws. */
-export function withTransaction<T>(db: DatabaseSync, fn: () => T): T {
-  db.exec('BEGIN');
+import type { Db } from './connection.js';
+
+/**
+ * Runs `fn` in one BEGIN … COMMIT on a dedicated connection; rolls back and rethrows if it
+ * throws. The connection always goes back to the pool.
+ */
+export async function withTransaction<T>(db: Db, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await db.connect();
   try {
-    const result = fn();
-    db.exec('COMMIT');
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
     return result;
   } catch (error) {
-    db.exec('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     throw error;
+  } finally {
+    client.release();
   }
 }

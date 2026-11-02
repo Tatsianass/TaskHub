@@ -26,19 +26,19 @@ requirement IDs it covers. Tick `[ ]` → `[x]` in the commit that completes it.
 
 ## Phase 1 — Connection, config, migrations
 
-### [ ] T1.1 Dependencies and config
+### [x] T1.1 Dependencies and config
 - Steps: `npm --prefix server i pg` and `-D @types/pg`. Update `config.ts`: add `databaseUrl`
   (throw if missing), `pgPoolMax`, SSL derivation; remove `dbPath`. Update `.env.example`.
 - Done when: `config.test.ts` rewritten and green (defaults, missing URL throws, `sslmode` handling,
   URL never appears in error text).
 - Covers: R3.1, R3.2, R3.3, R3.6
 
-### [ ] T1.2 Test harness
-- Steps: `test/helpers.ts` → `createTestDb()` (schema-per-file, design §9); `startApp` takes a `Pool`.
+### [x] T1.2 Test harness
+- Steps: `test/helpers.ts` → `createTestDb()` (schema-per-file, design §9); `startApp` takes a `Pool` — switched over in T3.1, when `createApp` itself takes one.
 - Done when: a smoke test creates a schema, runs a query, drops the schema.
 - Covers: R1.2, R6.2
 
-### [ ] T1.3 Pool + migrations
+### [x] T1.3 Pool + migrations
 - Steps: rewrite `db/connection.ts`, `db/migrations.ts` (baseline + advisory lock +
   `schema_migrations`), `db/transaction.ts` (async). Register the BIGINT parser.
 - Done when `db.test.ts` (rewritten) passes:
