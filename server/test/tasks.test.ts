@@ -1,26 +1,22 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
 import { after, before, describe, test } from 'node:test';
 
-import { closeDatabase, openDatabase } from '../src/db/connection.js';
-import { makeTask, registerUser, startApp, type TestApp } from './helpers.js';
+import type { Db } from '../src/db/connection.js';
+import { createTestDb, makeTask, registerUser, startApp, type TestApp } from './helpers.js';
 
-const tmpRoot = mkdtempSync(join(tmpdir(), 'todo-tasks-'));
-let db: DatabaseSync;
+let testDb: Awaited<ReturnType<typeof createTestDb>>;
+let db: Db;
 let app: TestApp;
 
 before(async () => {
-  db = openDatabase(join(tmpRoot, 'app.db'));
+  testDb = await createTestDb();
+  db = testDb.pool;
   app = await startApp(db);
 });
 
 after(async () => {
   await app.close();
-  closeDatabase(db);
-  rmSync(tmpRoot, { recursive: true, force: true });
+  await testDb.drop();
 });
 
 describe('/tasks CRUD', () => {
@@ -64,12 +60,27 @@ describe('/tasks CRUD', () => {
     assert.deepEqual((await app.request('GET', '/tasks', { token })).body, []);
   });
 
-  test('stores the row with user_id and 0/1 booleans', async () => {
+  test('stores the row with user_id and real booleans', async () => {
     const { token, user } = await registerUser(app);
     const task = makeTask({ done: true, remindMe: false });
     await app.request('POST', '/tasks', { token, body: task });
-    const row = db.prepare('SELECT user_id, done, remind_me FROM tasks WHERE id = ?').get(task.id);
-    assert.deepEqual({ ...row }, { user_id: user.id, done: 1, remind_me: 0 });
+    const { rows } = await db.query('SELECT user_id, done, remind_me FROM tasks WHERE id = $1', [task.id]);
+    assert.deepEqual(rows[0], { user_id: user.id, done: true, remind_me: false });
+  });
+
+  test('GET breaks createdAt ties by newest insert first, with numeric timestamps (R1.3, R1.4)', async () => {
+    const { token } = await registerUser(app);
+    const same = 5000;
+    const ids: string[] = [];
+    for (const title of ['first', 'second', 'third']) {
+      const task = makeTask({ title, createdAt: same, completedAt: same + 1, done: true });
+      ids.push(task.id);
+      await app.request('POST', '/tasks', { token, body: task });
+    }
+    const { body } = await app.request('GET', '/tasks', { token });
+    assert.deepEqual(body.map((t: { id: string }) => t.id), ids.reverse());
+    assert.equal(typeof body[0].createdAt, 'number');
+    assert.equal(typeof body[0].completedAt, 'number');
   });
 
   test('GET orders by createdAt desc', async () => {

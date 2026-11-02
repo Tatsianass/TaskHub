@@ -6,7 +6,7 @@ import { requireAuth } from '../auth/middleware.js';
 import type { AppleVerifier } from '../auth/apple.js';
 import { rateLimit } from '../auth/rate-limit.js';
 import { DUMMY_HASH, hashPassword, verifyPassword } from '../auth/password.js';
-import { ApiError, SQLITE_CONSTRAINT_UNIQUE, isSqliteError } from '../errors.js';
+import { ApiError, PG_UNIQUE_VIOLATION, isPgError } from '../errors.js';
 import type { SessionsRepo } from '../repos/sessions.js';
 import type { UsersRepo } from '../repos/users.js';
 
@@ -67,12 +67,12 @@ export function authRouter(
     const stored = await hashPassword(password);
     let user;
     try {
-      user = users.create(email, stored);
+      user = await users.create(email, stored);
     } catch (error) {
-      if (isSqliteError(error, SQLITE_CONSTRAINT_UNIQUE)) throw new ApiError(409, 'EMAIL_TAKEN');
+      if (isPgError(error, PG_UNIQUE_VIOLATION, 'users_email_key')) throw new ApiError(409, 'EMAIL_TAKEN');
       throw error;
     }
-    const { token } = sessions.create(user.id);
+    const { token } = await sessions.create(user.id);
     res.status(201).json({ token, user });
   };
 
@@ -80,13 +80,13 @@ export function authRouter(
     const { email, password } = readCredentials(req.body);
     // No account can have a password this long; skip the scrypt work.
     if (password.length > MAX_PASSWORD_LENGTH) throw new ApiError(401, 'WRONG_PASSWORD');
-    const found = users.findByEmail(email);
+    const found = await users.findByEmail(email);
     // Always run scrypt, so an unknown email takes as long as a wrong password.
     const matches = await verifyPassword(password, found?.password ?? DUMMY_HASH);
     if (!found) throw new ApiError(404, 'USER_NOT_FOUND');
     if (!matches) throw new ApiError(401, 'WRONG_PASSWORD');
 
-    const { token } = sessions.create(found.id);
+    const { token } = await sessions.create(found.id);
     res.json({ token, user: { id: found.id, email: found.email } });
   };
 
@@ -105,9 +105,9 @@ export function authRouter(
     }
     const identity = await verifyApple(identityToken, nonce);
 
-    const existing = users.findByAppleSub(identity.sub);
+    const existing = await users.findByAppleSub(identity.sub);
     if (existing) {
-      const { token } = sessions.create(existing.id);
+      const { token } = await sessions.create(existing.id);
       res.json({ token, user: existing });
       return;
     }
@@ -115,37 +115,37 @@ export function authRouter(
     // Never attach Apple to an existing email account: email sign-up is unverified, so anyone could
     // have registered this address first. Use the Apple email only while it is free and verified.
     const email =
-      identity.email && identity.emailVerified && !users.findByEmail(identity.email)
+      identity.email && identity.emailVerified && !(await users.findByEmail(identity.email))
         ? identity.email
         : `${identity.sub}@apple.invalid`;
     const unusable = await hashPassword(randomBytes(32).toString('hex'));
     let user;
     try {
-      user = users.createApple(identity.sub, email, unusable);
+      user = await users.createApple(identity.sub, email, unusable);
     } catch (error) {
-      if (!isSqliteError(error, SQLITE_CONSTRAINT_UNIQUE)) throw error;
+      if (!isPgError(error, PG_UNIQUE_VIOLATION)) throw error;
       // Lost a race with a concurrent request for the same Apple id (or email).
-      const winner = users.findByAppleSub(identity.sub);
+      const winner = await users.findByAppleSub(identity.sub);
       if (!winner) throw new ApiError(409, 'EMAIL_TAKEN');
       user = winner;
     }
-    const { token } = sessions.create(user.id);
+    const { token } = await sessions.create(user.id);
     res.status(201).json({ token, user });
   };
 
-  const me: RequestHandler = (req, res) => {
-    const user = users.findById(req.userId!);
+  const me: RequestHandler = async (req, res) => {
+    const user = await users.findById(req.userId!);
     if (!user) throw new ApiError(401, 'UNAUTHORIZED');
     res.json({ user });
   };
 
-  const logout: RequestHandler = (req, res) => {
-    sessions.delete(req.tokenHash!);
+  const logout: RequestHandler = async (req, res) => {
+    await sessions.delete(req.tokenHash!);
     res.status(204).end();
   };
 
-  const deleteAccount: RequestHandler = (req, res) => {
-    users.delete(req.userId!);
+  const deleteAccount: RequestHandler = async (req, res) => {
+    await users.delete(req.userId!);
     res.status(204).end();
   };
 

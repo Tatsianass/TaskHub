@@ -1,32 +1,29 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
 import { after, before, describe, test } from 'node:test';
 
-import { closeDatabase, openDatabase } from '../src/db/connection.js';
 import { withTransaction } from '../src/db/transaction.js';
 import { remappedId } from '../src/repos/import-ids.js';
-import { makeBirthday, makeTask, registerUser, startApp, type TestApp } from './helpers.js';
+import type { Db } from '../src/db/connection.js';
+import { createTestDb, makeBirthday, makeTask, registerUser, startApp, type TestApp } from './helpers.js';
 
-const tmpRoot = mkdtempSync(join(tmpdir(), 'todo-import-'));
-let db: DatabaseSync;
+let testDb: Awaited<ReturnType<typeof createTestDb>>;
+let db: Db;
 let app: TestApp;
 
 before(async () => {
-  db = openDatabase(join(tmpRoot, 'app.db'));
+  testDb = await createTestDb();
+  db = testDb.pool;
   app = await startApp(db);
 });
 
 after(async () => {
   await app.close();
-  closeDatabase(db);
-  rmSync(tmpRoot, { recursive: true, force: true });
+  await testDb.drop();
 });
 
-function countRows(table: 'tasks' | 'birthdays', userId: string) {
-  return db.prepare(`SELECT count(*) AS n FROM ${table} WHERE user_id = ?`).get(userId)?.n;
+async function countRows(table: 'tasks' | 'birthdays', userId: string) {
+  const { rows } = await db.query(`SELECT count(*)::int AS n FROM ${table} WHERE user_id = $1`, [userId]);
+  return rows[0].n;
 }
 
 describe('POST /import', () => {
@@ -52,8 +49,8 @@ describe('POST /import', () => {
     assert.equal(second.status, 200);
     assert.deepEqual(second.body, { tasksImported: 0, birthdaysImported: 0 });
 
-    assert.equal(countRows('tasks', user.id), 2);
-    assert.equal(countRows('birthdays', user.id), 2);
+    assert.equal(await countRows('tasks', user.id), 2);
+    assert.equal(await countRows('birthdays', user.id), 2);
   });
 
   test('keeps client ids; skips ids the user already has and duplicates in the payload', async () => {
@@ -125,8 +122,8 @@ describe('POST /import rejects invalid payloads as a whole', () => {
     });
     assert.equal(res.status, 400);
     assert.deepEqual(res.body, { error: 'INVALID_TASK' });
-    assert.equal(countRows('tasks', user.id), 0);
-    assert.equal(countRows('birthdays', user.id), 0);
+    assert.equal(await countRows('tasks', user.id), 0);
+    assert.equal(await countRows('birthdays', user.id), 0);
   });
 
   test('one invalid birthday -> 400 INVALID_BIRTHDAY, nothing written', async () => {
@@ -137,8 +134,8 @@ describe('POST /import rejects invalid payloads as a whole', () => {
     });
     assert.equal(res.status, 400);
     assert.deepEqual(res.body, { error: 'INVALID_BIRTHDAY' });
-    assert.equal(countRows('tasks', user.id), 0);
-    assert.equal(countRows('birthdays', user.id), 0);
+    assert.equal(await countRows('tasks', user.id), 0);
+    assert.equal(await countRows('birthdays', user.id), 0);
   });
 
   const malformed: [string, unknown, string][] = [
@@ -162,27 +159,43 @@ describe('POST /import rejects invalid payloads as a whole', () => {
   });
 });
 
+const INSERT_BIRTHDAY = 'INSERT INTO birthdays (id, user_id, name, date) VALUES ($1, $2, $3, $4)';
+
 describe('withTransaction', () => {
   test('rolls back every write if the callback throws', async () => {
     const { user } = await registerUser(app);
-    const insert = db.prepare('INSERT INTO birthdays (id, user_id, name, date) VALUES (?, ?, ?, ?)');
-    assert.throws(
+    await assert.rejects(
       () =>
-        withTransaction(db, () => {
-          insert.run('tx-1', user.id, 'kept?', '2000-01-01');
+        withTransaction(db, async (client) => {
+          await client.query(INSERT_BIRTHDAY, ['tx-1', user.id, 'kept?', '2000-01-01']);
           throw new Error('boom');
         }),
       /boom/,
     );
-    assert.equal(db.isTransaction, false);
-    assert.equal(countRows('birthdays', user.id), 0);
+    assert.equal(await countRows('birthdays', user.id), 0);
   });
 
   test('commits and returns the callback result', async () => {
     const { user } = await registerUser(app);
-    const insert = db.prepare('INSERT INTO birthdays (id, user_id, name, date) VALUES (?, ?, ?, ?)');
-    const result = withTransaction(db, () => insert.run('tx-2', user.id, 'kept', '2000-01-01').changes);
+    const result = await withTransaction(
+      db,
+      async (client) => (await client.query(INSERT_BIRTHDAY, ['tx-2', user.id, 'kept', '2000-01-01'])).rowCount,
+    );
     assert.equal(result, 1);
-    assert.equal(countRows('birthdays', user.id), 1);
+    assert.equal(await countRows('birthdays', user.id), 1);
+  });
+});
+
+describe('import connection handling (R4.3)', () => {
+  test('50 concurrent failing imports leave no connection checked out', async () => {
+    const { token } = await registerUser(app);
+    const bad = { tasks: [makeTask(), { ...makeTask(), title: '' }] };
+    const results = await Promise.all(
+      Array.from({ length: 50 }, () => app.request('POST', '/import', { token, body: bad })),
+    );
+    assert.ok(results.every((res) => res.status === 400));
+    assert.equal(db.totalCount, db.idleCount);
+    assert.equal(db.waitingCount, 0);
+    assert.equal(await countRows('tasks', (await app.request('GET', '/auth/me', { token })).body.user.id), 0);
   });
 });

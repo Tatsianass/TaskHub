@@ -3,9 +3,9 @@ import { Router, type RequestHandler } from 'express';
 import { requireAuth } from '../auth/middleware.js';
 import {
   ApiError,
-  SQLITE_CONSTRAINT_CHECK,
-  SQLITE_CONSTRAINT_PRIMARYKEY,
-  isSqliteError,
+  PG_CHECK_VIOLATION,
+  PG_UNIQUE_VIOLATION,
+  isPgError,
 } from '../errors.js';
 import type { SessionsRepo } from '../repos/sessions.js';
 import type { TasksRepo } from '../repos/tasks.js';
@@ -18,30 +18,30 @@ export function tasksRouter(tasks: TasksRepo, sessions: SessionsRepo) {
   const router = Router();
   router.use(requireAuth(sessions));
 
-  const list: RequestHandler = (req, res) => {
-    res.json(tasks.list(req.userId!));
+  const list: RequestHandler = async (req, res) => {
+    res.json(await tasks.list(req.userId!));
   };
 
-  const create: RequestHandler = (req, res) => {
+  const create: RequestHandler = async (req, res) => {
     const task = parseTask(req.body);
     try {
-      res.status(201).json(tasks.create(req.userId!, task));
+      res.status(201).json(await tasks.create(req.userId!, task));
     } catch (error) {
-      if (isSqliteError(error, SQLITE_CONSTRAINT_PRIMARYKEY)) throw new ApiError(409, 'DUPLICATE_ID');
-      if (isSqliteError(error, SQLITE_CONSTRAINT_CHECK)) throw new ApiError(400, 'INVALID_TASK');
+      if (isPgError(error, PG_UNIQUE_VIOLATION, 'tasks_pkey')) throw new ApiError(409, 'DUPLICATE_ID');
+      if (isPgError(error, PG_CHECK_VIOLATION)) throw new ApiError(400, 'INVALID_TASK');
       throw error;
     }
   };
 
-  const update: RequestHandler<{ id: string }> = (req, res) => {
+  const update: RequestHandler<{ id: string }> = async (req, res) => {
     const fields = parseTaskUpdate(req.body);
-    const task = tasks.update(req.userId!, req.params.id, fields);
+    const task = await tasks.update(req.userId!, req.params.id, fields);
     if (!task) throw notFound();
     res.json(task);
   };
 
-  const remove: RequestHandler<{ id: string }> = (req, res) => {
-    if (!tasks.delete(req.userId!, req.params.id)) throw notFound();
+  const remove: RequestHandler<{ id: string }> = async (req, res) => {
+    if (!(await tasks.delete(req.userId!, req.params.id))) throw notFound();
     res.status(204).end();
   };
 

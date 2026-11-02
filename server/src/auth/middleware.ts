@@ -23,15 +23,15 @@ const BEARER = /^Bearer\s+(\S+)$/i;
  * `UNAUTHORIZED` for anything else.
  */
 export function requireAuth(sessions: SessionsRepo): RequestHandler {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const token = BEARER.exec(req.get('authorization') ?? '')?.[1];
     if (!token) throw new ApiError(401, 'UNAUTHORIZED');
 
     const tokenHash = hashToken(token);
-    const session = sessions.findValid(tokenHash);
+    const session = await sessions.findValid(tokenHash);
     if (!session) {
       // Only an expired row can still exist here; deleting it tells us which case this is.
-      throw new ApiError(401, sessions.delete(tokenHash) ? 'SESSION_EXPIRED' : 'UNAUTHORIZED');
+      throw new ApiError(401, (await sessions.delete(tokenHash)) ? 'SESSION_EXPIRED' : 'UNAUTHORIZED');
     }
 
     req.userId = session.userId;

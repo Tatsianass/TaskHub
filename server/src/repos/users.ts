@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { DatabaseSync } from 'node:sqlite';
 
 import type { StoredPassword } from '../auth/password.js';
+import type { Queryable } from '../db/connection.js';
 
 export type User = { id: string; email: string };
 export type UserWithPassword = User & { password: StoredPassword };
@@ -11,72 +11,67 @@ type UserRow = {
   email: string;
   password_hash: string;
   password_salt: string;
-  password_params: string;
+  password_params: StoredPassword['params'];
 };
 
-export function usersRepo(db: DatabaseSync) {
-  const insert = db.prepare(
-    `INSERT INTO users (id, email, password_hash, password_salt, password_params, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  );
-  const selectByEmail = db.prepare(
-    `SELECT id, email, password_hash, password_salt, password_params FROM users WHERE email = ?`,
-  );
-  const selectByAppleSub = db.prepare('SELECT id, email FROM users WHERE apple_sub = ?');
-  const insertApple = db.prepare(
-    `INSERT INTO users (id, email, password_hash, password_salt, password_params, created_at, apple_sub)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  );
-  const selectById = db.prepare('SELECT id, email FROM users WHERE id = ?');
-  const deleteById = db.prepare('DELETE FROM users WHERE id = ?');
-
+export function usersRepo(db: Queryable) {
   return {
     /**
-     * Inserts a new user. `email` must already be normalized. Throws the
-     * SQLite UNIQUE constraint error (errcode 2067) if the email is taken.
+     * Inserts a new user. `email` must already be normalized. Throws the Postgres unique
+     * violation (23505, constraint `users_email_key`) if the email is taken.
      */
-    create(email: string, password: StoredPassword): User {
+    async create(email: string, password: StoredPassword): Promise<User> {
       const id = randomUUID();
-      insert.run(id, email, password.hash, password.salt, JSON.stringify(password.params), Date.now());
+      await db.query(
+        `INSERT INTO users (id, email, password_hash, password_salt, password_params, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [id, email, password.hash, password.salt, JSON.stringify(password.params), Date.now()],
+      );
       return { id, email };
     },
 
-    findByEmail(email: string): UserWithPassword | undefined {
-      const row = selectByEmail.get(email) as UserRow | undefined;
+    async findByEmail(email: string): Promise<UserWithPassword | undefined> {
+      const { rows } = await db.query<UserRow>(
+        `SELECT id, email, password_hash, password_salt, password_params
+         FROM users WHERE lower(email) = lower($1)`,
+        [email],
+      );
+      const row = rows[0];
       if (!row) return undefined;
       return {
         id: row.id,
         email: row.email,
-        password: {
-          hash: row.password_hash,
-          salt: row.password_salt,
-          params: JSON.parse(row.password_params),
-        },
+        password: { hash: row.password_hash, salt: row.password_salt, params: row.password_params },
       };
     },
 
-    findByAppleSub(sub: string): User | undefined {
-      return selectByAppleSub.get(sub) as User | undefined;
+    async findByAppleSub(sub: string): Promise<User | undefined> {
+      const { rows } = await db.query<User>('SELECT id, email FROM users WHERE apple_sub = $1', [sub]);
+      return rows[0];
     },
 
     /**
      * Inserts a user that signs in with Apple. `password` is a throwaway nobody knows, because the
-     * columns are NOT NULL. Throws the UNIQUE constraint error if the email or Apple id is taken.
+     * columns are NOT NULL. Throws the unique violation if the email or Apple id is taken.
      */
-    createApple(sub: string, email: string, password: StoredPassword): User {
+    async createApple(sub: string, email: string, password: StoredPassword): Promise<User> {
       const id = randomUUID();
-      insertApple.run(id, email, password.hash, password.salt, JSON.stringify(password.params), Date.now(), sub);
+      await db.query(
+        `INSERT INTO users (id, email, password_hash, password_salt, password_params, created_at, apple_sub)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [id, email, password.hash, password.salt, JSON.stringify(password.params), Date.now(), sub],
+      );
       return { id, email };
     },
 
-    findById(id: string): User | undefined {
-      const row = selectById.get(id) as User | undefined;
-      return row && { id: row.id, email: row.email };
+    async findById(id: string): Promise<User | undefined> {
+      const { rows } = await db.query<User>('SELECT id, email FROM users WHERE id = $1', [id]);
+      return rows[0];
     },
 
     /** Deletes the user; sessions, tasks and birthdays go with it (ON DELETE CASCADE). */
-    delete(id: string) {
-      deleteById.run(id);
+    async delete(id: string) {
+      await db.query('DELETE FROM users WHERE id = $1', [id]);
     },
   };
 }

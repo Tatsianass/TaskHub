@@ -1,14 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
 import { after, before, describe, test } from 'node:test';
 
 import { createAppleVerifier, type AppleJwk } from '../src/auth/apple.js';
-import { closeDatabase, openDatabase } from '../src/db/connection.js';
-import { startApp, TEST_PASSWORD } from './helpers.js';
+import type { Db } from '../src/db/connection.js';
+import { createTestDb, startApp, TEST_PASSWORD } from './helpers.js';
 
 const AUDIENCE = 'com.example.app';
 const NONCE = 'raw-nonce-123';
@@ -119,19 +115,19 @@ describe('createAppleVerifier', () => {
 });
 
 describe('POST /auth/apple', () => {
-  const tmpRoot = mkdtempSync(join(tmpdir(), 'todo-apple-'));
-  let db: DatabaseSync;
+  let testDb: Awaited<ReturnType<typeof createTestDb>>;
+let db: Db;
   let app: Awaited<ReturnType<typeof startApp>>;
 
   before(async () => {
-    db = openDatabase(join(tmpRoot, 'app.db'));
+    testDb = await createTestDb();
+    db = testDb.pool;
     app = await startApp(db, { appleVerifier: verifier() });
   });
 
   after(async () => {
     await app.close();
-    closeDatabase(db);
-    rmSync(tmpRoot, { recursive: true, force: true });
+    await testDb.drop();
   });
 
   const signIn = (claims: Record<string, unknown> = {}) =>

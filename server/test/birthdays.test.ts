@@ -1,26 +1,22 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
 import { after, before, describe, test } from 'node:test';
 
-import { closeDatabase, openDatabase } from '../src/db/connection.js';
-import { makeBirthday, registerUser, startApp, type TestApp } from './helpers.js';
+import type { Db } from '../src/db/connection.js';
+import { createTestDb, makeBirthday, registerUser, startApp, type TestApp } from './helpers.js';
 
-const tmpRoot = mkdtempSync(join(tmpdir(), 'todo-birthdays-'));
-let db: DatabaseSync;
+let testDb: Awaited<ReturnType<typeof createTestDb>>;
+let db: Db;
 let app: TestApp;
 
 before(async () => {
-  db = openDatabase(join(tmpRoot, 'app.db'));
+  testDb = await createTestDb();
+  db = testDb.pool;
   app = await startApp(db);
 });
 
 after(async () => {
   await app.close();
-  closeDatabase(db);
-  rmSync(tmpRoot, { recursive: true, force: true });
+  await testDb.drop();
 });
 
 describe('/birthdays CRUD (R5.1)', () => {
@@ -32,8 +28,8 @@ describe('/birthdays CRUD (R5.1)', () => {
     assert.equal(created.status, 201);
     assert.deepEqual(created.body, birthday);
 
-    const row = db.prepare('SELECT user_id FROM birthdays WHERE id = ?').get(birthday.id);
-    assert.equal(row?.user_id, user.id);
+    const { rows } = await db.query('SELECT user_id FROM birthdays WHERE id = $1', [birthday.id]);
+    assert.equal(rows[0]?.user_id, user.id);
 
     const listed = await app.request('GET', '/birthdays', { token });
     assert.equal(listed.status, 200);

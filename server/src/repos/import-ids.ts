@@ -12,17 +12,17 @@ export function remappedId(userId: string, id: string) {
 
 /**
  * Inserts a row for an import, keeping the client id when possible.
- * `insert(id)` must be an `INSERT … ON CONFLICT(id) DO NOTHING` returning
+ * `insert(id)` must be an `INSERT … ON CONFLICT(id) DO NOTHING` resolving to
  * whether a row was written. Returns true if a row was inserted, false if
  * this user already had it.
  */
-export function importRow(
+export async function importRow(
   userId: string,
   id: string,
-  insert: (id: string) => boolean,
-  ownerOf: (id: string) => string | undefined,
+  insert: (id: string) => Promise<boolean>,
+  ownerOf: (id: string) => Promise<string | undefined>,
 ) {
-  if (insert(id)) return true;
-  if (ownerOf(id) === userId) return false; // same user: duplicate, skip
+  if (await insert(id)) return true;
+  if ((await ownerOf(id)) === userId) return false; // same user: duplicate, skip
   return insert(remappedId(userId, id)); // false if imported under this id before
 }

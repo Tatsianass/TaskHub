@@ -1,27 +1,23 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
 import { after, before, describe, test } from 'node:test';
 
-import { closeDatabase, openDatabase } from '../src/db/connection.js';
 import { SESSION_TTL_MS, sessionsRepo } from '../src/repos/sessions.js';
-import { makeBirthday, makeTask, startApp } from './helpers.js';
+import type { Db } from '../src/db/connection.js';
+import { createTestDb, makeBirthday, makeTask, startApp } from './helpers.js';
 
-const tmpRoot = mkdtempSync(join(tmpdir(), 'todo-auth-'));
-let db: DatabaseSync;
+let testDb: Awaited<ReturnType<typeof createTestDb>>;
+let db: Db;
 let app: Awaited<ReturnType<typeof startApp>>;
 
 before(async () => {
-  db = openDatabase(join(tmpRoot, 'app.db'));
+  testDb = await createTestDb();
+  db = testDb.pool;
   app = await startApp(db);
 });
 
 after(async () => {
   await app.close();
-  closeDatabase(db);
-  rmSync(tmpRoot, { recursive: true, force: true });
+  await testDb.drop();
 });
 
 let counter = 0;
@@ -46,9 +42,9 @@ describe('POST /auth/register', () => {
     assert.deepEqual(Object.keys(user).sort(), ['email', 'id']);
     assert.equal(user.email, email);
 
-    const row = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
-    assert.equal(row?.email, email);
-    assert.equal(JSON.stringify(row).includes(PASSWORD), false);
+    const { rows } = await db.query('SELECT * FROM users WHERE id = $1', [user.id]);
+    assert.equal(rows[0]?.email, email);
+    assert.equal(JSON.stringify(rows[0]).includes(PASSWORD), false);
   });
 
   test('normalizes email: trim + lowercase (R1.3)', async () => {
@@ -174,7 +170,7 @@ describe('GET /auth/me', () => {
 
   test('expired token -> 401 SESSION_EXPIRED, then UNAUTHORIZED once removed (R2.3)', async () => {
     const { user } = await register();
-    const { token } = sessionsRepo(db).create(user.id, Date.now() - SESSION_TTL_MS - 1000);
+    const { token } = await sessionsRepo(db).create(user.id, Date.now() - SESSION_TTL_MS - 1000);
 
     const first = await app.request('GET', '/auth/me', { token });
     assert.equal(first.status, 401);
@@ -196,8 +192,8 @@ describe('POST /auth/logout', () => {
     assert.equal(me.status, 401);
     assert.deepEqual(me.body, { error: 'UNAUTHORIZED' });
 
-    const rows = db.prepare('SELECT count(*) AS n FROM sessions WHERE user_id = ?').get(user.id);
-    assert.equal(rows?.n, 0);
+    const { rows } = await db.query('SELECT count(*)::int AS n FROM sessions WHERE user_id = $1', [user.id]);
+    assert.equal(rows[0].n, 0);
   });
 
   test('only ends the session it was called with', async () => {
@@ -220,7 +216,7 @@ describe('POST /auth/logout', () => {
 describe('persistence of credentials', () => {
   test('only the session token hash is stored (R2.2)', async () => {
     const { token } = await register();
-    const dump = JSON.stringify(db.prepare('SELECT * FROM sessions').all());
+    const dump = JSON.stringify((await db.query('SELECT * FROM sessions')).rows);
     assert.equal(dump.includes(token), false);
   });
 });
@@ -239,8 +235,8 @@ describe('DELETE /auth/account', () => {
 
     for (const table of ['users', 'sessions', 'tasks', 'birthdays']) {
       const column = table === 'users' ? 'id' : 'user_id';
-      const row = db.prepare(`SELECT count(*) AS n FROM ${table} WHERE ${column} = ?`).get(user.id);
-      assert.equal(row?.n, 0, table);
+      const { rows } = await db.query(`SELECT count(*)::int AS n FROM ${table} WHERE ${column} = $1`, [user.id]);
+      assert.equal(rows[0].n, 0, table);
     }
     assert.equal((await app.request('GET', '/auth/me', { token })).status, 401);
     assert.equal((await app.request('GET', '/tasks', { token: other.token })).body.length, 1);

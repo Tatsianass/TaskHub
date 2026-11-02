@@ -1,13 +1,12 @@
-import type { DatabaseSync } from 'node:sqlite';
-
 import { Router, type RequestHandler } from 'express';
 
 import { requireAuth } from '../auth/middleware.js';
+import type { Db } from '../db/connection.js';
 import { withTransaction } from '../db/transaction.js';
 import { ApiError } from '../errors.js';
-import type { BirthdaysRepo } from '../repos/birthdays.js';
+import { birthdaysRepo } from '../repos/birthdays.js';
 import type { SessionsRepo } from '../repos/sessions.js';
-import type { TasksRepo } from '../repos/tasks.js';
+import { tasksRepo } from '../repos/tasks.js';
 import { parseBirthday, parseTask } from '../validation.js';
 
 /** `list` must be an array (or absent → []); each item is parsed with `parse`. */
@@ -23,15 +22,10 @@ function parseList<T>(list: unknown, parse: (item: unknown) => T, code: string):
  * written, and all inserts share one transaction, so an invalid item rejects
  * the whole import. Idempotent: rows the user already has are skipped (R6.2).
  */
-export function importRouter(
-  db: DatabaseSync,
-  tasks: TasksRepo,
-  birthdays: BirthdaysRepo,
-  sessions: SessionsRepo,
-) {
+export function importRouter(db: Db, sessions: SessionsRepo) {
   const router = Router();
 
-  const importData: RequestHandler = (req, res) => {
+  const importData: RequestHandler = async (req, res) => {
     const body = req.body as unknown;
     if (typeof body !== 'object' || body === null || Array.isArray(body)) {
       throw new ApiError(400, 'INVALID_TASK');
@@ -41,11 +35,18 @@ export function importRouter(
     const newBirthdays = parseList(payload.birthdays, parseBirthday, 'INVALID_BIRTHDAY');
 
     const userId = req.userId!;
-    const counts = withTransaction(db, () => ({
-      tasksImported: newTasks.filter((task) => tasks.importOne(userId, task)).length,
-      birthdaysImported: newBirthdays.filter((birthday) => birthdays.importOne(userId, birthday))
-        .length,
-    }));
+    // Repos bound to the transaction's connection, so every insert shares one transaction.
+    const counts = await withTransaction(db, async (client) => {
+      const tasks = tasksRepo(client);
+      const birthdays = birthdaysRepo(client);
+      let tasksImported = 0;
+      for (const task of newTasks) if (await tasks.importOne(userId, task)) tasksImported += 1;
+      let birthdaysImported = 0;
+      for (const birthday of newBirthdays) {
+        if (await birthdays.importOne(userId, birthday)) birthdaysImported += 1;
+      }
+      return { tasksImported, birthdaysImported };
+    });
     res.json(counts);
   };
 

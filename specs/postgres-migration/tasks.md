@@ -53,24 +53,24 @@ requirement IDs it covers. Tick `[ ]` → `[x]` in the commit that completes it.
 
 ## Phase 2 — Repositories and routes
 
-### [ ] T2.1 Errors
+### [x] T2.1 Errors
 - Steps: `errors.ts` → `PG_UNIQUE_VIOLATION`, `PG_CHECK_VIOLATION`, `isPgError(error, code, constraint?)`.
 - Done when: `errors.test.ts` updated and green.
 - Covers: R4.2
 
-### [ ] T2.2 Users and sessions repos
+### [x] T2.2 Users and sessions repos
 - Steps: convert `repos/users.ts`, `repos/sessions.ts` to async/`$n` (design §7); `lower(email)` lookups;
   `auth/middleware.ts` async.
 - Done when: `repos-auth.test.ts`, `password.test.ts` green; `A@x.com` vs `a@x.com` collide.
 - Covers: R1.1, R2.3, R4.4
 
-### [ ] T2.3 Auth routes
+### [x] T2.3 Auth routes
 - Steps: `routes/auth.ts` — await repos; map `users_email_key` → `EMAIL_TAKEN`, `users_apple_sub_key`
   race → re-select (the existing code path at ~line 126).
 - Done when: `auth.test.ts`, `apple.test.ts`, `rate-limit.test.ts` green.
 - Covers: R1.1, R4.2
 
-### [ ] T2.4 Tasks and birthdays
+### [x] T2.4 Tasks and birthdays
 - Steps: convert `repos/tasks.ts`, `repos/birthdays.ts`, `repos/import-ids.ts`; booleans native;
   `remind_offsets` JSONB (drop `parseOffsets`/`JSON.stringify` where the driver handles it — still
   validate on read); ordering via `seq`. Routes await + constraint mapping.
@@ -78,7 +78,7 @@ requirement IDs it covers. Tick `[ ]` → `[x]` in the commit that completes it.
   equal-`created_at` tasks, `createdAt`/`completedAt` are numbers, cross-user isolation.
 - Covers: R1.1, R1.3, R1.4, R4.2
 
-### [ ] T2.5 Import
+### [x] T2.5 Import
 - Steps: `routes/import.ts` uses `withTransaction(pool, client => …)` with client-bound repos.
 - Done when: `import.test.ts` green; new tests: invalid item rolls back everything; 50 concurrent failing
   imports leave the pool with no checked-out clients.
@@ -88,19 +88,21 @@ requirement IDs it covers. Tick `[ ]` → `[x]` in the commit that completes it.
 
 ## Phase 3 — App wiring and lifecycle
 
-### [ ] T3.1 `app.ts`, `index.ts`, health
+> Done together with Phase 2: the route tests need `createApp(pool)`, so T3.1–T3.3 landed in the same commit.
+
+### [x] T3.1 `app.ts`, `index.ts`, health
 - Steps: `createApp(pool)`; `/health` → `SELECT 1`, 503 `{ok:false}` on failure; `index.ts` async boot with
   retry (3×), graceful shutdown (`server.close` → `pool.end`), hourly expired-session sweep.
 - Done when: `app.test.ts` green; manual: `npm run server`, `curl localhost:4000/health` → `{"ok":true}`;
   stop PG → `/health` returns 503; Ctrl-C exits 0 with shutdown log.
 - Covers: R3.4, R3.5
 
-### [ ] T3.2 Durability test
+### [x] T3.2 Durability test
 - Steps: replace `durability.test.ts` — write rows, `pool.end()`, new pool on same schema, rows present.
 - Done when: passes.
 - Covers: R1.2
 
-### [ ] T3.3 Full suite + typecheck
+### [x] T3.3 Full suite + typecheck
 - Done when: `npm --prefix server run build && npm run server:test` all green; root `npx tsc --noEmit` and
   `npm run lint` unchanged vs baseline; `grep -rn "node:sqlite" server/src` only finds the Copy script.
 - Covers: R1.1, R1.2
