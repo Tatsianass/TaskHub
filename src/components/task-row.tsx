@@ -39,6 +39,7 @@ export function TaskRow({ task, accentColor, escalated, isNew, onToggle, onPress
       <Pressable
         onPress={onToggle}
         hitSlop={8}
+        testID="task-checkbox"
         style={[styles.checkbox, { borderColor: accentColor }, task.done && { backgroundColor: accentColor }]}
       />
       <Pressable style={styles.body} onPress={onPress} hitSlop={4}>

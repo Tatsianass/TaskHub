@@ -51,3 +51,6 @@ server/dist/
 server/node_modules/
 
 .idea/
+# Playwright
+/test-results/
+/playwright-report/

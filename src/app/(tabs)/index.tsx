@@ -221,6 +221,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={openCreateModal}
             hitSlop={10}
+            testID="add-task"
             style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
             <PlusIcon color={theme.text} />
           </Pressable>
