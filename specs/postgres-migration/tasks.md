@@ -111,7 +111,7 @@ requirement IDs it covers. Tick `[ ]` → `[x]` in the commit that completes it.
 
 ## Phase 4 — Data copy
 
-### [ ] T4.1 Copy script
+### [x] T4.1 Copy script
 - Steps: `server/scripts/sqlite-to-postgres.ts` per design §8, with `--sqlite`, `--dry-run`.
 - Done when: test (`test/copy.test.ts`) builds a SQLite file using the old schema + sample data (several
   users, equal-`created_at` tasks, an Apple user, an expired session), runs the script against a test

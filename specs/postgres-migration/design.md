@@ -183,8 +183,8 @@ node --import tsx scripts/sqlite-to-postgres.ts --sqlite /path/app.db
 3. Abort if any of the four tables has rows (R5.2).
 4. Copy in FK order: `users` → `sessions` (skip `expires_at <= now`) → `tasks` → `birthdays`, reading each
    table `ORDER BY rowid` and inserting in batches of 500 via multi-row `INSERT` with `OVERRIDING SYSTEM
-   VALUE` for `seq`. Conversions: `done`/`remind_me` 0/1 → boolean, `password_params` and `remind_offsets`
-   text → JSONB (invalid JSON → `[]`/abort with row id).
+   VALUE`, where `seq` = the SQLite `rowid`. It also requires `PRAGMA user_version = 6`. Conversions: `done`/`remind_me` 0/1 → boolean, `password_params` and `remind_offsets`
+   text → JSONB (invalid JSON aborts the copy and names the row id; nothing is silently replaced).
 5. `SELECT setval(pg_get_serial_sequence('tasks','seq'), COALESCE(max(seq),1))` (same for birthdays).
 6. Verify (R5.3): per-table counts, per-user task and birthday counts, and a checksum of
    `(id, title, created_at)` for tasks. Mismatch → `ROLLBACK`, exit 1. `--dry-run` does everything then
