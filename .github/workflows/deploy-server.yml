@@ -8,7 +8,7 @@ on:
       - ".github/workflows/deploy-server.yml"
   workflow_dispatch:
 
-# One deploy at a time: the SQLite volume has a single writer.
+# One deploy at a time.
 concurrency:
   group: deploy-server
   cancel-in-progress: false
@@ -16,6 +16,22 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: todo
+          POSTGRES_PASSWORD: todo
+          POSTGRES_DB: todo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U todo -d todo_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://todo:todo@localhost:5432/todo_test
     defaults:
       run:
         working-directory: server

@@ -129,7 +129,7 @@ requirement IDs it covers. Tick `[ ]` → `[x]` in the commit that completes it.
 
 ## Phase 5 — Deployment
 
-### [ ] T5.1 CI, Docker, Fly config
+### [x] T5.1 CI, Docker, Fly config
 - Steps: CI `services.postgres` + `TEST_DATABASE_URL`; simplify Dockerfile/entrypoint; keep `[[mounts]]`
   in `fly.toml` **until after cutover** (needed for rollback); add comment about `DATABASE_URL` secret.
 - Done when: CI green on the branch; `docker build server` works and the container starts against local PG.
