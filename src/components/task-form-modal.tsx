@@ -284,6 +284,7 @@ export function TaskFormModal({
               <Pressable
                 onPress={onDelete}
                 hitSlop={8}
+                testID="task-form-delete"
                 style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
                 <TrashIcon color={theme.danger} size={18} />
               </Pressable>
