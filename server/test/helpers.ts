@@ -109,6 +109,7 @@ export function makeTask(overrides: Record<string, unknown> = {}) {
     remindMe: false,
     remindTime: null,
     remindOffsets: [],
+    repeat: null,
     ...overrides,
   };
 }

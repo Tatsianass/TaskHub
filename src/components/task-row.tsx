@@ -66,6 +66,7 @@ export function TaskRow({ task, accentColor, escalated, isNew, onToggle, onPress
         {!!task.dueDate && (
           <ThemedText type="small" style={[styles.due, { color: accentColor }]}>
             {formatDueDate(task.dueDate, t, locale, today)}
+            {task.repeat ? ` 🔁 ${t(`repeat.${task.repeat}`)}` : ''}
           </ThemedText>
         )}
         {!!origin && (

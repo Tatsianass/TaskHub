@@ -31,6 +31,7 @@ describe('/tasks CRUD', () => {
       remindMe: true,
       remindTime: '09:30',
       remindOffsets: [0, 60, 1440],
+      repeat: 'weekly',
     });
 
     const created = await app.request('POST', '/tasks', { token, body: task });
@@ -48,6 +49,7 @@ describe('/tasks CRUD', () => {
       done: true,
       completedAt: 1718000500000,
       remindMe: false,
+      repeat: null,
     };
     const updated = await app.request('PUT', `/tasks/${task.id}`, { token, body: edited });
     assert.equal(updated.status, 200);

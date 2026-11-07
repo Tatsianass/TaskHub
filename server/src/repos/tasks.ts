@@ -1,5 +1,5 @@
 import type { Queryable } from '../db/connection.js';
-import type { QuadrantId, TagId, Task, TaskUpdate } from '../validation.js';
+import type { QuadrantId, RepeatRule, TagId, Task, TaskUpdate } from '../validation.js';
 import { importRow } from './import-ids.js';
 
 type TaskRow = {
@@ -15,10 +15,11 @@ type TaskRow = {
   remind_me: boolean;
   remind_time: string | null;
   remind_offsets: unknown;
+  repeat: RepeatRule | null;
 };
 
 const COLUMNS =
-  'id, title, description, quadrant_id, tag, done, completed_at, created_at, due_date, remind_me, remind_time, remind_offsets';
+  'id, title, description, quadrant_id, tag, done, completed_at, created_at, due_date, remind_me, remind_time, remind_offsets, repeat';
 
 function parseOffsets(value: unknown): number[] {
   return Array.isArray(value) ? value.filter((item): item is number => typeof item === 'number') : [];
@@ -38,6 +39,7 @@ function toTask(row: TaskRow): Task {
     remindMe: row.remind_me,
     remindTime: row.remind_time,
     remindOffsets: parseOffsets(row.remind_offsets),
+    repeat: row.repeat,
   };
 }
 
@@ -57,12 +59,13 @@ function toParams(userId: string, id: string, task: Task) {
     task.remindTime,
     // pg would send a JS array as a Postgres array, not JSON.
     JSON.stringify(task.remindOffsets),
+    task.repeat,
   ];
 }
 
 const INSERT = `INSERT INTO tasks (id, user_id, title, description, quadrant_id, tag, done,
-                                   completed_at, created_at, due_date, remind_me, remind_time, remind_offsets)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`;
+                                   completed_at, created_at, due_date, remind_me, remind_time, remind_offsets, repeat)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`;
 
 /**
  * Every statement filters by `user_id`, so a user never sees another user's
@@ -112,8 +115,8 @@ export function tasksRepo(db: Queryable) {
       const { rows } = await db.query<TaskRow>(
         `UPDATE tasks
          SET title = $1, description = $2, quadrant_id = $3, tag = $4, done = $5, completed_at = $6,
-             due_date = $7, remind_me = $8, remind_time = $9, remind_offsets = $10
-         WHERE id = $11 AND user_id = $12
+             due_date = $7, remind_me = $8, remind_time = $9, remind_offsets = $10, repeat = $11
+         WHERE id = $12 AND user_id = $13
          RETURNING ${COLUMNS}`,
         [
           fields.title,
@@ -126,6 +129,7 @@ export function tasksRepo(db: Queryable) {
           fields.remindMe,
           fields.remindTime,
           JSON.stringify(fields.remindOffsets),
+          fields.repeat,
           id,
           userId,
         ],

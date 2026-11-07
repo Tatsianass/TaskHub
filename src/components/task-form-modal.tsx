@@ -20,11 +20,12 @@ import { usePro } from '@/context/pro-context';
 import { useVoiceInput } from '@/hooks/use-voice-input';
 import { hexToRgba } from '@/utils/colors';
 import { dayDiffFromToday } from '@/utils/dates';
-import { effectiveQuadrantId } from '@/utils/priority';
+import { computeQuadrant, effectiveQuadrantId, isImportantQuadrant, isUrgentDate } from '@/utils/priority';
 import { taskOffsets } from '@/utils/reminders';
 import { parseSmartDate, parseSpokenTask, suggestImportance } from '@/utils/smart-task';
 import type { TaskDraft } from '@/hooks/use-tasks';
-import type { QuadrantId, TagId, Task } from '@/types/task';
+import { REPEAT_RULES } from '@/utils/recurrence';
+import type { QuadrantId, RepeatRule, TagId, Task } from '@/types/task';
 
 type Props = {
   visible: boolean;
@@ -74,22 +75,6 @@ function inferWhenOption(dueDate: string | null): WhenOption {
   return 'custom';
 }
 
-function isUrgentDate(dueDate: string | null): boolean {
-  if (!dueDate) return false;
-  return dayDiffFromToday(dueDate) <= 1;
-}
-
-function isImportantQuadrant(id: QuadrantId): boolean {
-  return id === 'urgent-important' || id === 'not-urgent-important';
-}
-
-function computeQuadrant(important: boolean, urgent: boolean): QuadrantId {
-  if (important && urgent) return 'urgent-important';
-  if (important) return 'not-urgent-important';
-  if (urgent) return 'urgent-not-important';
-  return 'not-urgent-not-important';
-}
-
 const WHEN_OPTIONS: { id: Exclude<WhenOption, 'custom'>; labelKey: string }[] = [
   { id: 'today', labelKey: 'taskForm.when.today' },
   { id: 'tomorrow', labelKey: 'taskForm.when.tomorrow' },
@@ -126,6 +111,7 @@ export function TaskFormModal({
   // A new task starts as all-day with one alert on the day; switching it off leaves no reminder.
   const [remindOffsets, setRemindOffsets] = useState<number[]>([0]);
   const [remindTime, setRemindTime] = useState<string | null>(null);
+  const [repeat, setRepeat] = useState<RepeatRule | null>(null);
   const [forceAdd, setForceAdd] = useState(false);
   const justResetRef = useRef(false);
   // What was already typed when dictation started; the phrase heard so far is appended to it.
@@ -167,6 +153,7 @@ export function TaskFormModal({
     setTag(initialTask?.tag ?? null);
     setRemindOffsets(initialTask ? taskOffsets(initialTask) : [0]);
     setRemindTime(initialTask?.remindTime ?? null);
+    setRepeat(initialTask?.repeat ?? null);
     setForceAdd(false);
   }, [visible, initialTask, defaultQuadrantId, defaultDueDate]);
 
@@ -235,7 +222,7 @@ export function TaskFormModal({
 
   const handleSave = () => {
     if (!canSave) return;
-    onSave({ title, description, quadrantId, tag, dueDate, remindOffsets, remindTime });
+    onSave({ title, description, quadrantId, tag, dueDate, remindOffsets, remindTime, repeat: dueDate ? repeat : null });
   };
 
   const handleWhenPress = (option: Exclude<WhenOption, 'custom'>) => {
@@ -360,6 +347,34 @@ export function TaskFormModal({
             {!!dateHint && (
               <ThemedText type="small" themeColor="primary" style={styles.hint}>
                 {dateHint}
+              </ThemedText>
+            )}
+
+            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+              {t('taskForm.repeatLabel')}
+            </ThemedText>
+            <View style={[styles.pillRow, !dueDate && styles.disabled]} testID="repeat-options">
+              {[null, ...REPEAT_RULES].map((rule) => {
+                const active = (dueDate ? repeat : null) === rule;
+                return (
+                  <Pressable key={rule ?? 'none'} disabled={!dueDate} onPress={() => setRepeat(rule)} testID={`repeat-${rule ?? 'none'}`}>
+                    <View
+                      style={[
+                        styles.pill,
+                        { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
+                        active && { backgroundColor: theme.backgroundSelected },
+                      ]}>
+                      <ThemedText type="small" themeColor={active ? 'text' : 'textSecondary'}>
+                        {t(`repeat.${rule ?? 'none'}`)}
+                      </ThemedText>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {!dueDate && (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
+                {t('taskForm.repeatNeedsDate')}
               </ThemedText>
             )}
 
@@ -528,6 +543,9 @@ const styles = StyleSheet.create({
   },
   hint: {
     marginTop: -Spacing.two,
+  },
+  disabled: {
+    opacity: 0.4,
   },
   sectionLabel: {
     marginTop: Spacing.one,

@@ -103,6 +103,7 @@ export default function BirthdaysScreen() {
         dueDate: dayDiffFromToday(dueDate, today) < 0 ? today : dueDate,
         remindTime: null,
         remindOffsets: [],
+        repeat: null,
       });
     }
     setIsModalOpen(false);

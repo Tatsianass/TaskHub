@@ -68,6 +68,7 @@ function toTask(raw: unknown): Task | null {
     remindMe: raw.remindMe === true,
     remindTime: validTime(raw.remindTime),
     remindOffsets: sanitizeOffsets(raw.remindOffsets, raw.remindMe === true ? [0] : []),
+    repeat: null,
   };
 }
 

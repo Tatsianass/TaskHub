@@ -26,6 +26,7 @@ const validTask: Task = {
   remindMe: true,
   remindTime: '09:30',
   remindOffsets: [0, 60],
+  repeat: 'monthly',
 };
 
 const validBirthday: Birthday = {
@@ -55,6 +56,17 @@ describe('parseTask', () => {
     const { remindOffsets, ...legacy } = validTask;
     assert.deepEqual(parseTask(legacy).remindOffsets, [0]);
     assert.deepEqual(parseTask({ ...legacy, remindMe: false, remindTime: null }).remindOffsets, []);
+  });
+
+  test('a client that sends no repeat gets a task that does not repeat', () => {
+    const { repeat, ...legacy } = validTask;
+    assert.equal(parseTask(legacy).repeat, null);
+    assert.equal(parseTask({ ...legacy, repeat: null }).repeat, null);
+  });
+
+  test('rejects an unknown repeat rule', () => {
+    assertRejects(() => parseTask({ ...validTask, repeat: 'hourly' }), 'INVALID_TASK');
+    assertRejects(() => parseTask({ ...validTask, repeat: 7 }), 'INVALID_TASK');
   });
 
   const valid: [string, Partial<Task>][] = [

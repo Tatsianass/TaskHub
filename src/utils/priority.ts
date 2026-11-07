@@ -1,4 +1,4 @@
-import { dayDiffFromToday } from '@/utils/dates';
+import { dayDiffFromToday, todayISODate } from '@/utils/dates';
 import type { QuadrantId, Task } from '@/types/task';
 
 const URGENT_COUNTERPART: Partial<Record<QuadrantId, QuadrantId>> = {
@@ -30,4 +30,21 @@ export function effectiveQuadrantId(task: Task, escalationDays: number | null, t
 /** Whether an open task is currently boosted by the deadline-escalation setting (drives the 🔥 and the banner). */
 export function isEscalated(task: Task, escalationDays: number | null, today: string): boolean {
   return !task.done && effectiveQuadrantId(task, escalationDays, today) !== task.quadrantId;
+}
+
+export function isImportantQuadrant(id: QuadrantId): boolean {
+  return id === 'urgent-important' || id === 'not-urgent-important';
+}
+
+/** Due today, tomorrow or already past. */
+export function isUrgentDate(dueDate: string | null, today: string = todayISODate()): boolean {
+  if (!dueDate) return false;
+  return dayDiffFromToday(dueDate, today) <= 1;
+}
+
+export function computeQuadrant(important: boolean, urgent: boolean): QuadrantId {
+  if (important && urgent) return 'urgent-important';
+  if (important) return 'not-urgent-important';
+  if (urgent) return 'urgent-not-important';
+  return 'not-urgent-not-important';
 }

@@ -2,7 +2,9 @@ import { useCallback } from 'react';
 
 import { useServerList } from '@/hooks/use-server-list';
 import { api } from '@/lib/api';
-import type { QuadrantId, TagId, Task } from '@/types/task';
+import { todayISODate } from '@/utils/dates';
+import { isFollowUp, nextOccurrence } from '@/utils/recurrence';
+import type { QuadrantId, RepeatRule, TagId, Task } from '@/types/task';
 
 export type TaskDraft = {
   title: string;
@@ -14,6 +16,8 @@ export type TaskDraft = {
   remindTime: string | null;
   /** Alerts as minutes before the task's time; empty means no reminder. */
   remindOffsets: number[];
+  /** Repeats after it's done; ignored (stored as none) when the task has no due date. */
+  repeat: RepeatRule | null;
 };
 
 /** `remindMe` stays in step with the alerts so older readers (widgets, backups) keep working. */
@@ -21,34 +25,45 @@ function reminderFields(draft: TaskDraft) {
   return { remindMe: draft.remindOffsets.length > 0, remindTime: draft.remindTime, remindOffsets: draft.remindOffsets };
 }
 
+/** A repeat needs a date to count from. */
+const repeatField = (draft: TaskDraft) => (draft.dueDate ? draft.repeat : null);
+
+const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
 
 export function useTasks() {
   const { items: tasks, isLoaded, error, clearError, mutate, refresh } = useServerList<Task>('/tasks');
 
+  const insertTask = useCallback(
+    (task: Task) =>
+      mutate(
+        (prev) => [task, ...prev],
+        () => api('/tasks', { method: 'POST', body: task }),
+        (prev) => prev.filter((item) => item.id !== task.id),
+      ),
+    [mutate],
+  );
+
   const addTask = useCallback(
     (draft: TaskDraft) => {
       const title = draft.title.trim();
       if (!title) return;
-      const task: Task = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      insertTask({
+        id: newId(),
         title,
         description: draft.description.trim(),
         quadrantId: draft.quadrantId,
         tag: draft.tag,
         dueDate: draft.dueDate,
         ...reminderFields(draft),
+        repeat: repeatField(draft),
         done: false,
         completedAt: null,
         createdAt: Date.now(),
-      };
-      mutate(
-        (prev) => [task, ...prev],
-        () => api('/tasks', { method: 'POST', body: task }),
-        (prev) => prev.filter((item) => item.id !== task.id),
-      );
+      });
     },
-    [mutate],
+    [insertTask],
   );
 
   /** Optimistically replaces task `id` with `change(task)` and PUTs the result. */
@@ -78,18 +93,9 @@ export function useTasks() {
         tag: draft.tag,
         dueDate: draft.dueDate,
         ...reminderFields(draft),
+        repeat: repeatField(draft),
       }));
     },
-    [replaceTask],
-  );
-
-  const toggleTask = useCallback(
-    (id: string) => replaceTask(id, (task) => ({ ...task, done: !task.done, completedAt: task.done ? null : Date.now() })),
-    [replaceTask],
-  );
-
-  const rescheduleTask = useCallback(
-    (id: string, dueDate: string) => replaceTask(id, (task) => ({ ...task, dueDate })),
     [replaceTask],
   );
 
@@ -104,6 +110,34 @@ export function useTasks() {
       );
     },
     [tasks, mutate],
+  );
+
+  /**
+   * Checks a task off or reopens it. Completing a repeating task also creates its next occurrence;
+   * reopening it again (undo) removes that occurrence, unless it has been completed since.
+   */
+  const toggleTask = useCallback(
+    (id: string) => {
+      const task = tasks.find((item) => item.id === id);
+      if (!task) return;
+      replaceTask(id, (current) => ({ ...current, done: !current.done, completedAt: current.done ? null : Date.now() }));
+      if (!task.repeat) return;
+      if (task.done) {
+        const followUp = tasks
+          .filter((candidate) => isFollowUp(task, candidate) && candidate.createdAt >= (task.completedAt ?? 0))
+          .sort((a, b) => a.createdAt - b.createdAt)[0];
+        if (followUp) deleteTask(followUp.id);
+      } else if (!tasks.some((candidate) => isFollowUp(task, candidate))) {
+        const next = nextOccurrence(task, newId(), Date.now(), todayISODate());
+        if (next) insertTask(next);
+      }
+    },
+    [tasks, replaceTask, deleteTask, insertTask],
+  );
+
+  const rescheduleTask = useCallback(
+    (id: string, dueDate: string) => replaceTask(id, (task) => ({ ...task, dueDate })),
+    [replaceTask],
   );
 
   const clearCompleted = useCallback(() => {

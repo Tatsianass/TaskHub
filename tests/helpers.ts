@@ -17,6 +17,7 @@ export function makeTask(overrides: Partial<Task> = {}): Task {
     remindMe: false,
     remindTime: null,
     remindOffsets: [],
+    repeat: null,
     ...overrides,
   };
 }

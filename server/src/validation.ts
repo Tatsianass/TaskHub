@@ -9,9 +9,11 @@ export const QUADRANT_IDS = [
   'not-urgent-not-important',
 ] as const;
 export const TAG_IDS = ['work', 'home'] as const;
+export const REPEAT_RULES = ['daily', 'weekdays', 'weekly', 'monthly', 'yearly'] as const;
 
 export type QuadrantId = (typeof QUADRANT_IDS)[number];
 export type TagId = (typeof TAG_IDS)[number];
+export type RepeatRule = (typeof REPEAT_RULES)[number];
 
 /** Same shape as the app's `Task` (src/types/task.ts). */
 export type Task = {
@@ -29,6 +31,8 @@ export type Task = {
   remindTime: string | null;
   /** Minutes before `remindTime` to alert at; `[0]` is the reminder itself. Empty means no alerts. */
   remindOffsets: number[];
+  /** Finishing the task creates the next one on the following date; `null` for a one-off task. */
+  repeat: RepeatRule | null;
 };
 
 /** The fields `PUT /tasks/:id` may change: everything except `id` and `createdAt`. */
@@ -135,6 +139,10 @@ const remindOffsets: Check<number[]> = (value) => {
   return valid && new Set(value).size === value.length ? (value as number[]) : undefined;
 };
 
+/** A missing field (older clients) reads as `null`: the task doesn't repeat. */
+const optionalRepeat: Check<RepeatRule | null> = (value) =>
+  value === undefined || value === null ? null : oneOf(REPEAT_RULES)(value);
+
 /** Older clients send only `remindMe`; it then means the single alert at the reminder time. */
 function withLegacyOffsets(body: unknown, task: TaskUpdate): TaskUpdate {
   const sentOffsets = (body as Fields).remindOffsets !== undefined;
@@ -152,6 +160,7 @@ const taskUpdateChecks: { [K in keyof TaskUpdate]: Check<TaskUpdate[K]> } = {
   remindMe: bool,
   remindTime: nullable(time),
   remindOffsets,
+  repeat: optionalRepeat,
 };
 
 /** A full `Task` (POST /tasks, /import). Throws 400 `INVALID_TASK`. */

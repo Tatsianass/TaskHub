@@ -60,7 +60,13 @@ CREATE INDEX birthdays_user_idx ON birthdays (user_id, seq);
  * Append-only list: index 0 is version 1, and so on.
  * Never edit or reorder a migration that has shipped; add a new one.
  */
-export const MIGRATIONS: readonly string[] = [V1_SQL];
+// Repeating tasks: finishing one creates the next (the client does that); the rule is just stored.
+const V2_SQL = `
+ALTER TABLE tasks ADD COLUMN repeat TEXT
+  CHECK (repeat IS NULL OR repeat IN ('daily','weekdays','weekly','monthly','yearly'));
+`;
+
+export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL];
 
 /** Arbitrary constant; every instance takes the same advisory lock while migrating. */
 const MIGRATION_LOCK_ID = 727274;
