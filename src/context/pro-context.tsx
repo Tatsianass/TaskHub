@@ -18,7 +18,7 @@ export const ALL_FEATURES_FREE = false;
 export const FREE_REMINDERS = 1;
 
 /** The entitlement id set up in the RevenueCat dashboard; the free trial and the paid plans all unlock it. */
-const ENTITLEMENT = 'pro';
+const ENTITLEMENT = 'taskhub_pro';
 
 // Must be referenced literally as process.env.EXPO_PUBLIC_* so Expo inlines them.
 const API_KEY = Platform.select({
