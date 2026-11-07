@@ -5,7 +5,7 @@ import { after, before, describe, test } from 'node:test';
 
 import express from 'express';
 
-import { ApiError, errorHandler, notFoundHandler } from '../src/errors.js';
+import { ApiError, errorHandler, isPgError, notFoundHandler } from '../src/errors.js';
 
 describe('error middleware', () => {
   let server: Server;
@@ -99,5 +99,21 @@ describe('error middleware', () => {
     });
     assert.equal(res.status, 200);
     assert.deepEqual(await res.json(), { a: 1 });
+  });
+});
+
+describe('isPgError', () => {
+  const error = { code: '23505', constraint: 'tasks_pkey' };
+
+  test('matches by SQLSTATE and, when given, constraint name', () => {
+    assert.equal(isPgError(error, '23505'), true);
+    assert.equal(isPgError(error, '23505', 'tasks_pkey'), true);
+    assert.equal(isPgError(error, '23505', 'users_email_key'), false);
+    assert.equal(isPgError(error, '23514'), false);
+  });
+
+  test('is false for non-database errors', () => {
+    assert.equal(isPgError(new Error('23505'), '23505'), false);
+    assert.equal(isPgError(null, '23505'), false);
   });
 });

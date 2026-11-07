@@ -11,11 +11,15 @@ describe('config', () => {
     assert.equal(SERVER_DIR, resolve(import.meta.dirname, '..'));
   });
 
+  const DB = 'postgres://todo:todo@localhost:5432/todo';
+
   test('defaults', () => {
-    assert.deepEqual(loadConfig({}), {
+    assert.deepEqual(loadConfig({ DATABASE_URL: DB }), {
       port: 4000,
       host: '0.0.0.0',
-      dbPath: join(SERVER_DIR, 'data', 'app.db'),
+      databaseUrl: DB,
+      pgPoolMax: 10,
+      pgSsl: false,
       corsOrigins: ['http://localhost:8081'],
       trustProxy: 0,
       appleAudiences: ['com.tatsianas.todomobile'],
@@ -23,21 +27,22 @@ describe('config', () => {
   });
 
   test('blank values fall back to defaults', () => {
-    const config = loadConfig({ PORT: ' ', HOST: ' ', DB_PATH: '', CORS_ORIGIN: ' , ' });
+    const config = loadConfig({ DATABASE_URL: DB, PORT: ' ', HOST: ' ', PG_POOL_MAX: '', CORS_ORIGIN: ' , ' });
     assert.equal(config.port, 4000);
     assert.equal(config.host, '0.0.0.0');
-    assert.equal(config.dbPath, join(SERVER_DIR, 'data', 'app.db'));
+    assert.equal(config.pgPoolMax, 10);
     assert.deepEqual(config.corsOrigins, ['http://localhost:8081']);
   });
 
   test('overrides', () => {
     const config = loadConfig({
+      DATABASE_URL: DB,
       PORT: '5123',
-      DB_PATH: '/var/lib/todo/app.db',
+      PG_POOL_MAX: '25',
       CORS_ORIGIN: 'http://localhost:8081, http://192.168.1.10:8081',
     });
     assert.equal(config.port, 5123);
-    assert.equal(config.dbPath, '/var/lib/todo/app.db');
+    assert.equal(config.pgPoolMax, 25);
     assert.deepEqual(config.corsOrigins, [
       'http://localhost:8081',
       'http://192.168.1.10:8081',
@@ -45,21 +50,47 @@ describe('config', () => {
   });
 
   test('HOST override is trimmed', () => {
-    assert.equal(loadConfig({ HOST: ' 127.0.0.1 ' }).host, '127.0.0.1');
+    assert.equal(loadConfig({ DATABASE_URL: DB, HOST: ' 127.0.0.1 ' }).host, '127.0.0.1');
   });
 
-  test('relative DB_PATH resolves against server/, not cwd', () => {
-    const config = loadConfig({ DB_PATH: './other/test.db' });
-    assert.equal(config.dbPath, join(SERVER_DIR, 'other', 'test.db'));
+  test('DATABASE_URL is required', () => {
+    assert.throws(() => loadConfig({}), /DATABASE_URL is required/);
+    assert.throws(() => loadConfig({ DATABASE_URL: '  ' }), /DATABASE_URL is required/);
   });
+
+  test('an invalid DATABASE_URL throws without echoing the URL or password (R3.6)', () => {
+    for (const bad of ['not a url with s3cret', 'mysql://u:s3cret@h/db']) {
+      assert.throws(
+        () => loadConfig({ DATABASE_URL: bad }),
+        (error: Error) => /DATABASE_URL/.test(error.message) && !error.message.includes('s3cret'),
+      );
+    }
+  });
+
+  test('TLS: plaintext outside production, verified in production, sslmode overrides (R3.3)', () => {
+    assert.equal(loadConfig({ DATABASE_URL: DB }).pgSsl, false);
+    assert.deepEqual(loadConfig({ DATABASE_URL: DB, NODE_ENV: 'production' }).pgSsl, { rejectUnauthorized: true });
+    const off = loadConfig({ DATABASE_URL: `${DB}?sslmode=disable`, NODE_ENV: 'production' });
+    assert.equal(off.pgSsl, false);
+    const loose = loadConfig({ DATABASE_URL: `${DB}?sslmode=no-verify`, NODE_ENV: 'production' });
+    assert.deepEqual(loose.pgSsl, { rejectUnauthorized: false });
+    // sslmode is consumed here so the pg driver can't override our explicit ssl option.
+    assert.equal(off.databaseUrl.includes('sslmode'), false);
+  });
+
+  for (const bad of ['0', 'abc', '101']) {
+    test(`invalid PG_POOL_MAX "${bad}" throws`, () => {
+      assert.throws(() => loadConfig({ DATABASE_URL: DB, PG_POOL_MAX: bad }), /Invalid PG_POOL_MAX/);
+    });
+  }
 
   test('PORT 0 (ephemeral) is allowed', () => {
-    assert.equal(loadConfig({ PORT: '0' }).port, 0);
+    assert.equal(loadConfig({ DATABASE_URL: DB, PORT: '0' }).port, 0);
   });
 
   for (const bad of ['abc', '-1', '65536', '40.5']) {
     test(`invalid PORT "${bad}" throws`, () => {
-      assert.throws(() => loadConfig({ PORT: bad }), /Invalid PORT/);
+      assert.throws(() => loadConfig({ DATABASE_URL: DB, PORT: bad }), /Invalid PORT/);
     });
   }
 
@@ -85,10 +116,11 @@ describe('config', () => {
 });
 
 describe('TRUST_PROXY', () => {
+  const DB = 'postgres://todo:todo@localhost:5432/todo';
   test('defaults to 0, parses hop counts, rejects junk', () => {
-    assert.equal(loadConfig({}).trustProxy, 0);
-    assert.equal(loadConfig({ TRUST_PROXY: '1' }).trustProxy, 1);
-    assert.deepEqual(loadConfig({ APPLE_BUNDLE_IDS: ' a.b , host.exp.Exponent ' }).appleAudiences, ['a.b', 'host.exp.Exponent']);
-    assert.throws(() => loadConfig({ TRUST_PROXY: 'yes' }), /Invalid TRUST_PROXY/);
+    assert.equal(loadConfig({ DATABASE_URL: DB }).trustProxy, 0);
+    assert.equal(loadConfig({ DATABASE_URL: DB, TRUST_PROXY: '1' }).trustProxy, 1);
+    assert.deepEqual(loadConfig({ DATABASE_URL: DB, APPLE_BUNDLE_IDS: ' a.b , host.exp.Exponent ' }).appleAudiences, ['a.b', 'host.exp.Exponent']);
+    assert.throws(() => loadConfig({ DATABASE_URL: DB, TRUST_PROXY: 'yes' }), /Invalid TRUST_PROXY/);
   });
 });

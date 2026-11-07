@@ -1,104 +1,117 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { Db } from './connection.js';
 
+// The six SQLite migrations squashed into the final schema; PG starts fresh and the copy
+// script (scripts/sqlite-to-postgres.ts) brings the data over.
 const V1_SQL = `
 CREATE TABLE users (
   id              TEXT PRIMARY KEY,
-  email           TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  email           TEXT NOT NULL,
   password_hash   TEXT NOT NULL,
   password_salt   TEXT NOT NULL,
-  password_params TEXT NOT NULL,
-  created_at      INTEGER NOT NULL
+  password_params JSONB NOT NULL,
+  created_at      BIGINT NOT NULL,
+  apple_sub       TEXT
 );
+CREATE UNIQUE INDEX users_email_key ON users (lower(email));
+CREATE UNIQUE INDEX users_apple_sub_key ON users (apple_sub) WHERE apple_sub IS NOT NULL;
 
 CREATE TABLE sessions (
   token_hash TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL
+  created_at BIGINT NOT NULL,
+  expires_at BIGINT NOT NULL
 );
-CREATE INDEX idx_sessions_user ON sessions(user_id);
+CREATE INDEX sessions_user_idx ON sessions (user_id);
+CREATE INDEX sessions_expires_idx ON sessions (expires_at);
 
 CREATE TABLE tasks (
-  id          TEXT PRIMARY KEY,
-  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title       TEXT NOT NULL CHECK (length(trim(title)) > 0),
-  description TEXT NOT NULL DEFAULT '',
-  quadrant_id TEXT NOT NULL CHECK (quadrant_id IN
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  seq            BIGINT GENERATED ALWAYS AS IDENTITY,
+  title          TEXT NOT NULL CHECK (length(btrim(title)) > 0),
+  description    TEXT NOT NULL DEFAULT '',
+  quadrant_id    TEXT NOT NULL CHECK (quadrant_id IN
     ('urgent-important','not-urgent-important','urgent-not-important','not-urgent-not-important')),
-  tag         TEXT CHECK (tag IS NULL OR tag IN ('work','home')),
-  done        INTEGER NOT NULL DEFAULT 0 CHECK (done IN (0,1)),
-  created_at  INTEGER NOT NULL,
-  due_date    TEXT,
-  remind_me   INTEGER NOT NULL DEFAULT 0 CHECK (remind_me IN (0,1)),
-  remind_time TEXT
+  tag            TEXT CHECK (tag IS NULL OR tag IN ('work','home')),
+  done           BOOLEAN NOT NULL DEFAULT false,
+  completed_at   BIGINT,
+  created_at     BIGINT NOT NULL,
+  due_date       TEXT,
+  remind_me      BOOLEAN NOT NULL DEFAULT false,
+  remind_time    TEXT,
+  remind_offsets JSONB NOT NULL DEFAULT '[]'
 );
-CREATE INDEX idx_tasks_user_created ON tasks(user_id, created_at DESC);
+CREATE INDEX tasks_user_created_idx ON tasks (user_id, created_at DESC, seq DESC);
 
 CREATE TABLE birthdays (
-  id      TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name    TEXT NOT NULL CHECK (length(trim(name)) > 0),
-  date    TEXT NOT NULL
+  id                TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  seq               BIGINT GENERATED ALWAYS AS IDENTITY,
+  name              TEXT NOT NULL CHECK (length(btrim(name)) > 0),
+  date              TEXT NOT NULL,
+  remind_me         BOOLEAN NOT NULL DEFAULT true,
+  remind_time       TEXT DEFAULT '09:00',
+  alert_days_before INTEGER CHECK (alert_days_before IS NULL OR alert_days_before BETWEEN 1 AND 60)
 );
-CREATE INDEX idx_birthdays_user ON birthdays(user_id);
-`;
-
-const V2_SQL = `
-ALTER TABLE tasks ADD COLUMN completed_at INTEGER;
-`;
-
-// Birthdays used to always remind at 09:00, so existing rows keep doing exactly that.
-const V3_SQL = `
-ALTER TABLE birthdays ADD COLUMN remind_me INTEGER NOT NULL DEFAULT 1 CHECK (remind_me IN (0,1));
-ALTER TABLE birthdays ADD COLUMN remind_time TEXT DEFAULT '09:00';
-`;
-
-// How many days before the birthday to send a heads-up alert; NULL means no alert.
-const V4_SQL = `
-ALTER TABLE birthdays ADD COLUMN alert_days_before INTEGER CHECK (alert_days_before IS NULL OR alert_days_before BETWEEN 1 AND 60);
-`;
-
-// Minutes before the task's reminder time at which to alert, as a JSON array (up to 5 entries).
-// A task that had a reminder keeps exactly one alert, at the reminder time.
-const V5_SQL = `
-ALTER TABLE tasks ADD COLUMN remind_offsets TEXT NOT NULL DEFAULT '[]';
-UPDATE tasks SET remind_offsets = '[0]' WHERE remind_me = 1;
-`;
-
-// Sign in with Apple: the stable Apple user id. Email-only accounts keep it NULL.
-const V6_SQL = `
-ALTER TABLE users ADD COLUMN apple_sub TEXT;
-CREATE UNIQUE INDEX idx_users_apple_sub ON users(apple_sub) WHERE apple_sub IS NOT NULL;
+CREATE INDEX birthdays_user_idx ON birthdays (user_id, seq);
 `;
 
 /**
- * Append-only list: index 0 upgrades user_version 0 → 1, and so on.
+ * Append-only list: index 0 is version 1, and so on.
  * Never edit or reorder a migration that has shipped; add a new one.
  */
-export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL, V4_SQL, V5_SQL, V6_SQL];
+export const MIGRATIONS: readonly string[] = [V1_SQL];
 
-export function getUserVersion(db: DatabaseSync) {
-  const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
-  return row.user_version;
+/** Arbitrary constant; every instance takes the same advisory lock while migrating. */
+const MIGRATION_LOCK_ID = 727274;
+
+export async function getSchemaVersion(db: Db) {
+  const { rows } = await db.query<{ version: number }>(
+    'SELECT COALESCE(max(version), 0)::int AS version FROM schema_migrations',
+  );
+  return rows[0].version;
 }
 
-/** Applies every pending migration, each in its own transaction. Idempotent. */
-export function runMigrations(db: DatabaseSync, migrations = MIGRATIONS) {
-  const current = getUserVersion(db);
-  if (current > migrations.length) {
-    throw new Error(
-      `Database schema version ${current} is newer than this server supports (${migrations.length})`,
-    );
-  }
-  for (let version = current; version < migrations.length; version++) {
-    db.exec('BEGIN');
+/**
+ * Applies every pending migration, each in its own transaction. Idempotent, and safe when
+ * several instances boot at once: the advisory lock makes the others wait, then find nothing to do.
+ */
+export async function runMigrations(db: Db, migrations = MIGRATIONS) {
+  // The lock is per session, so everything runs on this one connection.
+  const client = await db.connect();
+  try {
+    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_ID]);
     try {
-      db.exec(migrations[version]);
-      db.exec(`PRAGMA user_version = ${version + 1}`);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
+      await client.query(
+        `CREATE TABLE IF NOT EXISTS schema_migrations (
+           version    INT PRIMARY KEY,
+           applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+         )`,
+      );
+      const { rows } = await client.query<{ version: number }>(
+        'SELECT COALESCE(max(version), 0)::int AS version FROM schema_migrations',
+      );
+      const current = rows[0].version;
+      if (current > migrations.length) {
+        throw new Error(
+          `Database schema version ${current} is newer than this server supports (${migrations.length})`,
+        );
+      }
+      for (let version = current; version < migrations.length; version++) {
+        await client.query('BEGIN');
+        try {
+          await client.query(migrations[version]);
+          await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version + 1]);
+          await client.query('COMMIT');
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        }
+      }
+    } finally {
+      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_ID]);
     }
+  } finally {
+    client.release();
   }
 }

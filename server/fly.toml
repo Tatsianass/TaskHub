@@ -1,5 +1,6 @@
-# One Machine. SQLite on this API has a single writer.
-# Deploy only with: fly deploy --ha=false
+# One Machine: the auth rate limiter keeps its counters in memory, so more Machines would each
+# count separately. Deploy with: fly deploy --ha=false
+# The database is PostgreSQL: set it once with `fly secrets set DATABASE_URL=postgres://...`
 app = "taskhub-api-tatianas"
 primary_region = "fra"
 kill_timeout = "15s"
@@ -10,6 +11,8 @@ kill_timeout = "15s"
 [env]
   PORT = "8080"
   HOST = "0.0.0.0"
+  # DB_PATH and [[mounts]] only serve a rollback to the pre-Postgres release; remove both with
+  # the volume (specs/postgres-migration, T5.4).
   DB_PATH = "/data/app.db"
   NODE_ENV = "production"
   TRUST_PROXY = "1"

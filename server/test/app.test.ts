@@ -1,33 +1,47 @@
 import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { DatabaseSync } from 'node:sqlite';
 import { after, before, describe, test } from 'node:test';
 
 import { createApp } from '../src/app.js';
-import { runMigrations } from '../src/db/migrations.js';
+import { createTestDb } from './helpers.js';
 
 describe('createApp', () => {
-  const db = new DatabaseSync(':memory:');
+  let testDb: Awaited<ReturnType<typeof createTestDb>>;
   let server: Server;
   let baseUrl: string;
 
   before(async () => {
-    runMigrations(db);
-    server = createApp(db, { corsOrigins: ['http://localhost:8081'] }).listen(0);
+    testDb = await createTestDb();
+    server = createApp(testDb.pool, { corsOrigins: ['http://localhost:8081'] }).listen(0);
     await new Promise((resolve) => server.once('listening', resolve));
     baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;
   });
 
   after(async () => {
     await new Promise((resolve) => server.close(resolve));
-    db.close();
+    await testDb.drop();
   });
 
   test('GET /health', async () => {
     const res = await fetch(`${baseUrl}/health`);
     assert.equal(res.status, 200);
     assert.deepEqual(await res.json(), { ok: true });
+  });
+
+  test('GET /health -> 503 when the database is unreachable', async () => {
+    const broken = await createTestDb();
+    const app = createApp(broken.pool);
+    const srv = app.listen(0);
+    await new Promise((resolve) => srv.once('listening', resolve));
+    try {
+      await broken.pool.end();
+      const res = await fetch(`http://localhost:${(srv.address() as AddressInfo).port}/health`);
+      assert.equal(res.status, 503);
+      assert.deepEqual(await res.json(), { ok: false });
+    } finally {
+      await new Promise((resolve) => srv.close(resolve));
+    }
   });
 
   test('CORS allows the configured origin only', async () => {

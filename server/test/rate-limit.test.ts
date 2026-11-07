@@ -1,26 +1,23 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 
 import { MAX_PASSWORD_LENGTH } from '../src/routes/auth.js';
-import { closeDatabase, openDatabase } from '../src/db/connection.js';
-import { TEST_PASSWORD, startApp, type TestApp } from './helpers.js';
+import type { Db } from '../src/db/connection.js';
+import { createTestDb, TEST_PASSWORD, startApp, type TestApp } from './helpers.js';
 
-const tmpRoot = mkdtempSync(join(tmpdir(), 'todo-ratelimit-'));
-let db: ReturnType<typeof openDatabase>;
+let testDb: Awaited<ReturnType<typeof createTestDb>>;
+let db: Db;
 let app: TestApp;
 
 before(async () => {
-  db = openDatabase(join(tmpRoot, 'app.db'));
+  testDb = await createTestDb();
+  db = testDb.pool;
   app = await startApp(db, { authRateLimits: { ipMax: 12, emailMax: 3, windowMs: 60_000 } });
 });
 
 after(async () => {
   await app.close();
-  closeDatabase(db);
-  rmSync(tmpRoot, { recursive: true, force: true });
+  await testDb.drop();
 });
 
 const login = (email: string, password: string) =>
@@ -87,7 +84,8 @@ describe('password length cap', () => {
     });
     assert.equal(tooLong.status, 400);
     assert.deepEqual(tooLong.body, { error: 'PASSWORD_TOO_LONG' });
-    assert.equal(db.prepare('SELECT 1 FROM users WHERE email = ?').get('long-bad@example.com'), undefined);
+    const { rowCount } = await db.query('SELECT 1 FROM users WHERE email = $1', ['long-bad@example.com']);
+    assert.equal(rowCount, 0);
   });
 
   test('login with an oversized password -> 401 WRONG_PASSWORD, without hashing', async () => {

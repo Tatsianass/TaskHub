@@ -3,6 +3,34 @@ import type { AddressInfo } from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { createApp, type AppOptions } from '../src/app.js';
+import { createPool, type Db } from '../src/db/connection.js';
+import { runMigrations } from '../src/db/migrations.js';
+
+export const TEST_DATABASE_URL =
+  process.env.TEST_DATABASE_URL ?? 'postgres://todo:todo@localhost:5432/todo_test';
+
+let schemaCounter = 0;
+
+/**
+ * A pool on a fresh, fully migrated schema of the test database. One schema per call keeps test
+ * files independent. `drop()` removes the schema and closes the pool.
+ */
+export async function createTestDb({ migrate = true } = {}) {
+  schemaCounter += 1;
+  const schema = `t_${process.pid}_${schemaCounter}_${Date.now().toString(36)}`;
+  const admin = createPool({ url: TEST_DATABASE_URL, max: 1 });
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  const pool = createPool({ url: TEST_DATABASE_URL, max: 10, searchPath: schema });
+  if (migrate) await runMigrations(pool);
+
+  async function drop() {
+    await pool.end();
+    await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+    await admin.end();
+  }
+
+  return { pool: pool as Db, schema, url: TEST_DATABASE_URL, drop };
+}
 
 export type TestResponse = { status: number; body: any };
 

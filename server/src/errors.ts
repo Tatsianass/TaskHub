@@ -11,14 +11,17 @@ export class ApiError extends Error {
   }
 }
 
-/** Extended SQLite result codes; node:sqlite puts them on `error.errcode`. */
-export const SQLITE_CONSTRAINT_UNIQUE = 2067;
-export const SQLITE_CONSTRAINT_PRIMARYKEY = 1555;
-export const SQLITE_CONSTRAINT_CHECK = 275;
+/** Postgres SQLSTATE codes; the driver puts them on `error.code`. */
+export const PG_UNIQUE_VIOLATION = '23505';
+export const PG_CHECK_VIOLATION = '23514';
 
-/** Match SQLite errors by result code, never by message. */
-export function isSqliteError(error: unknown, errcode: number) {
-  return (error as { errcode?: unknown } | null)?.errcode === errcode;
+/**
+ * Match Postgres errors by SQLSTATE (and optionally constraint name), never by message. Primary
+ * keys and unique indexes share 23505, so callers that must tell them apart pass `constraint`.
+ */
+export function isPgError(error: unknown, code: string, constraint?: string) {
+  const e = error as { code?: unknown; constraint?: unknown } | null;
+  return e?.code === code && (constraint === undefined || e.constraint === constraint);
 }
 
 /** Errors raised by express.json() (body-parser) carry a `type`. */

@@ -1,10 +1,9 @@
-import type { DatabaseSync } from 'node:sqlite';
-
 import cors from 'cors';
 import express from 'express';
 
 import { createAppleVerifier, type AppleVerifier } from './auth/apple.js';
 import { DEFAULT_APPLE_AUDIENCE, DEFAULT_CORS_ORIGIN } from './config.js';
+import type { Db } from './db/connection.js';
 import { errorHandler, notFoundHandler } from './errors.js';
 import { birthdaysRepo } from './repos/birthdays.js';
 import { sessionsRepo } from './repos/sessions.js';
@@ -26,7 +25,7 @@ export type AppOptions = {
   appleVerifier?: AppleVerifier;
 };
 
-export function createApp(db: DatabaseSync, options: AppOptions = {}) {
+export function createApp(db: Db, options: AppOptions = {}) {
   const {
     corsOrigins = [DEFAULT_CORS_ORIGIN],
     trustProxy = 0,
@@ -45,14 +44,19 @@ export function createApp(db: DatabaseSync, options: AppOptions = {}) {
   app.use(cors({ origin: corsOrigins }));
   app.use(express.json({ limit: '1mb' }));
 
-  app.get('/health', (req, res) => {
-    res.json({ ok: db.isOpen });
+  app.get('/health', async (req, res) => {
+    try {
+      await db.query('SELECT 1');
+      res.json({ ok: true });
+    } catch {
+      res.status(503).json({ ok: false });
+    }
   });
 
   app.use('/auth', authRouter(users, sessions, appleVerifier, authRateLimits));
   app.use('/tasks', tasksRouter(tasks, sessions));
   app.use('/birthdays', birthdaysRouter(birthdays, sessions));
-  app.use('/import', importRouter(db, tasks, birthdays, sessions));
+  app.use('/import', importRouter(db, sessions));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

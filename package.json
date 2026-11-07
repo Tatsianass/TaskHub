@@ -59,7 +59,8 @@
     "server": "npm --prefix server run dev",
     "server:test": "npm --prefix server test",
     "test:e2e": "playwright test",
-    "test": "node --import tsx --experimental-test-module-mocks --test \"tests/**/*.test.ts\""
+    "test": "node --import tsx --experimental-test-module-mocks --test \"tests/**/*.test.ts\"",
+    "db": "docker compose up -d db"
   },
   "private": true
 }

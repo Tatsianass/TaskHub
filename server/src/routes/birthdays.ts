@@ -3,9 +3,9 @@ import { Router, type RequestHandler } from 'express';
 import { requireAuth } from '../auth/middleware.js';
 import {
   ApiError,
-  SQLITE_CONSTRAINT_CHECK,
-  SQLITE_CONSTRAINT_PRIMARYKEY,
-  isSqliteError,
+  PG_CHECK_VIOLATION,
+  PG_UNIQUE_VIOLATION,
+  isPgError,
 } from '../errors.js';
 import type { BirthdaysRepo } from '../repos/birthdays.js';
 import type { SessionsRepo } from '../repos/sessions.js';
@@ -15,28 +15,28 @@ export function birthdaysRouter(birthdays: BirthdaysRepo, sessions: SessionsRepo
   const router = Router();
   router.use(requireAuth(sessions));
 
-  const list: RequestHandler = (req, res) => {
-    res.json(birthdays.list(req.userId!));
+  const list: RequestHandler = async (req, res) => {
+    res.json(await birthdays.list(req.userId!));
   };
 
-  const create: RequestHandler = (req, res) => {
+  const create: RequestHandler = async (req, res) => {
     const birthday = parseBirthday(req.body);
     try {
-      res.status(201).json(birthdays.create(req.userId!, birthday));
+      res.status(201).json(await birthdays.create(req.userId!, birthday));
     } catch (error) {
-      if (isSqliteError(error, SQLITE_CONSTRAINT_PRIMARYKEY)) throw new ApiError(409, 'DUPLICATE_ID');
-      if (isSqliteError(error, SQLITE_CONSTRAINT_CHECK)) throw new ApiError(400, 'INVALID_BIRTHDAY');
+      if (isPgError(error, PG_UNIQUE_VIOLATION, 'birthdays_pkey')) throw new ApiError(409, 'DUPLICATE_ID');
+      if (isPgError(error, PG_CHECK_VIOLATION)) throw new ApiError(400, 'INVALID_BIRTHDAY');
       throw error;
     }
   };
 
-  const update: RequestHandler<{ id: string }> = (req, res) => {
+  const update: RequestHandler<{ id: string }> = async (req, res) => {
     const birthday = parseBirthday(req.body);
     let updated;
     try {
-      updated = birthdays.update(req.userId!, req.params.id, birthday);
+      updated = await birthdays.update(req.userId!, req.params.id, birthday);
     } catch (error) {
-      if (isSqliteError(error, SQLITE_CONSTRAINT_CHECK)) throw new ApiError(400, 'INVALID_BIRTHDAY');
+      if (isPgError(error, PG_CHECK_VIOLATION)) throw new ApiError(400, 'INVALID_BIRTHDAY');
       throw error;
     }
     if (!updated) throw new ApiError(404, 'NOT_FOUND');
@@ -44,8 +44,8 @@ export function birthdaysRouter(birthdays: BirthdaysRepo, sessions: SessionsRepo
   };
 
   // Unknown id and another user's id are the same 404.
-  const remove: RequestHandler<{ id: string }> = (req, res) => {
-    if (!birthdays.delete(req.userId!, req.params.id)) throw new ApiError(404, 'NOT_FOUND');
+  const remove: RequestHandler<{ id: string }> = async (req, res) => {
+    if (!(await birthdays.delete(req.userId!, req.params.id))) throw new ApiError(404, 'NOT_FOUND');
     res.status(204).end();
   };
 

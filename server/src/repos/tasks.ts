@@ -1,5 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
-
+import type { Queryable } from '../db/connection.js';
 import type { QuadrantId, TagId, Task, TaskUpdate } from '../validation.js';
 import { importRow } from './import-ids.js';
 
@@ -9,25 +8,20 @@ type TaskRow = {
   description: string;
   quadrant_id: QuadrantId;
   tag: TagId | null;
-  done: 0 | 1;
+  done: boolean;
   completed_at: number | null;
   created_at: number;
   due_date: string | null;
-  remind_me: 0 | 1;
+  remind_me: boolean;
   remind_time: string | null;
-  remind_offsets: string;
+  remind_offsets: unknown;
 };
 
 const COLUMNS =
   'id, title, description, quadrant_id, tag, done, completed_at, created_at, due_date, remind_me, remind_time, remind_offsets';
 
-function parseOffsets(json: string): number[] {
-  try {
-    const value: unknown = JSON.parse(json);
-    return Array.isArray(value) ? value.filter((item): item is number => typeof item === 'number') : [];
-  } catch {
-    return [];
-  }
+function parseOffsets(value: unknown): number[] {
+  return Array.isArray(value) ? value.filter((item): item is number => typeof item === 'number') : [];
 }
 
 function toTask(row: TaskRow): Task {
@@ -37,11 +31,11 @@ function toTask(row: TaskRow): Task {
     description: row.description,
     quadrantId: row.quadrant_id,
     tag: row.tag,
-    done: row.done === 1,
+    done: row.done,
     completedAt: row.completed_at,
     createdAt: row.created_at,
     dueDate: row.due_date,
-    remindMe: row.remind_me === 1,
+    remindMe: row.remind_me,
     remindTime: row.remind_time,
     remindOffsets: parseOffsets(row.remind_offsets),
   };
@@ -55,51 +49,42 @@ function toParams(userId: string, id: string, task: Task) {
     task.description,
     task.quadrantId,
     task.tag,
-    task.done ? 1 : 0,
+    task.done,
     task.completedAt,
     task.createdAt,
     task.dueDate,
-    task.remindMe ? 1 : 0,
+    task.remindMe,
     task.remindTime,
+    // pg would send a JS array as a Postgres array, not JSON.
     JSON.stringify(task.remindOffsets),
-  ] as const;
+  ];
 }
+
+const INSERT = `INSERT INTO tasks (id, user_id, title, description, quadrant_id, tag, done,
+                                   completed_at, created_at, due_date, remind_me, remind_time, remind_offsets)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`;
 
 /**
  * Every statement filters by `user_id`, so a user never sees another user's
  * rows (R4.2); only the import's owner lookup reads by id alone.
  */
-export function tasksRepo(db: DatabaseSync) {
-  const selectAll = db.prepare(
-    `SELECT ${COLUMNS} FROM tasks WHERE user_id = ? ORDER BY created_at DESC, rowid DESC`,
-  );
-  const INSERT = `INSERT INTO tasks (id, user_id, title, description, quadrant_id, tag, done,
-                                     completed_at, created_at, due_date, remind_me, remind_time, remind_offsets)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-  const insert = db.prepare(INSERT);
-  const insertOrSkip = db.prepare(`${INSERT} ON CONFLICT(id) DO NOTHING`);
-  const selectOwner = db.prepare('SELECT user_id FROM tasks WHERE id = ?');
-  const update = db.prepare(
-    `UPDATE tasks
-     SET title = ?, description = ?, quadrant_id = ?, tag = ?, done = ?, completed_at = ?, due_date = ?,
-         remind_me = ?, remind_time = ?, remind_offsets = ?
-     WHERE id = ? AND user_id = ?
-     RETURNING ${COLUMNS}`,
-  );
-  const remove = db.prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?');
-
+export function tasksRepo(db: Queryable) {
   return {
     /** The user's tasks, newest first. */
-    list(userId: string): Task[] {
-      return (selectAll.all(userId) as TaskRow[]).map(toTask);
+    async list(userId: string): Promise<Task[]> {
+      const { rows } = await db.query<TaskRow>(
+        `SELECT ${COLUMNS} FROM tasks WHERE user_id = $1 ORDER BY created_at DESC, seq DESC`,
+        [userId],
+      );
+      return rows.map(toTask);
     },
 
     /**
-     * Inserts `task` with its client-generated id. Throws the SQLite PRIMARY
-     * KEY constraint error (errcode 1555) if the id already exists.
+     * Inserts `task` with its client-generated id. Throws the Postgres unique violation
+     * (23505, constraint `tasks_pkey`) if the id already exists.
      */
-    create(userId: string, task: Task): Task {
-      insert.run(...toParams(userId, task.id, task));
+    async create(userId: string, task: Task): Promise<Task> {
+      await db.query(INSERT, toParams(userId, task.id, task));
       return task;
     },
 
@@ -111,33 +96,47 @@ export function tasksRepo(db: DatabaseSync) {
       return importRow(
         userId,
         task.id,
-        (id) => insertOrSkip.run(...toParams(userId, id, task)).changes > 0,
-        (id) => (selectOwner.get(id) as { user_id: string } | undefined)?.user_id,
+        async (id) => {
+          const result = await db.query(`${INSERT} ON CONFLICT (id) DO NOTHING`, toParams(userId, id, task));
+          return (result.rowCount ?? 0) > 0;
+        },
+        async (id) => {
+          const { rows } = await db.query<{ user_id: string }>('SELECT user_id FROM tasks WHERE id = $1', [id]);
+          return rows[0]?.user_id;
+        },
       );
     },
 
     /** Returns the updated task, or `undefined` if the user has no task `id`. */
-    update(userId: string, id: string, fields: TaskUpdate): Task | undefined {
-      const row = update.get(
-        fields.title,
-        fields.description,
-        fields.quadrantId,
-        fields.tag,
-        fields.done ? 1 : 0,
-        fields.completedAt,
-        fields.dueDate,
-        fields.remindMe ? 1 : 0,
-        fields.remindTime,
-        JSON.stringify(fields.remindOffsets),
-        id,
-        userId,
-      ) as TaskRow | undefined;
-      return row && toTask(row);
+    async update(userId: string, id: string, fields: TaskUpdate): Promise<Task | undefined> {
+      const { rows } = await db.query<TaskRow>(
+        `UPDATE tasks
+         SET title = $1, description = $2, quadrant_id = $3, tag = $4, done = $5, completed_at = $6,
+             due_date = $7, remind_me = $8, remind_time = $9, remind_offsets = $10
+         WHERE id = $11 AND user_id = $12
+         RETURNING ${COLUMNS}`,
+        [
+          fields.title,
+          fields.description,
+          fields.quadrantId,
+          fields.tag,
+          fields.done,
+          fields.completedAt,
+          fields.dueDate,
+          fields.remindMe,
+          fields.remindTime,
+          JSON.stringify(fields.remindOffsets),
+          id,
+          userId,
+        ],
+      );
+      return rows[0] && toTask(rows[0]);
     },
 
     /** Returns true if the user's task `id` existed and was deleted. */
-    delete(userId: string, id: string) {
-      return remove.run(id, userId).changes > 0;
+    async delete(userId: string, id: string) {
+      const result = await db.query('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [id, userId]);
+      return (result.rowCount ?? 0) > 0;
     },
   };
 }

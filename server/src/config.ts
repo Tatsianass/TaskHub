@@ -8,8 +8,11 @@ export type Config = {
   port: number;
   /** Interface to bind. `0.0.0.0` accepts connections from outside the container. */
   host: string;
-  /** Absolute path to the SQLite DB file. */
-  dbPath: string;
+  /** Postgres connection string, without any `sslmode` (see `pgSsl`). */
+  databaseUrl: string;
+  pgPoolMax: number;
+  /** TLS settings for the Postgres connection; `false` = plaintext. */
+  pgSsl: false | { rejectUnauthorized: boolean };
   corsOrigins: string[];
   /** Proxy hops in front of the server (Fly = 1); 0 when exposed directly. */
   trustProxy: number;
@@ -19,7 +22,7 @@ export type Config = {
 
 export const DEFAULT_PORT = 4000;
 export const DEFAULT_HOST = '0.0.0.0';
-export const DEFAULT_DB_PATH = 'data/app.db';
+export const DEFAULT_PG_POOL_MAX = 10;
 export const DEFAULT_APPLE_AUDIENCE = 'com.tatsianas.todomobile';
 export const DEFAULT_CORS_ORIGIN = 'http://localhost:8081';
 
@@ -35,12 +38,46 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     port: parsePort(env.PORT),
     host: parseHost(env.HOST),
-    // Relative paths resolve against server/, never process.cwd().
-    dbPath: resolve(SERVER_DIR, env.DB_PATH?.trim() || DEFAULT_DB_PATH),
+    ...parseDatabase(env),
     corsOrigins: parseOrigins(env.CORS_ORIGIN),
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
     appleAudiences: parseList(env.APPLE_BUNDLE_IDS, [DEFAULT_APPLE_AUDIENCE]),
   };
+}
+
+/**
+ * `DATABASE_URL` is required. TLS comes from `sslmode` in the URL (`disable`, `no-verify`) and
+ * otherwise defaults to verified TLS in production and plaintext elsewhere. Errors never
+ * include the URL: it holds the password.
+ */
+function parseDatabase(env: NodeJS.ProcessEnv) {
+  const raw = env.DATABASE_URL?.trim();
+  if (!raw) throw new Error('DATABASE_URL is required');
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error('DATABASE_URL is not a valid URL');
+  }
+  if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
+    throw new Error('DATABASE_URL must start with postgres:// or postgresql://');
+  }
+  const sslmode = url.searchParams.get('sslmode');
+  url.searchParams.delete('sslmode');
+
+  let pgSsl: Config['pgSsl'];
+  if (sslmode === 'disable') pgSsl = false;
+  else if (sslmode === 'no-verify') pgSsl = { rejectUnauthorized: false };
+  else pgSsl = env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false;
+
+  return { databaseUrl: url.toString(), pgSsl, pgPoolMax: parsePoolMax(env.PG_POOL_MAX) };
+}
+
+function parsePoolMax(value: string | undefined) {
+  if (value === undefined || value.trim() === '') return DEFAULT_PG_POOL_MAX;
+  const max = Number(value);
+  if (!Number.isInteger(max) || max < 1 || max > 100) throw new Error(`Invalid PG_POOL_MAX: "${value}"`);
+  return max;
 }
 
 function parsePort(value: string | undefined) {
