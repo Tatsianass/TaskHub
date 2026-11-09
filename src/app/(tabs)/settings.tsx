@@ -1,5 +1,5 @@
 import { Redirect, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Switch, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -52,14 +52,11 @@ export default function SettingsScreen() {
 
   const isCustomEscalation = escalationDays !== null && !ESCALATION_PRESETS.some((p) => p.days === escalationDays);
   const [customInputForced, setCustomInputForced] = useState(false);
-  const [customEscalationText, setCustomEscalationText] = useState('');
+  // What the user is typing; null means "show the saved value" (which also covers the persisted
+  // value finishing loading after mount).
+  const [customEscalationDraft, setCustomEscalationDraft] = useState<string | null>(null);
   const showCustomEscalation = isCustomEscalation || customInputForced;
-
-  // Keep the text field in sync once the persisted custom value finishes loading
-  // (it starts out null before AsyncStorage resolves, then jumps straight to its real value).
-  useEffect(() => {
-    if (isCustomEscalation) setCustomEscalationText(String(escalationDays));
-  }, [escalationDays, isCustomEscalation]);
+  const customEscalationText = customEscalationDraft ?? (isCustomEscalation ? String(escalationDays) : '');
 
   if (!user) return <Redirect href="/login" />;
 
@@ -104,7 +101,7 @@ export default function SettingsScreen() {
 
   const handleCustomEscalationChange = (text: string) => {
     const digits = text.replace(/[^0-9]/g, '').slice(0, 3);
-    setCustomEscalationText(digits);
+    setCustomEscalationDraft(digits);
     const parsed = Number(digits);
     if (digits && parsed > 0) setEscalationDays(parsed);
   };
@@ -127,6 +124,7 @@ export default function SettingsScreen() {
       return;
     }
     setCustomInputForced(false);
+    setCustomEscalationDraft(null);
     const preset = ESCALATION_PRESETS.find((p) => p.key === key);
     setEscalationDays(preset ? preset.days : null);
   };

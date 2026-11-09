@@ -5,10 +5,7 @@ function parseISODate(dateStr: string) {
 
 /** The current local date as YYYY-MM-DD. */
 export function todayISODate(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
+  return isoDateOf(Date.now());
 }
 
 /** The local date (YYYY-MM-DD) of a timestamp in ms. */

@@ -7,6 +7,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 
 import { ErrorBanner } from '@/components/error-banner';
 import { GlassPanel } from '@/components/glass-panel';
+import { OptionPill } from '@/components/option-pill';
 import { OverdueBanner } from '@/components/overdue-banner';
 import { CheckCircleIcon, MicIcon, PlusIcon } from '@/components/header-icons';
 import { TaskFormModal } from '@/components/task-form-modal';
@@ -241,35 +242,21 @@ export default function HomeScreen() {
         )}
 
         <View style={styles.tagFilterRow}>
-          <Pressable onPress={() => setActiveTagFilter('all')}>
-            <View
-              style={[
-                styles.tagPill,
-                { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
-                activeTagFilter === 'all' && { backgroundColor: theme.backgroundSelected },
-              ]}>
-              <ThemedText type="small" themeColor={activeTagFilter === 'all' ? 'text' : 'textSecondary'}>
-                {t('tagFilter.all')}
-              </ThemedText>
-            </View>
-          </Pressable>
-          {TAGS.map((tagOption) => {
-            const isActive = activeTagFilter === tagOption.id;
-            return (
-              <Pressable key={tagOption.id} onPress={() => setActiveTagFilter(tagOption.id)}>
-                <View
-                  style={[
-                    styles.tagPill,
-                    { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
-                    isActive && { backgroundColor: theme.backgroundSelected },
-                  ]}>
-                  <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
-                    {tagOption.icon} {t(tagOption.labelKey)}
-                  </ThemedText>
-                </View>
-              </Pressable>
-            );
-          })}
+          <OptionPill
+            label={t('tagFilter.all')}
+            active={activeTagFilter === 'all'}
+            onPress={() => setActiveTagFilter('all')}
+            style={styles.tagPill}
+          />
+          {TAGS.map((tagOption) => (
+            <OptionPill
+              key={tagOption.id}
+              label={`${tagOption.icon} ${t(tagOption.labelKey)}`}
+              active={activeTagFilter === tagOption.id}
+              onPress={() => setActiveTagFilter(tagOption.id)}
+              style={styles.tagPill}
+            />
+          ))}
         </View>
 
         <GlassPanel style={styles.tabs} contentStyle={styles.tabsContent}>
@@ -457,8 +444,6 @@ const styles = StyleSheet.create({
   tagPill: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-    borderRadius: 999,
-    borderWidth: 1,
   },
   tabs: {
     marginBottom: Spacing.three,

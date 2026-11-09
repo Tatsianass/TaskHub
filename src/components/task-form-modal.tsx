@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomSheetModal } from '@/components/bottom-sheet-modal';
 import { CustomDatePill } from '@/components/custom-date-pill';
 import { MicIcon, TrashIcon } from '@/components/header-icons';
+import { OptionPill } from '@/components/option-pill';
 import { PrimaryButton } from '@/components/primary-button';
 import { RemindersSection } from '@/components/reminders-section';
 import { TextField } from '@/components/text-field';
@@ -19,7 +20,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { usePro } from '@/context/pro-context';
 import { useVoiceInput } from '@/hooks/use-voice-input';
 import { hexToRgba } from '@/utils/colors';
-import { dayDiffFromToday } from '@/utils/dates';
+import { addDaysISO, dayDiffFromToday, todayISODate } from '@/utils/dates';
 import { computeQuadrant, effectiveQuadrantId, isImportantQuadrant, isUrgentDate } from '@/utils/priority';
 import { taskOffsets } from '@/utils/reminders';
 import { parseSmartDate, parseSpokenTask, suggestImportance } from '@/utils/smart-task';
@@ -44,23 +45,11 @@ type Props = {
 
 type WhenOption = 'none' | 'today' | 'tomorrow' | 'week' | 'custom';
 
-function toISODate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
 function dateForWhen(when: WhenOption): string | null {
-  if (when === 'today') return toISODate(new Date());
-  if (when === 'tomorrow') return toISODate(addDays(new Date(), 1));
-  if (when === 'week') return toISODate(addDays(new Date(), 7));
+  const today = todayISODate();
+  if (when === 'today') return today;
+  if (when === 'tomorrow') return addDaysISO(today, 1);
+  if (when === 'week') return addDaysISO(today, 7);
   return null;
 }
 
@@ -82,16 +71,63 @@ const WHEN_OPTIONS: { id: Exclude<WhenOption, 'custom'>; labelKey: string }[] = 
   { id: 'none', labelKey: 'calendar.noDate' },
 ];
 
-export function TaskFormModal({
+/**
+ * Bottom-sheet form for creating or editing a task. The form body is remounted on every opening
+ * (and when a different task is edited), so its state always starts from `initialTask`.
+ */
+export function TaskFormModal(props: Props) {
+  const { visible, initialTask, onClose, onDelete } = props;
+  const { t } = useLocale();
+  const theme = useTheme();
+
+  const [session, setSession] = useState(0);
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) setSession((n) => n + 1);
+  }
+
+  return (
+    <BottomSheetModal
+      visible={visible}
+      onClose={onClose}
+      maxHeight="88%"
+      header={
+        <View style={styles.header}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+            <ThemedText style={styles.closeIcon}>✕</ThemedText>
+          </Pressable>
+          <ThemedText type="smallBold" style={styles.headerTitle}>
+            {initialTask ? t('taskForm.editTitle') : t('taskForm.addTitle')}
+          </ThemedText>
+          {onDelete ? (
+            <Pressable
+              onPress={onDelete}
+              hitSlop={8}
+              testID="task-form-delete"
+              style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+              <TrashIcon color={theme.danger} size={18} />
+            </Pressable>
+          ) : (
+            <View style={styles.iconSpacer} />
+          )}
+        </View>
+      }>
+      <TaskFormBody key={`${session}:${initialTask?.id ?? 'new'}`} {...props} />
+    </BottomSheetModal>
+  );
+}
+
+function TaskFormBody({
   visible,
   initialTask,
-  defaultQuadrantId,
   defaultDueDate,
   autoListen = false,
   tasks,
-  onClose,
   onSave,
-  onDelete,
   onToggleTask,
 }: Props) {
   const { t, locale } = useLocale();
@@ -99,21 +135,24 @@ export function TaskFormModal({
   const { isPro, openPaywall } = usePro();
   const { escalationDays } = useEscalationSettings();
   const today = useToday();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState<string | null>(null);
-  const [dueDateAuto, setDueDateAuto] = useState(false);
-  // Set once the user picks a date themselves; from then on the title text no longer changes it.
+  const [title, setTitle] = useState(initialTask?.title ?? '');
+  const [description, setDescription] = useState(initialTask?.description ?? '');
+  // The date picked via the pills/calendar/voice. While creating, a date typed into the title
+  // ("buy milk tomorrow") takes precedence until the user picks one themselves.
+  const [chosenDate, setChosenDate] = useState<string | null>(
+    initialTask ? initialTask.dueDate : (defaultDueDate ?? dateForWhen('today')),
+  );
   const [dueDateManual, setDueDateManual] = useState(false);
-  const [isImportant, setIsImportant] = useState(true);
-  const [importantTouched, setImportantTouched] = useState(false);
-  const [tag, setTag] = useState<TagId | null>(null);
+  const [importantChoice, setImportantChoice] = useState(
+    initialTask ? isImportantQuadrant(initialTask.quadrantId) : true,
+  );
+  const [importantTouched, setImportantTouched] = useState(!!initialTask);
+  const [tag, setTag] = useState<TagId | null>(initialTask?.tag ?? null);
   // A new task starts as all-day with one alert on the day; switching it off leaves no reminder.
-  const [remindOffsets, setRemindOffsets] = useState<number[]>([0]);
-  const [remindTime, setRemindTime] = useState<string | null>(null);
-  const [repeat, setRepeat] = useState<RepeatRule | null>(null);
+  const [remindOffsets, setRemindOffsets] = useState<number[]>(initialTask ? taskOffsets(initialTask) : [0]);
+  const [remindTime, setRemindTime] = useState<string | null>(initialTask?.remindTime ?? null);
+  const [repeat, setRepeat] = useState<RepeatRule | null>(initialTask?.repeat ?? null);
   const [forceAdd, setForceAdd] = useState(false);
-  const justResetRef = useRef(false);
   // What was already typed when dictation started; the phrase heard so far is appended to it.
   const dictationBaseRef = useRef('');
   const voice = useVoiceInput({
@@ -128,8 +167,7 @@ export function TaskFormModal({
       const spoken = parseSpokenTask(text, locale);
       setTitle(join(spoken.title));
       if (spoken.date) {
-        setDueDate(spoken.date);
-        setDueDateAuto(false);
+        setChosenDate(spoken.date);
         setForceAdd(false);
       }
       if (spoken.time) {
@@ -139,23 +177,6 @@ export function TaskFormModal({
     },
   });
   const { start: startListening, abort: abortListening } = voice;
-
-  useEffect(() => {
-    if (!visible) return;
-    justResetRef.current = true;
-    setTitle(initialTask?.title ?? '');
-    setDescription(initialTask?.description ?? '');
-    setDueDate(initialTask ? initialTask.dueDate : (defaultDueDate ?? dateForWhen('today')));
-    setDueDateAuto(false);
-    setDueDateManual(false);
-    setIsImportant(initialTask ? isImportantQuadrant(initialTask.quadrantId) : true);
-    setImportantTouched(!!initialTask);
-    setTag(initialTask?.tag ?? null);
-    setRemindOffsets(initialTask ? taskOffsets(initialTask) : [0]);
-    setRemindTime(initialTask?.remindTime ?? null);
-    setRepeat(initialTask?.repeat ?? null);
-    setForceAdd(false);
-  }, [visible, initialTask, defaultQuadrantId, defaultDueDate]);
 
   useEffect(() => {
     if (!visible) {
@@ -179,33 +200,19 @@ export function TaskFormModal({
     }
   };
 
-  // Smart date + importance suggestion from the title text — only while creating a new task.
-  useEffect(() => {
-    if (!visible || initialTask) return;
-    if (justResetRef.current) {
-      // Skip the pass that still holds the previous session's stale title (reset above hasn't
-      // committed yet); the effect re-runs once `title` actually reflects the reset value.
-      justResetRef.current = false;
-      return;
-    }
-    const trimmed = title.trim();
-    if (!trimmed) return;
-
-    const parsedDate = parseSmartDate(trimmed, locale);
-    if (parsedDate && !dueDateManual) {
-      setDueDate(parsedDate);
-      setDueDateAuto(true);
-    } else if (!parsedDate && dueDateAuto) {
-      setDueDate(defaultDueDate ?? dateForWhen('today'));
-      setDueDateAuto(false);
-    }
-
-    const importance = suggestImportance(trimmed, locale);
-    if (importance !== null && !importantTouched) {
-      setIsImportant(importance);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, locale, initialTask, visible]);
+  // Smart date + importance suggestions from the title text — only while creating a new task.
+  const trimmedTitle = title.trim();
+  const autoDate = useMemo(
+    () => (initialTask || dueDateManual || !trimmedTitle ? null : parseSmartDate(trimmedTitle, locale)),
+    [initialTask, dueDateManual, trimmedTitle, locale],
+  );
+  const suggestedImportance = useMemo(
+    () => (initialTask || importantTouched || !trimmedTitle ? null : suggestImportance(trimmedTitle, locale)),
+    [initialTask, importantTouched, trimmedTitle, locale],
+  );
+  const dueDate = autoDate ?? chosenDate;
+  const dueDateAuto = autoDate !== null;
+  const isImportant = suggestedImportance ?? importantChoice;
 
   const whenOption = inferWhenOption(dueDate);
   const urgent = isUrgentDate(dueDate);
@@ -225,18 +232,15 @@ export function TaskFormModal({
     onSave({ title, description, quadrantId, tag, dueDate, remindOffsets, remindTime, repeat: dueDate ? repeat : null });
   };
 
-  const handleWhenPress = (option: Exclude<WhenOption, 'custom'>) => {
-    setDueDate(dateForWhen(option));
-    setDueDateAuto(false);
+  const pickDate = (value: string | null) => {
+    setChosenDate(value);
     setDueDateManual(true);
     setForceAdd(false);
   };
 
-  const handleCustomDate = (value: string) => {
-    setDueDate(value);
-    setDueDateAuto(false);
-    setDueDateManual(true);
-    setForceAdd(false);
+  const pickImportance = (important: boolean) => {
+    setImportantChoice(important);
+    setImportantTouched(true);
   };
 
   const dateHint =
@@ -252,247 +256,180 @@ export function TaskFormModal({
       : t('taskForm.when.custom');
 
   return (
-    <BottomSheetModal
-      visible={visible}
-      onClose={onClose}
-      maxHeight="88%"
-      header={
-          <View style={styles.header}>
+    <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.form}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive">
+        <TextField
+          value={title}
+          onChangeText={setTitle}
+          placeholder={voice.listening ? t('voice.listening') : t('taskForm.titlePlaceholder')}
+          autoFocus={!autoListen}
+          accessory={
             <Pressable
-              onPress={onClose}
+              onPress={handleMicPress}
               hitSlop={8}
-              style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-              <ThemedText style={styles.closeIcon}>✕</ThemedText>
+              accessibilityRole="button"
+              accessibilityLabel={voice.listening ? t('voice.stop') : t('voice.start')}
+              style={[
+                styles.micButton,
+                voice.listening
+                  ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                  : { backgroundColor: theme.glassBg, borderColor: theme.glassBorder },
+              ]}>
+              <MicIcon color={voice.listening ? theme.background : theme.primary} size={18} />
             </Pressable>
-            <ThemedText type="smallBold" style={styles.headerTitle}>
-              {initialTask ? t('taskForm.editTitle') : t('taskForm.addTitle')}
-            </ThemedText>
-            {onDelete ? (
-              <Pressable
-                onPress={onDelete}
-                hitSlop={8}
-                testID="task-form-delete"
-                style={[styles.iconButton, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-                <TrashIcon color={theme.danger} size={18} />
+          }
+        />
+        {!!voice.error && (
+          <ThemedText type="small" style={[styles.hint, { color: theme.danger }]}>
+            {t(voice.error === 'denied' ? 'voice.denied' : 'voice.error')}
+          </ThemedText>
+        )}
+        <TextField label={t('taskForm.descriptionLabel')} value={description} onChangeText={setDescription} />
+
+        <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+          {t('taskForm.whenLabel')}
+        </ThemedText>
+        <View style={styles.pillRow}>
+          {WHEN_OPTIONS.map((option) => (
+            <OptionPill
+              key={option.id}
+              label={t(option.labelKey)}
+              active={whenOption === option.id}
+              onPress={() => pickDate(dateForWhen(option.id))}
+              style={styles.pill}
+            />
+          ))}
+          <CustomDatePill
+            active={whenOption === 'custom'}
+            label={customDateLabel}
+            icon="📅"
+            value={whenOption === 'custom' ? dueDate : null}
+            onChange={pickDate}
+          />
+        </View>
+        {!!dateHint && (
+          <ThemedText type="small" themeColor="primary" style={styles.hint}>
+            {dateHint}
+          </ThemedText>
+        )}
+
+        <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+          {t('taskForm.repeatLabel')}
+        </ThemedText>
+        <View style={[styles.pillRow, !dueDate && styles.disabled]} testID="repeat-options">
+          {[null, ...REPEAT_RULES].map((rule) => (
+            <OptionPill
+              key={rule ?? 'none'}
+              label={t(`repeat.${rule ?? 'none'}`)}
+              active={(dueDate ? repeat : null) === rule}
+              disabled={!dueDate}
+              onPress={() => setRepeat(rule)}
+              testID={`repeat-${rule ?? 'none'}`}
+              style={styles.pill}
+            />
+          ))}
+        </View>
+        {!dueDate && (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
+            {t('taskForm.repeatNeedsDate')}
+          </ThemedText>
+        )}
+
+        <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+          {t('taskForm.importanceLabel')}
+        </ThemedText>
+        <View style={[styles.segmented, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+          {[
+            { important: false, labelKey: 'taskForm.importanceLow' },
+            { important: true, labelKey: 'taskForm.importanceHigh' },
+          ].map(({ important, labelKey }) => {
+            const selected = isImportant === important;
+            return (
+              <Pressable key={labelKey} style={styles.segmentWrapper} onPress={() => pickImportance(important)}>
+                <View style={[styles.segment, selected && { backgroundColor: theme.backgroundSelected }]}>
+                  <ThemedText type="smallBold" themeColor={selected ? 'text' : 'textSecondary'}>
+                    {t(labelKey)}
+                  </ThemedText>
+                </View>
               </Pressable>
-            ) : (
-              <View style={styles.iconSpacer} />
-            )}
+            );
+          })}
+        </View>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
+          {t('taskForm.importanceHint')}
+        </ThemedText>
+
+        <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+          {t('taskForm.tagLabel')}
+        </ThemedText>
+        <View style={styles.categoryRow}>
+          {TAGS.map((tagOption) => (
+            <OptionPill
+              key={tagOption.id}
+              active={tag === tagOption.id}
+              onPress={() => setTag(tagOption.id)}
+              label={t(tagOption.labelKey)}
+              style={styles.pill}
+              wrapperStyle={styles.categoryItem}>
+              <ThemedText style={styles.pillIcon}>{tagOption.icon}</ThemedText>
+            </OptionPill>
+          ))}
+          <OptionPill
+            active={tag === null}
+            onPress={() => setTag(null)}
+            label={t('tag.none')}
+            style={styles.pill}
+            wrapperStyle={styles.categoryItem}
+          />
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
+
+        <RemindersSection
+          offsets={remindOffsets}
+          onOffsetsChange={setRemindOffsets}
+          time={remindTime}
+          onTimeChange={setRemindTime}
+          dueDate={dueDate}
+        />
+
+        {isOverLimit && !forceAdd && (
+          <View
+            style={[
+              styles.swapPanel,
+              { backgroundColor: hexToRgba(theme.danger, 0.12), borderColor: hexToRgba(theme.danger, 0.3) },
+            ]}>
+            <ThemedText type="smallBold">{t('taskForm.swapTitle', { count: activeTasksInQuadrant.length })}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {t('taskForm.swapSubtitle')}
+            </ThemedText>
+            {activeTasksInQuadrant.map((task) => (
+              <Pressable key={task.id} style={styles.swapRow} onPress={() => onToggleTask(task.id)}>
+                <View style={[styles.swapCheckbox, { borderColor: theme.border }]} />
+                <ThemedText type="small" numberOfLines={1} style={styles.swapRowText}>
+                  {task.title}
+                </ThemedText>
+              </Pressable>
+            ))}
+            <Pressable onPress={() => setForceAdd(true)} hitSlop={8} style={styles.swapForce}>
+              <ThemedText type="small" themeColor="primary">
+                {t('taskForm.swapForceAdd')}
+              </ThemedText>
+            </Pressable>
           </View>
-            }>
-      <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.form}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive">
-            <TextField
-              value={title}
-              onChangeText={setTitle}
-              placeholder={voice.listening ? t('voice.listening') : t('taskForm.titlePlaceholder')}
-              autoFocus={!autoListen}
-              accessory={
-                <Pressable
-                  onPress={handleMicPress}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={voice.listening ? t('voice.stop') : t('voice.start')}
-                  style={[
-                    styles.micButton,
-                    voice.listening
-                      ? { backgroundColor: theme.primary, borderColor: theme.primary }
-                      : { backgroundColor: theme.glassBg, borderColor: theme.glassBorder },
-                  ]}>
-                  <MicIcon color={voice.listening ? theme.background : theme.primary} size={18} />
-                </Pressable>
-              }
-            />
-            {!!voice.error && (
-              <ThemedText type="small" style={[styles.hint, { color: theme.danger }]}>
-                {t(voice.error === 'denied' ? 'voice.denied' : 'voice.error')}
-              </ThemedText>
-            )}
-            <TextField
-              label={t('taskForm.descriptionLabel')}
-              value={description}
-              onChangeText={setDescription}
-            />
+        )}
 
-            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-              {t('taskForm.whenLabel')}
-            </ThemedText>
-            <View style={styles.pillRow}>
-              {WHEN_OPTIONS.map((option) => (
-                <Pressable key={option.id} onPress={() => handleWhenPress(option.id)}>
-                  <View
-                    style={[
-                      styles.pill,
-                      { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
-                      whenOption === option.id && { backgroundColor: theme.backgroundSelected },
-                    ]}>
-                    <ThemedText type="small" themeColor={whenOption === option.id ? 'text' : 'textSecondary'}>
-                      {t(option.labelKey)}
-                    </ThemedText>
-                  </View>
-                </Pressable>
-              ))}
-              <CustomDatePill
-                active={whenOption === 'custom'}
-                label={customDateLabel}
-                icon="📅"
-                value={whenOption === 'custom' ? dueDate : null}
-                onChange={handleCustomDate}
-              />
-            </View>
-            {!!dateHint && (
-              <ThemedText type="small" themeColor="primary" style={styles.hint}>
-                {dateHint}
-              </ThemedText>
-            )}
-
-            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-              {t('taskForm.repeatLabel')}
-            </ThemedText>
-            <View style={[styles.pillRow, !dueDate && styles.disabled]} testID="repeat-options">
-              {[null, ...REPEAT_RULES].map((rule) => {
-                const active = (dueDate ? repeat : null) === rule;
-                return (
-                  <Pressable key={rule ?? 'none'} disabled={!dueDate} onPress={() => setRepeat(rule)} testID={`repeat-${rule ?? 'none'}`}>
-                    <View
-                      style={[
-                        styles.pill,
-                        { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
-                        active && { backgroundColor: theme.backgroundSelected },
-                      ]}>
-                      <ThemedText type="small" themeColor={active ? 'text' : 'textSecondary'}>
-                        {t(`repeat.${rule ?? 'none'}`)}
-                      </ThemedText>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {!dueDate && (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-                {t('taskForm.repeatNeedsDate')}
-              </ThemedText>
-            )}
-
-            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-              {t('taskForm.importanceLabel')}
-            </ThemedText>
-            <View style={[styles.segmented, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
-              <Pressable
-                style={styles.segmentWrapper}
-                onPress={() => {
-                  setIsImportant(false);
-                  setImportantTouched(true);
-                }}>
-                <View style={[styles.segment, !isImportant && { backgroundColor: theme.backgroundSelected }]}>
-                  <ThemedText type="smallBold" themeColor={!isImportant ? 'text' : 'textSecondary'}>
-                    {t('taskForm.importanceLow')}
-                  </ThemedText>
-                </View>
-              </Pressable>
-              <Pressable
-                style={styles.segmentWrapper}
-                onPress={() => {
-                  setIsImportant(true);
-                  setImportantTouched(true);
-                }}>
-                <View style={[styles.segment, isImportant && { backgroundColor: theme.backgroundSelected }]}>
-                  <ThemedText type="smallBold" themeColor={isImportant ? 'text' : 'textSecondary'}>
-                    {t('taskForm.importanceHigh')}
-                  </ThemedText>
-                </View>
-              </Pressable>
-            </View>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-              {t('taskForm.importanceHint')}
-            </ThemedText>
-
-            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-              {t('taskForm.tagLabel')}
-            </ThemedText>
-            <View style={styles.categoryRow}>
-              {TAGS.map((tagOption) => {
-                const isActive = tag === tagOption.id;
-                return (
-                  <Pressable key={tagOption.id} style={styles.categoryItem} onPress={() => setTag(tagOption.id)}>
-                    <View
-                      style={[
-                        styles.pill,
-                        { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
-                        isActive && { backgroundColor: theme.backgroundSelected },
-                      ]}>
-                      <ThemedText style={styles.pillIcon}>{tagOption.icon}</ThemedText>
-                      <ThemedText type="small" themeColor={isActive ? 'text' : 'textSecondary'}>
-                        {t(tagOption.labelKey)}
-                      </ThemedText>
-                    </View>
-                  </Pressable>
-                );
-              })}
-              <Pressable style={styles.categoryItem} onPress={() => setTag(null)}>
-                <View
-                  style={[
-                    styles.pill,
-                    { borderColor: theme.glassBorder, backgroundColor: theme.glassBg },
-                    tag === null && { backgroundColor: theme.backgroundSelected },
-                  ]}>
-                  <ThemedText type="small" themeColor={tag === null ? 'text' : 'textSecondary'}>
-                    {t('tag.none')}
-                  </ThemedText>
-                </View>
-              </Pressable>
-            </View>
-
-            <View style={[styles.divider, { backgroundColor: theme.glassBorder }]} />
-
-            <RemindersSection
-              offsets={remindOffsets}
-              onOffsetsChange={setRemindOffsets}
-              time={remindTime}
-              onTimeChange={setRemindTime}
-              dueDate={dueDate}
-            />
-
-            {isOverLimit && !forceAdd && (
-              <View
-                style={[
-                  styles.swapPanel,
-                  { backgroundColor: hexToRgba(theme.danger, 0.12), borderColor: hexToRgba(theme.danger, 0.3) },
-                ]}>
-                <ThemedText type="smallBold">
-                  {t('taskForm.swapTitle', { count: activeTasksInQuadrant.length })}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {t('taskForm.swapSubtitle')}
-                </ThemedText>
-                {activeTasksInQuadrant.map((task) => (
-                  <Pressable key={task.id} style={styles.swapRow} onPress={() => onToggleTask(task.id)}>
-                    <View style={[styles.swapCheckbox, { borderColor: theme.border }]} />
-                    <ThemedText type="small" numberOfLines={1} style={styles.swapRowText}>
-                      {task.title}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-                <Pressable onPress={() => setForceAdd(true)} hitSlop={8} style={styles.swapForce}>
-                  <ThemedText type="small" themeColor="primary">
-                    {t('taskForm.swapForceAdd')}
-                  </ThemedText>
-                </Pressable>
-              </View>
-            )}
-
-            <PrimaryButton
-              title={initialTask ? t('taskForm.save') : t('taskForm.addButton')}
-              onPress={handleSave}
-              disabled={!canSave}
-            />
-          </ScrollView>
-      </SafeAreaView>
-    </BottomSheetModal>
+        <PrimaryButton
+          title={initialTask ? t('taskForm.save') : t('taskForm.addButton')}
+          onPress={handleSave}
+          disabled={!canSave}
+        />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
