@@ -12,7 +12,7 @@ export type ProFeature = 'voice' | 'reminders' | 'widgets' | 'themes' | 'general
  * the free plan keeps working forever, Pro (a store free trial of 14 days set up in App Store Connect /
  * Google Play, then a monthly subscription) unlocks the rest.
  */
-export const ALL_FEATURES_FREE = true;
+export const ALL_FEATURES_FREE = false;
 
 /** Reminders per task on the free plan. */
 export const FREE_REMINDERS = 1;
