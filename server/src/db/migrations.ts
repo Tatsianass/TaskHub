@@ -66,7 +66,18 @@ ALTER TABLE tasks ADD COLUMN repeat TEXT
   CHECK (repeat IS NULL OR repeat IN ('daily','weekdays','weekly','monthly','yearly'));
 `;
 
-export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL];
+// Supabase exposes every public table through its REST API to the anon/authenticated roles.
+// This server connects directly (DATABASE_URL, table owner) and never uses that API, so turn on
+// RLS with no policies: the API roles get nothing, while the owner role still bypasses RLS.
+const V3_SQL = `
+ALTER TABLE users             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessions          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE birthdays         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE schema_migrations ENABLE ROW LEVEL SECURITY;
+`;
+
+export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL];
 
 /** Arbitrary constant; every instance takes the same advisory lock while migrating. */
 const MIGRATION_LOCK_ID = 727274;
