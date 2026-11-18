@@ -23,7 +23,7 @@ function trialDays(pkg: PurchasesPackage): number | null {
 
 /** The plan cards, the buy button, the price disclosure and the restore / legal links, shared by the paywall and the subscription page. */
 export function PlansPanel() {
-  const { isPro, storeAvailable, packages, loadPackages, purchase, restore, devToggle } = usePro();
+  const { isPro, storeAvailable, packages, packagesError, loadPackages, purchase, restore, devToggle } = usePro();
   const { t } = useLocale();
   const theme = useTheme();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -101,6 +101,7 @@ export function PlansPanel() {
         ) : (
           <ThemedText type="small" themeColor="textSecondary" style={styles.centered}>
             {t(storeAvailable ? 'pro.loading' : 'pro.storeUnavailable')}
+            {storeAvailable && packagesError ? `\n${packagesError}` : ''}
           </ThemedText>
         ))}
 

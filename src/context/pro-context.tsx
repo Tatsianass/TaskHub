@@ -55,6 +55,8 @@ type ProContextValue = {
   /** The store is connected (a key is set and the native module is there). */
   storeAvailable: boolean;
   packages: PurchasesPackage[];
+  /** Why the plans could not be loaded (null while loading or when they loaded fine); shown so a misconfigured store is visible. */
+  packagesError: string | null;
   loadPackages: () => void;
   openPaywall: (feature?: ProFeature) => void;
   closePaywall: () => void;
@@ -74,6 +76,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
   const [info, setInfo] = useState<CustomerInfo | null>(null);
   const [ready, setReady] = useState(!purchases);
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
+  const [packagesError, setPackagesError] = useState<string | null>(null);
   const [paywallFeature, setPaywallFeature] = useState<ProFeature | null>(null);
   const [devPro, setDevPro] = useState(false);
 
@@ -100,8 +103,21 @@ export function ProProvider({ children }: { children: ReactNode }) {
     if (!purchases) return;
     purchases
       .getOfferings()
-      .then((offerings) => setPackages(offerings.current?.availablePackages ?? []))
-      .catch(() => setPackages([]));
+      .then((offerings) => {
+        const list = offerings.current?.availablePackages ?? [];
+        setPackages(list);
+        setPackagesError(
+          list.length > 0
+            ? null
+            : offerings.current
+              ? 'The current offering has no packages'
+              : 'No current offering is set in RevenueCat',
+        );
+      })
+      .catch((e: unknown) => {
+        setPackages([]);
+        setPackagesError(e instanceof Error ? e.message : String(e));
+      });
   }, []);
 
   const purchase = useCallback(
@@ -159,6 +175,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
       identify,
       storeAvailable: !!purchases,
       packages,
+      packagesError,
       loadPackages,
       openPaywall,
       closePaywall,
@@ -167,7 +184,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
       restore,
       devToggle,
     }),
-    [isPro, ready, identify, packages, loadPackages, openPaywall, closePaywall, paywallFeature, purchase, restore, devToggle],
+    [isPro, ready, identify, packages, packagesError, loadPackages, openPaywall, closePaywall, paywallFeature, purchase, restore, devToggle],
   );
 
   return (
