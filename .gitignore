@@ -54,3 +54,6 @@ server/node_modules/
 # Playwright
 /test-results/
 /playwright-report/
+
+# Python (e2e)
+__pycache__/
