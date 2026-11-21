@@ -9,7 +9,7 @@ import {
 } from '../errors.js';
 import type { SessionsRepo } from '../repos/sessions.js';
 import type { TasksRepo } from '../repos/tasks.js';
-import { parseTask, parseTaskUpdate } from '../validation.js';
+import { parseTask, parseTaskPatch, parseTaskUpdate } from '../validation.js';
 
 /** A task id that doesn't exist or belongs to another user is 404 either way (R4.2). */
 const notFound = () => new ApiError(404, 'NOT_FOUND');
@@ -40,6 +40,19 @@ export function tasksRouter(tasks: TasksRepo, sessions: SessionsRepo) {
     res.json(task);
   };
 
+  const patch: RequestHandler<{ id: string }> = async (req, res) => {
+    const fields = parseTaskPatch(req.body);
+    let task;
+    try {
+      task = await tasks.patch(req.userId!, req.params.id, fields);
+    } catch (error) {
+      if (isPgError(error, PG_CHECK_VIOLATION)) throw new ApiError(400, 'INVALID_TASK');
+      throw error;
+    }
+    if (!task) throw notFound();
+    res.json(task);
+  };
+
   const remove: RequestHandler<{ id: string }> = async (req, res) => {
     if (!(await tasks.delete(req.userId!, req.params.id))) throw notFound();
     res.status(204).end();
@@ -48,6 +61,7 @@ export function tasksRouter(tasks: TasksRepo, sessions: SessionsRepo) {
   router.get('/', list);
   router.post('/', create);
   router.put('/:id', update);
+  router.patch('/:id', patch);
   router.delete('/:id', remove);
 
   return router;

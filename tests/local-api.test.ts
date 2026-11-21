@@ -158,3 +158,14 @@ describe('local API vs server parity gaps (validation)', () => {
     assert.equal(created.id, 'bare');
   });
 });
+
+describe('local API: PATCH merges only the sent fields', () => {
+  test('keeps untouched fields, ignores a body id', async () => {
+    await call('/tasks', 'POST', task('a', { title: 'Keep me', done: false }));
+    const patched = await call('/tasks/a', 'PATCH', { id: 'zzz', done: true });
+    assert.deepEqual(patched, { id: 'a', title: 'Keep me', done: true });
+    assert.deepEqual(await call('/tasks'), [{ id: 'a', title: 'Keep me', done: true }]);
+  });
+
+  test('unknown id -> 404', async () => rejects(call('/tasks/nope', 'PATCH', { done: true }), 'NOT_FOUND', 404));
+});

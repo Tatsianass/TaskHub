@@ -18,6 +18,21 @@ type TaskRow = {
   repeat: RepeatRule | null;
 };
 
+/** The column each `PATCH`-able field is stored in. */
+const PATCH_COLUMNS: Record<keyof TaskUpdate, string> = {
+  title: 'title',
+  description: 'description',
+  quadrantId: 'quadrant_id',
+  tag: 'tag',
+  done: 'done',
+  completedAt: 'completed_at',
+  dueDate: 'due_date',
+  remindMe: 'remind_me',
+  remindTime: 'remind_time',
+  remindOffsets: 'remind_offsets',
+  repeat: 'repeat',
+};
+
 const COLUMNS =
   'id, title, description, quadrant_id, tag, done, completed_at, created_at, due_date, remind_me, remind_time, remind_offsets, repeat';
 
@@ -133,6 +148,24 @@ export function tasksRepo(db: Queryable) {
           id,
           userId,
         ],
+      );
+      return rows[0] && toTask(rows[0]);
+    },
+
+    /**
+     * Changes only the given fields. Returns the updated task, or `undefined` if the user has no
+     * task `id`. Column names come from `PATCH_COLUMNS`, never from the request.
+     */
+    async patch(userId: string, id: string, fields: Partial<TaskUpdate>): Promise<Task | undefined> {
+      const keys = (Object.keys(PATCH_COLUMNS) as (keyof TaskUpdate)[]).filter((key) => fields[key] !== undefined);
+      if (keys.length === 0) return undefined;
+      const values = keys.map((key) => (key === 'remindOffsets' ? JSON.stringify(fields[key]) : fields[key]));
+      const assignments = keys.map((key, index) => `${PATCH_COLUMNS[key]} = $${index + 1}`).join(', ');
+      const { rows } = await db.query<TaskRow>(
+        `UPDATE tasks SET ${assignments}
+         WHERE id = $${keys.length + 1} AND user_id = $${keys.length + 2}
+         RETURNING ${COLUMNS}`,
+        [...values, id, userId],
       );
       return rows[0] && toTask(rows[0]);
     },

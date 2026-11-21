@@ -112,6 +112,44 @@ describe('/tasks CRUD', () => {
     assert.deepEqual(res.body, { ...task, done: true });
   });
 
+  test('PATCH changes only the sent fields', async () => {
+    const { token } = await registerUser(app);
+    const task = makeTask({ title: 'Edited elsewhere', remindOffsets: [0, 15], remindMe: true });
+    await app.request('POST', '/tasks', { token, body: task });
+    const res = await app.request('PATCH', `/tasks/${task.id}`, {
+      token,
+      body: { done: true, completedAt: 42, title: 'Stale title?', id: 'x', createdAt: 1 },
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { ...task, title: 'Stale title?', done: true, completedAt: 42 });
+    const only = await app.request('PATCH', `/tasks/${task.id}`, { token, body: { remindOffsets: [5] } });
+    assert.deepEqual(only.body, { ...task, title: 'Stale title?', done: true, completedAt: 42, remindOffsets: [5] });
+  });
+
+  test('PATCH rejects an empty body, a bad field and an unknown id', async () => {
+    const { token } = await registerUser(app);
+    const task = makeTask();
+    await app.request('POST', '/tasks', { token, body: task });
+    for (const body of [{}, { id: 'x' }, { quadrantId: 'someday' }, { title: '  ' }, []]) {
+      const res = await app.request('PATCH', `/tasks/${task.id}`, { token, body });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error, 'INVALID_TASK');
+    }
+    const missing = await app.request('PATCH', '/tasks/nope', { token, body: { done: true } });
+    assert.equal(missing.status, 404);
+  });
+
+  test('PATCH cannot touch another user\'s task', async () => {
+    const owner = await registerUser(app);
+    const other = await registerUser(app);
+    const task = makeTask();
+    await app.request('POST', '/tasks', { token: owner.token, body: task });
+    const res = await app.request('PATCH', `/tasks/${task.id}`, { token: other.token, body: { done: true } });
+    assert.equal(res.status, 404);
+    const list = await app.request('GET', '/tasks', { token: owner.token });
+    assert.equal(list.body[0].done, false);
+  });
+
   test('POST trims the title', async () => {
     const { token } = await registerUser(app);
     const res = await app.request('POST', '/tasks', { token, body: makeTask({ title: '  Padded  ' }) });

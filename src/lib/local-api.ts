@@ -63,6 +63,14 @@ async function collection<T extends Item>(key: string, id: string | null, opts: 
       await write(key, items.map((item) => (item.id === id ? { ...(opts.body as T), id } : item)));
       return opts.body;
     }
+    if (id !== null && method === 'PATCH') {
+      if (typeof opts.body !== 'object' || opts.body === null) throw new ApiError('INVALID_TASK', 400);
+      const existing = items.find((item) => item.id === id);
+      if (!existing) throw new ApiError('NOT_FOUND', 404);
+      const merged = { ...existing, ...(opts.body as Partial<T>), id } as T;
+      await write(key, items.map((item) => (item.id === id ? merged : item)));
+      return merged;
+    }
     if (id !== null && method === 'DELETE') {
       if (!items.some((item) => item.id === id)) throw new ApiError('NOT_FOUND', 404);
       await write(key, items.filter((item) => item.id !== id));

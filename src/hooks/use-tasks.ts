@@ -1,9 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { useServerList } from '@/hooks/use-server-list';
 import { api } from '@/lib/api';
 import { todayISODate } from '@/utils/dates';
 import { isFollowUp, nextOccurrence } from '@/utils/recurrence';
+import { diffTask } from '@/utils/task-patch';
 import type { QuadrantId, RepeatRule, TagId, Task } from '@/types/task';
 
 export type TaskDraft = {
@@ -34,6 +35,10 @@ const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
 
 export function useTasks() {
   const { items: tasks, isLoaded, error, clearError, mutate, refresh } = useServerList<Task>('/tasks');
+  const toggledSinceRender = useRef(new Set<string>());
+  useEffect(() => {
+    toggledSinceRender.current.clear();
+  }, [tasks]);
 
   const insertTask = useCallback(
     (task: Task) =>
@@ -72,9 +77,11 @@ export function useTasks() {
       const previous = tasks.find((task) => task.id === id);
       if (!previous) return;
       const next = change(previous);
+      const patch = diffTask(previous, next);
+      if (Object.keys(patch).length === 0) return;
       mutate(
         (prev) => prev.map((task) => (task.id === id ? next : task)),
-        () => api(taskPath(id), { method: 'PUT', body: next }),
+        () => api(taskPath(id), { method: 'PATCH', body: patch }),
         (prev) => prev.map((task) => (task.id === id ? previous : task)),
       );
     },
@@ -120,6 +127,10 @@ export function useTasks() {
     (id: string) => {
       const task = tasks.find((item) => item.id === id);
       if (!task) return;
+      // `tasks` is this render's snapshot: a second tap before the next render would act on the
+      // same state and, for a repeating task, create its next occurrence twice.
+      if (toggledSinceRender.current.has(id)) return;
+      toggledSinceRender.current.add(id);
       replaceTask(id, (current) => ({ ...current, done: !current.done, completedAt: current.done ? null : Date.now() }));
       if (!task.repeat) return;
       if (task.done) {

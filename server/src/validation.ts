@@ -163,6 +163,25 @@ const taskUpdateChecks: { [K in keyof TaskUpdate]: Check<TaskUpdate[K]> } = {
   repeat: optionalRepeat,
 };
 
+/**
+ * The body of `PATCH /tasks/:id`: any non-empty subset of the `PUT` fields. Only the fields that
+ * are present are validated and returned, so a client holding a stale copy changes just what it
+ * meant to (e.g. `done`) instead of overwriting edits made on another device. Throws 400 `INVALID_TASK`.
+ */
+export function parseTaskPatch(body: unknown): Partial<TaskUpdate> {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) throw new ApiError(400, 'INVALID_TASK');
+  const fields = body as Fields;
+  const patch: Record<string, unknown> = {};
+  for (const key of Object.keys(taskUpdateChecks) as (keyof TaskUpdate & string)[]) {
+    if (fields[key] === undefined) continue;
+    const value = (taskUpdateChecks[key] as Check<unknown>)(fields[key]);
+    if (value === undefined) throw new ApiError(400, 'INVALID_TASK');
+    patch[key] = value;
+  }
+  if (Object.keys(patch).length === 0) throw new ApiError(400, 'INVALID_TASK');
+  return patch as Partial<TaskUpdate>;
+}
+
 /** A full `Task` (POST /tasks, /import). Throws 400 `INVALID_TASK`. */
 export function parseTask(body: unknown): Task {
   const task = parseObject<Task>(
