@@ -3,11 +3,14 @@ import { AppState } from 'react-native';
 
 import { useAuth } from '@/context/auth-context';
 import { api, ApiError } from '@/lib/api';
+import { LOCAL_MODE } from '@/lib/config';
+import { readListCache, writeListCache } from '@/lib/list-cache';
 
 // The list always belongs to one user. While `owner` isn't the signed-in user
 // (just logged in, switched account, logged out) the hook reports nothing
 // loaded, and late responses or rollbacks for a previous user are dropped.
-type State<T> = { owner: string; items: T[]; isLoaded: boolean; error: string | null };
+// `cached`: the items come from the on-device copy and haven't been confirmed by the server yet.
+type State<T> = { owner: string; items: T[]; isLoaded: boolean; error: string | null; cached?: boolean };
 
 type Change<T> = (prev: T[]) => T[];
 
@@ -58,6 +61,31 @@ export function useServerList<T>(path: string) {
     };
   }, [load]);
 
+  // Stale-while-revalidate (server mode): show the last copy saved on this device straight away
+  // and let the fetch above replace it. It never overrides a fetched list, only an empty failed one.
+  useEffect(() => {
+    if (LOCAL_MODE || !userId) return;
+    let cancelled = false;
+    readListCache<T>(userId, path).then((items) => {
+      if (cancelled || !items) return;
+      setState((prev) => {
+        if (prev && prev.owner === userId && !(prev.error && prev.items.length === 0)) return prev;
+        return { owner: userId, items, isLoaded: true, error: prev?.owner === userId ? prev.error : null, cached: true };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [path, userId]);
+
+  // Keep the on-device copy current: after each confirmed fetch and each local change. Not while
+  // showing the copy itself, nor after an error (the list may then hold a rolled-back guess).
+  useEffect(() => {
+    if (LOCAL_MODE || !userId || !state || state.owner !== userId) return;
+    if (state.cached || state.error || !state.isLoaded) return;
+    writeListCache(userId, path, state.items);
+  }, [state, path, userId]);
+
   useEffect(() => {
     let wasActive = AppState.currentState === 'active';
     const subscription = AppState.addEventListener('change', (next) => {
@@ -79,7 +107,7 @@ export function useServerList<T>(path: string) {
       const apply = (change: Change<T>, error?: string) =>
         setState((prev) =>
           prev && prev.owner === userId
-            ? { ...prev, items: change(prev.items), error: error ?? prev.error }
+            ? { ...prev, items: change(prev.items), error: error ?? prev.error, cached: false }
             : prev,
         );
       apply(optimistic);

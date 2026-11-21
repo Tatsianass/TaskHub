@@ -6,6 +6,7 @@ import { useLocale } from '@/context/locale-context';
 import { LOCAL_MODE, LOCAL_USER } from '@/lib/config';
 import { api, ApiError, setAuthToken, setOnUnauthorized } from '@/lib/api';
 import { offerLegacyImport } from '@/lib/legacy-import';
+import { clearListCache } from '@/lib/list-cache';
 import { clearToken, getToken, setToken } from '@/lib/token-storage';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -43,7 +44,7 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(async () => {
     setAuthToken(null);
     setUser(null);
-    await clearToken();
+    await Promise.all([clearToken(), clearListCache()]);
   }, []);
 
   useEffect(() => {
