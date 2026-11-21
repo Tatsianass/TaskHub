@@ -44,12 +44,28 @@ export function addDaysISO(dateStr: string, days: number): string {
   return isoDateOf(date.getTime());
 }
 
-export function nextBirthdayDayDiff(dateStr: string, todayStr: string = todayISODate()): number {
+function isLeapYear(year: number) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+/** Month (1-12) and day of a birthday in `year`; a Feb 29 birthday falls on Feb 28 in non-leap years. */
+export function birthdayMonthDay(dateStr: string, year: number): { month: number; day: number } {
   const [, month, day] = dateStr.split('-').map(Number);
+  if (month === 2 && day === 29 && !isLeapYear(year)) return { month: 2, day: 28 };
+  return { month, day };
+}
+
+/** The birthday's date (YYYY-MM-DD) in `year`. */
+export function birthdayInYear(dateStr: string, year: number): string {
+  const { month, day } = birthdayMonthDay(dateStr, year);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+export function nextBirthdayDayDiff(dateStr: string, todayStr: string = todayISODate()): number {
   const today = parseISODate(todayStr);
-  let next = new Date(today.getFullYear(), month - 1, day);
+  let next = parseISODate(birthdayInYear(dateStr, today.getFullYear()));
   if (next.getTime() < today.getTime()) {
-    next = new Date(today.getFullYear() + 1, month - 1, day);
+    next = parseISODate(birthdayInYear(dateStr, today.getFullYear() + 1));
   }
   return Math.round((next.getTime() - today.getTime()) / 86400000);
 }

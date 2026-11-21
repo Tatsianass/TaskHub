@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { Platform } from 'react-native';
 
 import { PaywallSheet } from '@/components/paywall-sheet';
+import { trialOf, type Trial } from '@/utils/trial';
 
 /** What the paywall was opened for; it picks the headline the user sees. */
 export type ProFeature = 'voice' | 'reminders' | 'widgets' | 'themes' | 'general';
@@ -48,6 +49,8 @@ export type PurchaseOutcome = 'purchased' | 'cancelled' | 'failed';
 type ProContextValue = {
   /** True during the free trial and for paying users. */
   isPro: boolean;
+  /** The free trial that is running right now (null for paying users and the free plan). */
+  trial: Trial | null;
   /** False until the first answer from the store, so Pro features don't flash locked at launch. */
   ready: boolean;
   /** Ties purchases to the signed-in account (null on sign-out), so the subscription follows it across devices. */
@@ -165,12 +168,20 @@ export function ProProvider({ children }: { children: ReactNode }) {
   const closePaywall = useCallback(() => setPaywallFeature(null), []);
 
   const isPro = ALL_FEATURES_FREE || !!info?.entitlements.active[ENTITLEMENT] || devPro;
+  // Keyed on the timestamp, so the value only changes when the trial itself does.
+  const trialEndsAt = trialOf(info?.entitlements.active[ENTITLEMENT])?.endsAt.getTime() ?? null;
+  const trialWillRenew = info?.entitlements.active[ENTITLEMENT]?.willRenew ?? false;
+  const trial = useMemo<Trial | null>(
+    () => (trialEndsAt === null ? null : { endsAt: new Date(trialEndsAt), willRenew: trialWillRenew }),
+    [trialEndsAt, trialWillRenew],
+  );
   const toggleDev = useCallback(() => setDevPro((value) => !value), []);
   const devToggle = __DEV__ && !purchases ? toggleDev : null;
 
   const value = useMemo<ProContextValue>(
     () => ({
       isPro,
+      trial,
       ready,
       identify,
       storeAvailable: !!purchases,
@@ -184,7 +195,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
       restore,
       devToggle,
     }),
-    [isPro, ready, identify, packages, packagesError, loadPackages, openPaywall, closePaywall, paywallFeature, purchase, restore, devToggle],
+    [isPro, trial, ready, identify, packages, packagesError, loadPackages, openPaywall, closePaywall, paywallFeature, purchase, restore, devToggle],
   );
 
   return (

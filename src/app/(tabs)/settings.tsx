@@ -1,6 +1,6 @@
 import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Switch, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, Switch, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DropdownField } from '@/components/dropdown-field';
@@ -11,6 +11,7 @@ import { TextField } from '@/components/text-field';
 import { TimePickerSheet } from '@/components/time-picker-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { QUADRANTS } from '@/constants/quadrants';
+import { MANAGE_SUBSCRIPTIONS_URL } from '@/constants/store';
 import { PRO_THEMES, Spacing, type ThemeMode } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
@@ -81,8 +82,13 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(t('settings.deleteAccountTitle'), t('settings.deleteAccountMessage'), [
+    // The store subscription is not tied to our account: deleting the account leaves it billing.
+    const message = isPro
+      ? `${t('settings.deleteAccountMessage')}\n\n${t('settings.deleteAccountSubscription')}`
+      : t('settings.deleteAccountMessage');
+    Alert.alert(t('settings.deleteAccountTitle'), message, [
       { text: t('completed.cancel'), style: 'cancel' },
+      ...(isPro ? [{ text: t('pro.manage'), onPress: () => void Linking.openURL(MANAGE_SUBSCRIPTIONS_URL) }] : []),
       {
         text: t('settings.deleteAccount'),
         style: 'destructive',

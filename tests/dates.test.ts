@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { addDaysISO, dayDiffFromToday, formatDueDate, isoDateOf, nextBirthdayDayDiff } from '@/utils/dates';
+import { addDaysISO, birthdayInYear, dayDiffFromToday, formatDueDate, isoDateOf, nextBirthdayDayDiff } from '@/utils/dates';
 
 import { tr } from './helpers';
 
@@ -100,5 +100,18 @@ describe('formatDueDate', () => {
     assert.equal(formatDueDate('2026-10-27', tr, 'en', '2026-10-26'), 'calendar.tomorrow');
     assert.match(formatDueDate('2026-11-05', tr, 'en', '2026-10-26'), /Nov/);
     assert.match(formatDueDate('2026-10-25', tr, 'en', '2026-10-26'), /Oct/); // yesterday is a date, not a word
+  });
+});
+
+describe('Feb 29 birthdays fall on Feb 28 in non-leap years', () => {
+  test('birthdayInYear', () => {
+    assert.equal(birthdayInYear('2000-02-29', 2027), '2027-02-28');
+    assert.equal(birthdayInYear('2000-02-29', 2028), '2028-02-29');
+    assert.equal(birthdayInYear('1990-03-01', 2027), '2027-03-01');
+  });
+  test('nextBirthdayDayDiff counts to Feb 28', () => {
+    assert.equal(nextBirthdayDayDiff('2000-02-29', '2027-01-10'), 49);
+    assert.equal(nextBirthdayDayDiff('2000-02-29', '2027-02-28'), 0);
+    assert.equal(nextBirthdayDayDiff('2000-02-29', '2027-03-01'), 365); // next is 2028-02-29
   });
 });

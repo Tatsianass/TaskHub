@@ -22,9 +22,9 @@ import { useTasksContext } from '@/context/tasks-context';
 import { useToday } from '@/context/today-context';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
+import { birthdayInYear } from '@/utils/dates';
 import { effectiveQuadrantId, isEscalated } from '@/utils/priority';
 import type { TaskDraft } from '@/hooks/use-tasks';
-import type { Birthday } from '@/types/birthday';
 import type { Task } from '@/types/task';
 
 const FALLBACK_COLOR = '#A8C4E0';
@@ -32,17 +32,6 @@ const FALLBACK_COLOR = '#A8C4E0';
 function parseISODate(date: string) {
   const [year, month, day] = date.split('-').map(Number);
   return new Date(year, month - 1, day);
-}
-
-function isLeapYear(year: number) {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-}
-
-/** Where a birthday falls in `year`: Feb 29 birthdays show on Feb 28 in non-leap years. */
-function birthdayInYear(birthday: Birthday, year: number) {
-  const monthDay = birthday.date.slice(5);
-  const shown = monthDay === '02-29' && !isLeapYear(year) ? '02-28' : monthDay;
-  return `${year}-${shown}`;
 }
 
 function capitalize(text: string) {
@@ -99,7 +88,7 @@ export default function CalendarScreen() {
     // The grid can show a few days of the neighbouring years (late Dec / early Jan).
     for (const birthday of birthdays) {
       for (const year of [visibleMonth.year - 1, visibleMonth.year, visibleMonth.year + 1]) {
-        markFor(birthdayInYear(birthday, year)).birthday = true;
+        markFor(birthdayInYear(birthday.date, year)).birthday = true;
       }
     }
     return byDate;
@@ -108,7 +97,7 @@ export default function CalendarScreen() {
   if (!user) return <Redirect href="/login" />;
 
   const selectedYear = Number(selected.slice(0, 4));
-  const dayBirthdays = birthdays.filter((birthday) => birthdayInYear(birthday, selectedYear) === selected);
+  const dayBirthdays = birthdays.filter((birthday) => birthdayInYear(birthday.date, selectedYear) === selected);
   const dayTasks = tasks
     .filter((task) => task.dueDate === selected)
     .sort((a, b) => Number(a.done) - Number(b.done) || a.createdAt - b.createdAt);

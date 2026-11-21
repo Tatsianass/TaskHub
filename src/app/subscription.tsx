@@ -1,11 +1,12 @@
 import { Redirect, useRouter } from 'expo-router';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
 import { GlassPanel } from '@/components/glass-panel';
 import { PlansPanel } from '@/components/plans-panel';
 import { ThemedText } from '@/components/themed-text';
+import { MANAGE_SUBSCRIPTIONS_URL } from '@/constants/store';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useLocale } from '@/context/locale-context';
@@ -26,9 +27,6 @@ const ROWS: { key: string; free: Cell; pro: Cell }[] = [
   { key: 'widgets', free: false, pro: true },
   { key: 'themes', free: '2', pro: '4' },
 ];
-
-const MANAGE_URL =
-  Platform.OS === 'ios' ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions';
 
 function CellMark({ value, highlight }: { value: Cell; highlight?: boolean }) {
   const theme = useTheme();
@@ -112,7 +110,7 @@ export default function SubscriptionScreen() {
             <PlansPanel />
 
             {isPro && (
-              <Pressable onPress={() => Linking.openURL(MANAGE_URL)} hitSlop={8} accessibilityRole="link">
+              <Pressable onPress={() => Linking.openURL(MANAGE_SUBSCRIPTIONS_URL)} hitSlop={8} accessibilityRole="link">
                 <ThemedText type="small" themeColor="primary" style={styles.manage}>
                   {t('pro.manage')}
                 </ThemedText>

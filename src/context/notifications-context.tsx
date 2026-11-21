@@ -15,6 +15,7 @@ import {
   resolveAction,
   syncReminders,
 } from '@/lib/notifications';
+import { usePro } from '@/context/pro-context';
 import { DEFAULT_REMIND_TIME } from '@/utils/reminders';
 
 const NOTIFICATIONS_KEY = 'settings:notificationsEnabled';
@@ -58,6 +59,7 @@ function NotificationActions({
   const { t } = useLocale();
   const { tasks, isLoaded: tasksLoaded, toggleTask, rescheduleTask, deleteTask } = useTasksContext();
   const { birthdays } = useBirthdaysContext();
+  const { trial } = usePro();
   const response = Notifications.useLastNotificationResponse();
   const handledRef = useRef<string | null>(null);
 
@@ -78,10 +80,10 @@ function NotificationActions({
       deleteTask(task.id);
     } else {
       addSnooze(task.id, action.at)
-        .then(() => syncReminders(tasks, birthdays, t, morningTime, overdueNudges, { escalationDays, enabled: morningDigest }))
+        .then(() => syncReminders(tasks, birthdays, t, morningTime, overdueNudges, { escalationDays, enabled: morningDigest }, trial))
         .catch(() => {});
     }
-  }, [response, user, tasksLoaded, tasks, birthdays, t, morningTime, overdueNudges, morningDigest, escalationDays, toggleTask, rescheduleTask, deleteTask]);
+  }, [response, user, tasksLoaded, tasks, birthdays, t, morningTime, overdueNudges, morningDigest, escalationDays, trial, toggleTask, rescheduleTask, deleteTask]);
 
   return null;
 }
@@ -92,6 +94,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { escalationDays } = useEscalationSettings();
   const { tasks, isLoaded: tasksLoaded } = useTasksContext();
   const { birthdays, isLoaded: birthdaysLoaded } = useBirthdaysContext();
+  const { trial } = usePro();
   const [notificationsEnabled, setEnabledState] = useState(true);
   const [morningTime, setMorningTimeState] = useState(DEFAULT_REMIND_TIME);
   const [overdueNudges, setOverdueNudgesState] = useState(true);
@@ -136,13 +139,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     ensureNotificationPermission()
       .then((granted) => {
-        if (granted && !cancelled) return syncReminders(tasks, birthdays, t, morningTime, overdueNudges, { escalationDays, enabled: morningDigest });
+        if (granted && !cancelled) return syncReminders(tasks, birthdays, t, morningTime, overdueNudges, { escalationDays, enabled: morningDigest }, trial);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [prefLoaded, user, notificationsEnabled, tasksLoaded, birthdaysLoaded, tasks, birthdays, t, morningTime, overdueNudges, morningDigest, escalationDays, resumes]);
+  }, [prefLoaded, user, notificationsEnabled, tasksLoaded, birthdaysLoaded, tasks, birthdays, t, morningTime, overdueNudges, morningDigest, escalationDays, trial, resumes]);
 
   const setNotificationsEnabled = useCallback(async (enabled: boolean) => {
     if (enabled && !(await ensureNotificationPermission())) return false;

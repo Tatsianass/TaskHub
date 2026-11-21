@@ -311,6 +311,38 @@ describe('syncReminders: birthdays', () => {
   });
 });
 
+describe('syncReminders: free trial ending', () => {
+  const run = (trial: { endsAt: Date; willRenew: boolean } | null, tasks: Task[] = []) =>
+    n.syncReminders(tasks, [], tr, '09:00', true, { escalationDays: null, enabled: false }, trial);
+
+  test('one notification 24h before the trial ends', async () => {
+    const endsAt = new Date(NOW.getTime() + 3 * 86_400_000);
+    await run({ endsAt, willRenew: true });
+    const found = scheduled.filter((s) => s.title === 'notifications.trialEndsTitle');
+    assert.equal(found.length, 1);
+    assert.equal(found[0].at.getTime(), endsAt.getTime() - 86_400_000);
+    assert.equal(found[0].body, 'notifications.trialEndsBody');
+  });
+
+  test('says access stops when the user already cancelled', async () => {
+    await run({ endsAt: new Date(NOW.getTime() + 3 * 86_400_000), willRenew: false });
+    assert.equal(scheduled.find((s) => s.title === 'notifications.trialEndsTitle')?.body, 'notifications.trialEndsBodyNoRenew');
+  });
+
+  test('nothing when there is no trial or less than a day is left', async () => {
+    await run(null);
+    await run({ endsAt: new Date(NOW.getTime() + 3_600_000), willRenew: true });
+    assert.ok(!scheduled.some((s) => s.title === 'notifications.trialEndsTitle'));
+  });
+
+  test('a long task list never pushes it out', async () => {
+    const tasks = Array.from({ length: 80 }, (_, i) => makeTask({ dueDate: d(1 + (i % 5)), remindOffsets: [0], remindMe: true }));
+    await run({ endsAt: new Date(NOW.getTime() + 13 * 86_400_000), willRenew: true }, tasks);
+    assert.ok(scheduled.some((s) => s.title === 'notifications.trialEndsTitle'));
+    assert.ok(scheduled.length <= 60);
+  });
+});
+
 describe('cancelAllReminders', () => {
   test('cancels everything', async () => {
     await n.cancelAllReminders();

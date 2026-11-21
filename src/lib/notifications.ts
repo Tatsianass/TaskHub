@@ -5,6 +5,8 @@ import { Platform } from 'react-native';
 import type { Birthday } from '@/types/birthday';
 import type { Task } from '@/types/task';
 import { QUADRANTS } from '@/constants/quadrants';
+import { birthdayMonthDay } from '@/utils/dates';
+import { trialReminderDate, type Trial } from '@/utils/trial';
 import { DIGEST_KINDS, morningDigest, type DigestItem, type DigestKind, type DigestOptions } from '@/utils/morning-digest';
 import { DEFAULT_REMIND_TIME, anchorTime, offsetLabel, reminderDate, taskOffsets } from '@/utils/reminders';
 
@@ -213,18 +215,20 @@ function birthdayReminders(birthdays: Birthday[], now: Date, t: Translate): Plan
   const planned: Planned[] = [];
   for (const birthday of birthdays) {
     // Birthdays saved before the reminder option existed carry no fields and keep the old 09:00 reminder.
-    const [, month, day] = birthday.date.split('-').map(Number);
     const [hours, minutes] = (birthday.remindTime ?? DEFAULT_BIRTHDAY_TIME).split(':').map(Number);
-    let date = new Date(now.getFullYear(), month - 1, day, hours, minutes);
-    if (date <= now) date = new Date(now.getFullYear() + 1, month - 1, day, hours, minutes);
+    const at = (year: number, daysEarlier = 0) => {
+      const { month, day } = birthdayMonthDay(birthday.date, year);
+      return new Date(year, month - 1, day - daysEarlier, hours, minutes);
+    };
+    let date = at(now.getFullYear());
+    if (date <= now) date = at(now.getFullYear() + 1);
     if (birthday.remindMe !== false) {
       planned.push({ date, title: t('notifications.birthdayTitle'), body: t('notifications.birthdayBody', { name: birthday.name }) });
     }
     if (birthday.alertDaysBefore) {
       // Same time of day, N days earlier; if that moment has passed this year, wait for the next one.
-      const alertAt = (year: number) => new Date(year, month - 1, day - birthday.alertDaysBefore!, hours, minutes);
-      let alertDate = alertAt(now.getFullYear());
-      if (alertDate <= now) alertDate = alertAt(now.getFullYear() + 1);
+      let alertDate = at(now.getFullYear(), birthday.alertDaysBefore);
+      if (alertDate <= now) alertDate = at(now.getFullYear() + 1, birthday.alertDaysBefore);
       planned.push({
         date: alertDate,
         title: t('notifications.birthdayAlertTitle'),
@@ -233,6 +237,19 @@ function birthdayReminders(birthdays: Birthday[], now: Date, t: Translate): Plan
     }
   }
   return planned;
+}
+
+/** One notification a day before the free trial ends, so a charge never comes as a surprise. */
+function trialReminder(trial: Trial | null, now: Date, t: Translate): Planned[] {
+  const date = trialReminderDate(trial, now);
+  if (!trial || !date) return [];
+  return [
+    {
+      date,
+      title: t('notifications.trialEndsTitle'),
+      body: t(trial.willRenew ? 'notifications.trialEndsBody' : 'notifications.trialEndsBodyNoRenew'),
+    },
+  ];
 }
 
 // Two overlapping syncs would each cancel the other's work and then schedule everything twice.
@@ -255,12 +272,15 @@ export function syncReminders(
   morningTime = DEFAULT_REMIND_TIME,
   overdueNudges = true,
   digest: { escalationDays: number | null; enabled: boolean } = { escalationDays: null, enabled: false },
+  trial: Trial | null = null,
 ) {
   if (Platform.OS === 'web') return Promise.resolve();
   return inOrder(async () => {
     await registerCategories(t).catch(() => {});
     await Notifications.cancelAllScheduledNotificationsAsync();
     const now = new Date();
+    // Gets a slot of its own: a busy task list must never push out the trial warning.
+    const trialItems = trialReminder(trial, now, t);
     const planned = [
       ...taskReminders(tasks, now, t, morningTime),
       ...(await snoozeReminders(tasks, now, t)),
@@ -272,7 +292,8 @@ export function syncReminders(
       ...birthdayReminders(birthdays, now, t),
     ]
       .sort((a, b) => a.date.getTime() - b.date.getTime())
-      .slice(0, MAX_SCHEDULED);
+      .slice(0, MAX_SCHEDULED - trialItems.length);
+    planned.push(...trialItems);
     for (const { date, title, body, taskId, category } of planned) {
       await Notifications.scheduleNotificationAsync({
         content: taskId

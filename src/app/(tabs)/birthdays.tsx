@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomSheetModal } from '@/components/bottom-sheet-modal';
@@ -109,7 +109,14 @@ export default function BirthdaysScreen() {
     setIsModalOpen(false);
   };
 
-  const handleRemindToggle = (value: boolean) => {
+  const confirmDelete = (birthday: Birthday) => {
+    Alert.alert(t('birthdays.deleteTitle'), t('birthdays.deleteMessage', { name: birthday.name }), [
+      { text: t('completed.cancel'), style: 'cancel' },
+      { text: t('overdue.delete'), style: 'destructive', onPress: () => deleteBirthday(birthday.id) },
+    ]);
+  };
+
+  const handleRemindToggle =(value: boolean) => {
     setRemindMe(value);
     if (value && !remindTime) setRemindTime('09:00');
   };
@@ -161,7 +168,7 @@ export default function BirthdaysScreen() {
                     <ThemedText type="small" themeColor="primary">
                       {diff === 0 ? t('birthdays.today') : t('birthdays.inDays', { n: diff })}
                     </ThemedText>
-                    <Pressable onPress={() => deleteBirthday(birthday.id)} hitSlop={8} style={styles.delete}>
+                    <Pressable onPress={() => confirmDelete(birthday)} hitSlop={8} style={styles.delete}>
                       <ThemedText themeColor="textSecondary">✕</ThemedText>
                     </Pressable>
                   </Pressable>
