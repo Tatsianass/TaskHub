@@ -8,6 +8,7 @@ import { api, ApiError, setAuthToken, setOnUnauthorized } from '@/lib/api';
 import { offerLegacyImport } from '@/lib/legacy-import';
 import { clearListCache } from '@/lib/list-cache';
 import { clearToken, getToken, setToken } from '@/lib/token-storage';
+import { clearCachedUser, readCachedUser, writeCachedUser } from '@/lib/user-cache';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
@@ -44,7 +45,7 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(async () => {
     setAuthToken(null);
     setUser(null);
-    await Promise.all([clearToken(), clearListCache()]);
+    await Promise.all([clearToken(), clearListCache(), clearCachedUser()]);
   }, []);
 
   useEffect(() => {
@@ -64,11 +65,19 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
         try {
           const { user: me } = await api<{ user: User }>('/auth/me');
           setUser(me);
+          await writeCachedUser(me);
         } catch (e) {
-          // 401: the token is dead, forget it. Anything else (server
-          // unreachable): keep the token and fall back to the login screen.
-          if (e instanceof ApiError && e.status === 401) await clearSession();
-          else setAuthToken(null);
+          if (e instanceof ApiError && e.status === 401) {
+            // The token is dead: forget it.
+            await clearSession();
+          } else {
+            // Server unreachable (or failing): open with the account this device last signed in
+            // to, so the cached lists show offline. A dead token is caught by the first request
+            // that reaches the server (onUnauthorized). Without a cached user, fall back to login.
+            const cached = await readCachedUser();
+            if (cached) setUser(cached);
+            else setAuthToken(null);
+          }
         }
       } finally {
         setIsLoading(false);
@@ -83,6 +92,7 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
       // Before setUser: the data hooks fetch as soon as the user is set, and
       // must see what the import added (R6.1).
       await offerLegacyImport(t);
+      await writeCachedUser(next);
       setUser(next);
     },
     [t],
