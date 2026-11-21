@@ -10,7 +10,9 @@
     "dev": "node --watch --import tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "node --import tsx --test \"test/**/*.test.ts\""
+    "test": "node --import tsx --test \"test/**/*.test.ts\"",
+    "test:unit": "node --import tsx --test test/config.test.ts test/password.test.ts test/errors.test.ts test/validation.test.ts",
+    "test:integration": "node --import tsx --test $(ls test/*.test.ts | grep -v -e config -e password -e errors -e validation)"
   },
   "dependencies": {
     "cors": "^2.8.6",
