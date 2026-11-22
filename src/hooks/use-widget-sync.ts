@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { QUADRANTS } from '@/constants/quadrants';
+import { useAuth } from '@/context/auth-context';
 import { useEscalationSettings } from '@/context/escalation-context';
 import { useLocale } from '@/context/locale-context';
 import { usePro } from '@/context/pro-context';
@@ -53,6 +54,7 @@ const quadrantRank = (id: QuadrantId) => QUADRANTS.findIndex((quadrant) => quadr
  * the date, the language or the deadline-escalation setting change.
  */
 export function useWidgetSync() {
+  const { user } = useAuth();
   const { tasks, isLoaded } = useTasksContext();
   const { escalationDays } = useEscalationSettings();
   const { t, locale } = useLocale();
@@ -60,9 +62,21 @@ export function useWidgetSync() {
   const { isPro, ready } = usePro();
 
   useEffect(() => {
-    if (!isLoaded || !ready) return;
+    // Signed out (or the account was deleted): the widgets must not keep showing the last user's tasks.
+    if (user) {
+      if (!isLoaded || !ready) return;
+    }
     const widgets = loadWidgets();
     if (!widgets) return;
+
+    if (!user) {
+      widgets.today.updateSnapshot({ heading: t('calendar.today'), progress: '', empty: t('widget.empty'), rows: [] });
+      widgets.next.updateSnapshot({ label: t('widget.now'), title: t('widget.allDone'), due: '', color: '#2FB8B0', done: 0, total: 0 });
+      widgets.matrix.updateSnapshot({
+        cells: QUADRANTS.map((quadrant) => ({ label: t(quadrant.titleKey), count: 0, color: CELL_COLORS[quadrant.id] })),
+      });
+      return;
+    }
 
     // Widgets are Pro: without it they show a lock message instead of the user's tasks.
     if (!isPro) {
@@ -120,5 +134,5 @@ export function useWidgetSync() {
         color: CELL_COLORS[quadrant.id],
       })),
     });
-  }, [tasks, isLoaded, ready, isPro, escalationDays, t, locale, today]);
+  }, [user, tasks, isLoaded, ready, isPro, escalationDays, t, locale, today]);
 }

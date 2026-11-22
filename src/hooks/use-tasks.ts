@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import { useServerList } from '@/hooks/use-server-list';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { todayISODate } from '@/utils/dates';
 import { isFollowUp, nextOccurrence } from '@/utils/recurrence';
 import { diffTask } from '@/utils/task-patch';
@@ -31,6 +31,23 @@ const repeatField = (draft: TaskDraft) => (draft.dueDate ? draft.repeat : null);
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+/**
+ * Creates the task, safe to repeat because the client chose its id: when the answer gets lost
+ * (timeout) the server may already have it, so one retry follows and "duplicate id" counts as done.
+ */
+async function createTask(task: Task) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await api('/tasks', { method: 'POST', body: task });
+      return;
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'DUPLICATE_ID') return;
+      if (attempt === 0 && e instanceof ApiError && e.code === 'SERVER_UNREACHABLE') continue;
+      throw e;
+    }
+  }
+}
+
 const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
 
 export function useTasks() {
@@ -44,7 +61,7 @@ export function useTasks() {
     (task: Task) =>
       mutate(
         (prev) => [task, ...prev],
-        () => api('/tasks', { method: 'POST', body: task }),
+        () => createTask(task),
         (prev) => prev.filter((item) => item.id !== task.id),
       ),
     [mutate],
