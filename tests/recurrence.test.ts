@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { isFollowUp, nextDueDate, nextOccurrence } from '@/utils/recurrence';
+import { isFollowUp, nextDueDate, nextOccurrence, withSeries } from '@/utils/recurrence';
 
 import { makeTask } from './helpers';
 
@@ -19,11 +19,62 @@ describe('nextDueDate', () => {
     ['monthly, three months late', ['monthly', '2026-08-01', '2026-11-07'], '2026-12-01'],
     ['yearly', ['yearly', '2026-11-07', '2026-11-07'], '2027-11-07'],
     ['yearly on 29 Feb clamps in a common year', ['yearly', '2028-02-29', '2028-02-29'], '2029-02-28'],
+    // The anchor is the series' original date: a short month must not move the task for good.
+    ['monthly on the 31st returns from the 28th to the 31st', ['monthly', '2026-02-28', '2026-02-28', '2026-01-31'], '2026-03-31'],
+    ['monthly 31st, 30-day month then back', ['monthly', '2026-03-31', '2026-03-31', '2026-01-31'], '2026-04-30'],
+    ['monthly 31st through a leap February', ['monthly', '2028-01-31', '2028-01-31', '2028-01-31'], '2028-02-29'],
+    ['monthly 31st over twelve completions never drifts', ['monthly', '2026-11-30', '2026-11-30', '2026-01-31'], '2026-12-31'],
+    ['monthly moved earlier in its month: the anchor day is still ahead', ['monthly', '2026-03-05', '2026-03-05', '2026-03-28'], '2026-03-28'],
+    ['yearly 29 Feb returns after a common year', ['yearly', '2029-02-28', '2029-02-28', '2028-02-29'], '2030-02-28'],
+    ['yearly 29 Feb on the next leap year', ['yearly', '2031-02-28', '2031-02-28', '2028-02-29'], '2032-02-29'],
     ['weekdays: Friday to Monday', ['weekdays', '2026-11-06', '2026-11-06'], '2026-11-09'],
     ['weekdays: Monday to Tuesday', ['weekdays', '2026-11-02', '2026-11-02'], '2026-11-03'],
     ['weekdays: overdue task finished on a Saturday', ['weekdays', '2026-11-02', '2026-11-07'], '2026-11-09'],
   ];
   for (const [name, args, expected] of rows) test(name, () => assert.equal(nextDueDate(...args), expected));
+});
+
+describe('a monthly task on the 31st over a whole year of completions', () => {
+  test('lands on the last day it can in every month, never stuck on the 28th', () => {
+    let task = makeTask({ repeat: 'monthly', dueDate: '2026-01-31', seriesId: 's', repeatAnchor: '2026-01-31' });
+    const seen: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      const next = nextOccurrence(task, `n${i}`, 1, task.dueDate!)!;
+      seen.push(next.dueDate!);
+      task = next;
+    }
+    assert.deepEqual(seen, [
+      '2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31', '2026-06-30', '2026-07-31',
+      '2026-08-31', '2026-09-30', '2026-10-31', '2026-11-30', '2026-12-31', '2027-01-31',
+    ]);
+  });
+
+  test('yearly 29 Feb is back on the 29th in the next leap year', () => {
+    let task = makeTask({ repeat: 'yearly', dueDate: '2028-02-29', seriesId: 's', repeatAnchor: '2028-02-29' });
+    const seen: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      task = nextOccurrence(task, `n${i}`, 1, task.dueDate!)!;
+      seen.push(task.dueDate!);
+    }
+    assert.deepEqual(seen, ['2029-02-28', '2030-02-28', '2031-02-28', '2032-02-29']);
+  });
+});
+
+describe('withSeries', () => {
+  test('gives a repeating task a series and its starting date, once', () => {
+    const task = makeTask({ repeat: 'weekly', dueDate: '2026-11-02' });
+    const first = withSeries(task, () => 'S1');
+    assert.deepEqual([first.seriesId, first.repeatAnchor], ['S1', '2026-11-02']);
+    const again = withSeries({ ...first, dueDate: '2026-11-09' }, () => 'S2');
+    assert.deepEqual([again.seriesId, again.repeatAnchor], ['S1', '2026-11-02']);
+  });
+
+  test('a task that does not repeat, or has no date, has no series', () => {
+    const oneOff = withSeries(makeTask({ repeat: null, dueDate: '2026-11-02', seriesId: 'x', repeatAnchor: 'y' }), () => 'S');
+    assert.deepEqual([oneOff.seriesId, oneOff.repeatAnchor], [null, null]);
+    const noDate = withSeries(makeTask({ repeat: 'daily', dueDate: null }), () => 'S');
+    assert.deepEqual([noDate.seriesId, noDate.repeatAnchor], [null, null]);
+  });
 });
 
 describe('nextOccurrence', () => {
@@ -62,6 +113,19 @@ describe('isFollowUp', () => {
 
   test('matches an open task with the same title and rule due later', () => {
     assert.equal(isFollowUp(done, makeTask({ repeat: 'weekly', dueDate: '2026-11-09', title: 'Rent' })), true);
+  });
+
+  test('a look-alike task of another series is not the follow-up (same title, same rule)', () => {
+    const mine = makeTask({ repeat: 'weekly', dueDate: '2026-11-02', title: 'Workout', done: true, seriesId: 'mon' });
+    const thursdays = makeTask({ repeat: 'weekly', dueDate: '2026-11-05', title: 'Workout', seriesId: 'thu' });
+    assert.equal(isFollowUp(mine, thursdays), false);
+    assert.equal(isFollowUp(mine, { ...thursdays, seriesId: 'mon' }), true);
+  });
+
+  test('a task from before series existed still matches by title and rule', () => {
+    assert.equal(isFollowUp(done, makeTask({ repeat: 'weekly', dueDate: '2026-11-09', title: 'Rent' })), true);
+    // ...but a task that belongs to a series is never the follow-up of one that does not.
+    assert.equal(isFollowUp(done, makeTask({ repeat: 'weekly', dueDate: '2026-11-09', title: 'Rent', seriesId: 'x' })), false);
   });
 
   for (const [name, other] of [

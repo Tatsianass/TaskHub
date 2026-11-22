@@ -314,7 +314,7 @@ sequenceDiagram
 | DELETE | `/birthdays/:id` | ✔ | Удалить | 204 |
 | POST | `/import` | ✔ | Разовый импорт `{tasks, birthdays}` → `{tasksImported, birthdaysImported}` | 200 |
 
-Типовые коды ошибок: `UNAUTHORIZED`, `SESSION_EXPIRED`, `WRONG_PASSWORD`, `PASSWORD_TOO_SHORT`,
+Типовые коды ошибок: `UNAUTHORIZED`, `SESSION_EXPIRED`, `INVALID_CREDENTIALS` (вход), `WRONG_PASSWORD` / `PASSWORD_REQUIRED` (удаление аккаунта), `INVALID_EMAIL`, `PASSWORD_TOO_SHORT`,
 `NOT_FOUND`, `DUPLICATE_ID`, `INVALID_TASK`, `INVALID_BIRTHDAY`, `SERVER_UNREACHABLE` (клиентский).
 
 ---

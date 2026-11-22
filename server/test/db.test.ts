@@ -82,6 +82,31 @@ describe('migrations', () => {
     assert.deepEqual(await tableNames(db), ['ok', 'schema_migrations']);
   });
 
+  test('V5 repairs rows the API used to accept, then enforces the invariants', async () => {
+    const db = await freshDb({ migrate: false });
+    await runMigrations(db.pool, MIGRATIONS.slice(0, 4));
+    await insertUser(db, 'u1', 'a@example.com');
+    const insert = (id: string, columns: string, values: string) =>
+      db.pool.query(
+        `INSERT INTO tasks (id, user_id, title, quadrant_id, created_at, ${columns})
+         VALUES ('${id}', 'u1', 'T', 'urgent-important', 1, ${values})`,
+      );
+    await insert('undated-repeat', 'repeat, series_id, repeat_anchor', "'daily', 's', '2026-01-01'");
+    await insert('open-with-time', 'done, completed_at', 'false, 99');
+    await insert('good', 'done, completed_at, due_date, repeat', "true, 99, '2026-01-01', 'daily'");
+
+    await runMigrations(db.pool);
+    const { rows } = await db.pool.query('SELECT id, repeat, series_id, repeat_anchor, completed_at FROM tasks ORDER BY id');
+    const byId = Object.fromEntries(rows.map((row) => [row.id, row]));
+    assert.deepEqual([byId['undated-repeat'].repeat, byId['undated-repeat'].series_id, byId['undated-repeat'].repeat_anchor], [null, null, null]);
+    assert.equal(byId['open-with-time'].completed_at, null);
+    assert.deepEqual([byId.good.repeat, byId.good.completed_at], ['daily', 99]);
+
+    const violation = (code: string) => (error: { code?: string }) => error.code === code;
+    await assert.rejects(() => insert('bad-1', 'repeat', "'weekly'"), violation('23514'));
+    await assert.rejects(() => insert('bad-2', 'done, completed_at', 'false, 5'), violation('23514'));
+  });
+
   test('a database newer than the code refuses to start (R2.5)', async () => {
     const db = await freshDb();
     await db.pool.query('INSERT INTO schema_migrations (version) VALUES ($1)', [MIGRATIONS.length + 1]);
@@ -163,8 +188,8 @@ describe('types (R1.3)', () => {
     const db = await freshDb();
     await insertUser(db, 'u1', 'a@example.com');
     await db.pool.query(
-      `INSERT INTO tasks (id, user_id, title, quadrant_id, created_at, completed_at, remind_offsets)
-       VALUES ('t', 'u1', 'T', 'urgent-important', 1790000000123, 1790000000456, '[0, 15]')`,
+      `INSERT INTO tasks (id, user_id, title, quadrant_id, created_at, done, completed_at, remind_offsets)
+       VALUES ('t', 'u1', 'T', 'urgent-important', 1790000000123, true, 1790000000456, '[0, 15]')`,
     );
     const { rows } = await db.pool.query('SELECT created_at, completed_at, remind_offsets, seq FROM tasks');
     assert.equal(rows[0].created_at, 1790000000123);

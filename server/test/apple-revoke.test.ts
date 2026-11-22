@@ -160,7 +160,10 @@ describe('DELETE /auth/account with Apple revocation', () => {
       const email = await withRevoker.request('POST', '/auth/register', {
         body: { email: 'plain@example.com', password: 'password-123' },
       });
-      assert.equal((await withRevoker.request('DELETE', '/auth/account', { token: email.body.token })).status, 204);
+      assert.equal(
+        (await withRevoker.request('DELETE', '/auth/account', { token: email.body.token, body: { password: 'password-123' } })).status,
+        204,
+      );
 
       const user = await appleUser('apple-del-3');
       assert.equal((await without.request('DELETE', '/auth/account', { token: user.token })).status, 204);

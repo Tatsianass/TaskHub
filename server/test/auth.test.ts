@@ -78,6 +78,26 @@ describe('POST /auth/register', () => {
     await register(uniqueEmail(), '12345678');
   });
 
+  for (const [name, email] of [
+    ['no @', 'a'],
+    ['no domain dot', 'a@b'],
+    ['space inside', 'a b@c.io'],
+    ['too long', `${'e'.repeat(300_000)}@x.io`],
+    ['NUL character', 'a\u0000@x.io'],
+  ] as const) {
+    test(`${name} email -> 400 INVALID_EMAIL, never a 500`, async () => {
+      const res = await app.request('POST', '/auth/register', { body: { email, password: PASSWORD } });
+      assert.equal(res.status, 400);
+      assert.deepEqual(res.body, { error: 'INVALID_EMAIL' });
+    });
+  }
+
+  test('a 254-character email is still accepted', async () => {
+    const email = `${'e'.repeat(254 - '@x.io'.length)}@x.io`;
+    assert.equal(email.length, 254);
+    await register(email);
+  });
+
   test('already registered email (any case/whitespace) -> 409 EMAIL_TAKEN (R1.4)', async () => {
     const email = uniqueEmail();
     await register(email);
@@ -110,27 +130,53 @@ describe('POST /auth/login', () => {
     assert.equal(res.body.user.id, registered.user.id);
   });
 
+  test('an email that cannot exist -> 400 INVALID_EMAIL instead of a database error', async () => {
+    for (const email of ['a\u0000@x.io', `${'e'.repeat(300_000)}@x.io`]) {
+      const res = await app.request('POST', '/auth/login', { body: { email, password: PASSWORD } });
+      assert.equal(res.status, 400);
+      assert.deepEqual(res.body, { error: 'INVALID_EMAIL' });
+    }
+  });
+
+  test('an older account with an odd (non-address) email can still sign in', async () => {
+    await db.query(
+      `INSERT INTO users (id, email, password_hash, password_salt, password_params, created_at)
+       VALUES ('odd-user', 'oddname', 'x', 'x', '{"N":16384,"r":8,"p":1,"keylen":64}', 1)`,
+    );
+    const res = await app.request('POST', '/auth/login', { body: { email: 'oddname', password: PASSWORD } });
+    assert.equal(res.status, 401); // reached the password check, not rejected as malformed
+  });
+
   test('empty credentials -> 400 ENTER_EMAIL_PASSWORD', async () => {
     const res = await app.request('POST', '/auth/login', { body: { email: 'a@b.c', password: '' } });
     assert.equal(res.status, 400);
     assert.deepEqual(res.body, { error: 'ENTER_EMAIL_PASSWORD' });
   });
 
-  test('unknown email -> 404 USER_NOT_FOUND (R2.7)', async () => {
+  test('unknown email and wrong password give the same answer, so addresses cannot be probed', async () => {
+    const { user } = await register();
+    const unknown = await app.request('POST', '/auth/login', { body: { email: uniqueEmail(), password: PASSWORD } });
+    const wrong = await app.request('POST', '/auth/login', { body: { email: user.email, password: 'not-the-one' } });
+    assert.equal(unknown.status, 401);
+    assert.deepEqual(unknown.body, { error: 'INVALID_CREDENTIALS' });
+    assert.deepEqual([wrong.status, wrong.body], [unknown.status, unknown.body]);
+  });
+
+  test('unknown email -> 401 INVALID_CREDENTIALS (R2.7)', async () => {
     const res = await app.request('POST', '/auth/login', {
       body: { email: 'nobody@example.com', password: PASSWORD },
     });
-    assert.equal(res.status, 404);
-    assert.deepEqual(res.body, { error: 'USER_NOT_FOUND' });
+    assert.equal(res.status, 401);
+    assert.deepEqual(res.body, { error: 'INVALID_CREDENTIALS' });
   });
 
-  test('wrong password -> 401 WRONG_PASSWORD (R2.7)', async () => {
+  test('wrong password -> 401 INVALID_CREDENTIALS (R2.7)', async () => {
     const { user } = await register();
     const res = await app.request('POST', '/auth/login', {
       body: { email: user.email, password: `${PASSWORD}x` },
     });
     assert.equal(res.status, 401);
-    assert.deepEqual(res.body, { error: 'WRONG_PASSWORD' });
+    assert.deepEqual(res.body, { error: 'INVALID_CREDENTIALS' });
   });
 });
 
@@ -254,7 +300,7 @@ describe('DELETE /auth/account', () => {
     await app.request('POST', '/birthdays', { token, body: makeBirthday() });
     await app.request('POST', '/tasks', { token: other.token, body: makeTask() });
 
-    const res = await app.request('DELETE', '/auth/account', { token });
+    const res = await app.request('DELETE', '/auth/account', { token, body: { password: PASSWORD } });
     assert.equal(res.status, 204);
     assert.equal(res.body, undefined);
 
@@ -267,7 +313,43 @@ describe('DELETE /auth/account', () => {
     assert.equal((await app.request('GET', '/tasks', { token: other.token })).body.length, 1);
 
     const login = await app.request('POST', '/auth/login', { body: { email: user.email, password: PASSWORD } });
-    assert.equal(login.status, 404);
+    assert.equal(login.status, 401);
+  });
+
+  test('an email account needs its password: without one -> 400 PASSWORD_REQUIRED, nothing is deleted', async () => {
+    const { token } = await register();
+    for (const body of [undefined, {}, { password: '' }, { password: 5 }]) {
+      const res = await app.request('DELETE', '/auth/account', { token, body });
+      assert.equal(res.status, 400);
+      assert.deepEqual(res.body, { error: 'PASSWORD_REQUIRED' });
+    }
+    assert.equal((await app.request('GET', '/auth/me', { token })).status, 200);
+  });
+
+  test('a wrong password -> 401 WRONG_PASSWORD and the account stays (also for an oversized one)', async () => {
+    const { token } = await register();
+    for (const password of ['not-the-one', 'a'.repeat(100_000)]) {
+      const res = await app.request('DELETE', '/auth/account', { token, body: { password } });
+      assert.equal(res.status, 401);
+      assert.deepEqual(res.body, { error: 'WRONG_PASSWORD' });
+    }
+    assert.equal((await app.request('GET', '/auth/me', { token })).status, 200);
+  });
+
+  test('guessing the password is limited: after repeated failures even the right one is refused', async () => {
+    const limited = await startApp(db, { authRateLimits: { ipMax: 100, emailMax: 3, windowMs: 60_000 } });
+    try {
+      const reg = await limited.request('POST', '/auth/register', { body: { email: uniqueEmail(), password: PASSWORD } });
+      const token = reg.body.token;
+      for (let i = 0; i < 3; i++) {
+        assert.equal((await limited.request('DELETE', '/auth/account', { token, body: { password: `guess-${i}-xx` } })).status, 401);
+      }
+      const blocked = await limited.request('DELETE', '/auth/account', { token, body: { password: PASSWORD } });
+      assert.equal(blocked.status, 429);
+      assert.equal((await limited.request('GET', '/auth/me', { token })).status, 200);
+    } finally {
+      await limited.close();
+    }
   });
 
   test('without a token -> 401 UNAUTHORIZED', async () => {

@@ -2,7 +2,7 @@ import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, { FadeIn, runOnJS } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ErrorBanner } from '@/components/error-banner';
@@ -22,6 +22,7 @@ import { useTasksContext } from '@/context/tasks-context';
 import { useToday } from '@/context/today-context';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
+import { hexToRgba } from '@/utils/colors';
 import { birthdayInYear } from '@/utils/dates';
 import { effectiveQuadrantId, isEscalated } from '@/utils/priority';
 import type { TaskDraft } from '@/hooks/use-tasks';
@@ -102,11 +103,11 @@ export default function CalendarScreen() {
     .filter((task) => task.dueDate === selected)
     .sort((a, b) => Number(a.done) - Number(b.done) || a.createdAt - b.createdAt);
 
-  const monthTitle = capitalize(
-    new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
-      new Date(visibleMonth.year, visibleMonth.month, 1),
-    ),
+  const monthName = capitalize(
+    new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(visibleMonth.year, visibleMonth.month, 1)),
   );
+  const todayDate = parseISODate(today);
+  const viewingToday = visibleMonth.year === todayDate.getFullYear() && visibleMonth.month === todayDate.getMonth();
   const selectedTitle = capitalize(
     new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' }).format(
       parseISODate(selected),
@@ -178,44 +179,70 @@ export default function CalendarScreen() {
           <GestureDetector gesture={monthSwipe}>
             <GlassPanel style={styles.monthPanel} contentStyle={styles.monthContent}>
               <View style={styles.monthHeader}>
-                <Pressable onPress={goToToday} hitSlop={8}>
-                  <ThemedText type="smallBold" style={styles.monthTitle}>
-                    {monthTitle}
+                <Pressable onPress={goToToday} hitSlop={8} style={styles.monthTitleRow}>
+                  <ThemedText style={styles.monthName}>{monthName}</ThemedText>
+                  <ThemedText themeColor="textSecondary" style={styles.monthYear}>
+                    {visibleMonth.year}
                   </ThemedText>
                 </Pressable>
                 <View style={styles.monthArrows}>
+                  {/* Only offered once you've wandered off today, so it never competes with the arrows. */}
+                  {!viewingToday && (
+                    <Pressable
+                      onPress={goToToday}
+                      hitSlop={8}
+                      style={[styles.todayPill, { backgroundColor: hexToRgba(theme.primary, 0.18) }]}>
+                      <ThemedText type="small" themeColor="primary">
+                        {t('calendar.today')}
+                      </ThemedText>
+                    </Pressable>
+                  )}
                   <Pressable
                     onPress={() => shiftMonth(-1)}
                     hitSlop={8}
                     accessibilityLabel={t('calendar.prevMonth')}
-                    style={[styles.arrow, { borderColor: theme.glassBorder }]}>
-                    <ThemedText>‹</ThemedText>
+                    style={[styles.arrow, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+                    <ThemedText style={styles.arrowText}>‹</ThemedText>
                   </Pressable>
                   <Pressable
                     onPress={() => shiftMonth(1)}
                     hitSlop={8}
                     accessibilityLabel={t('calendar.nextMonth')}
-                    style={[styles.arrow, { borderColor: theme.glassBorder }]}>
-                    <ThemedText>›</ThemedText>
+                    style={[styles.arrow, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+                    <ThemedText style={styles.arrowText}>›</ThemedText>
                   </Pressable>
                 </View>
               </View>
-              <MonthGrid
-                year={visibleMonth.year}
-                month={visibleMonth.month}
-                weekStartsOn={weekStartsOn}
-                weekdayLabels={weekdayLabels}
-                today={today}
-                selected={selected}
-                marks={marks}
-                onSelect={selectDay}
-              />
+              <Animated.View key={`${visibleMonth.year}-${visibleMonth.month}`} entering={FadeIn.duration(180)}>
+                <MonthGrid
+                  year={visibleMonth.year}
+                  month={visibleMonth.month}
+                  weekStartsOn={weekStartsOn}
+                  weekdayLabels={weekdayLabels}
+                  today={today}
+                  selected={selected}
+                  marks={marks}
+                  onSelect={selectDay}
+                />
+              </Animated.View>
             </GlassPanel>
           </GestureDetector>
 
-          <ThemedText type="smallBold" style={styles.dayTitle}>
-            {selected === today ? `${t('calendar.today')} · ${selectedTitle}` : selectedTitle}
-          </ThemedText>
+          <View style={styles.dayHeader}>
+            <ThemedText type="smallBold" style={styles.dayTitle} numberOfLines={1}>
+              {selected === today ? `${t('calendar.today')} · ${selectedTitle}` : selectedTitle}
+            </ThemedText>
+            {(dayTasks.length > 0 || dayBirthdays.length > 0) && (
+              <ThemedText type="small" themeColor="textSecondary">
+                {[
+                  dayTasks.length > 0 && `☑ ${dayTasks.length}`,
+                  dayBirthdays.length > 0 && `🎂 ${dayBirthdays.length}`,
+                ]
+                  .filter(Boolean)
+                  .join('  ·  ')}
+              </ThemedText>
+            )}
+          </View>
 
           <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
             <ScrollView
@@ -223,9 +250,21 @@ export default function CalendarScreen() {
               contentContainerStyle={styles.scrollContent}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />}>
               {dayBirthdays.map((birthday) => (
-                <View key={birthday.id} style={styles.birthdayRow}>
-                  <ThemedText style={styles.birthdayIcon}>🎂</ThemedText>
-                  <ThemedText type="smallBold">{t('calendar.birthday', { name: birthday.name })}</ThemedText>
+                <View
+                  key={birthday.id}
+                  style={[
+                    styles.birthdayRow,
+                    {
+                      backgroundColor: hexToRgba(theme.blobs[2], 0.16),
+                      borderColor: hexToRgba(theme.blobs[2], 0.4),
+                    },
+                  ]}>
+                  <View style={[styles.birthdayAvatar, { backgroundColor: hexToRgba(theme.blobs[2], 0.32) }]}>
+                    <ThemedText style={styles.birthdayIcon}>🎂</ThemedText>
+                  </View>
+                  <ThemedText type="smallBold" style={styles.birthdayText}>
+                    {t('calendar.birthday', { name: birthday.name })}
+                  </ThemedText>
                 </View>
               ))}
               {isLoaded &&
@@ -242,9 +281,14 @@ export default function CalendarScreen() {
               {/* Tapping the free space below adds a task on the selected day. */}
               <Pressable style={styles.addArea} onPress={openCreateModal}>
                 {isLoaded && dayTasks.length === 0 && dayBirthdays.length === 0 && (
-                  <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-                    {t('calendar.dayEmpty')}
-                  </ThemedText>
+                  <View style={styles.emptyState}>
+                    <View style={[styles.emptyPlus, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+                      <PlusIcon color={theme.primary} />
+                    </View>
+                    <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+                      {t('calendar.dayEmpty')}
+                    </ThemedText>
+                  </View>
                 )}
               </Pressable>
             </ScrollView>
@@ -306,23 +350,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     marginBottom: Spacing.two,
   },
-  monthTitle: {
-    fontSize: 17,
+  monthTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.one + 2,
+  },
+  monthName: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '600',
+  },
+  monthYear: {
+    fontSize: 15,
   },
   monthArrows: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.two,
   },
+  todayPill: {
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two + 2,
+    paddingVertical: 3,
+  },
   arrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayTitle: {
+  arrowText: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
     marginBottom: Spacing.two,
+    paddingHorizontal: Spacing.one,
+  },
+  dayTitle: {
+    flexShrink: 1,
+    fontSize: 15,
   },
   listPanel: {
     flex: 1,
@@ -339,19 +412,44 @@ const styles = StyleSheet.create({
   birthdayRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two + 2,
+    gap: Spacing.two + 2,
+    padding: Spacing.two,
+    marginBottom: Spacing.one,
+    borderRadius: Spacing.three,
+    borderWidth: 1,
+  },
+  birthdayAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   birthdayIcon: {
     fontSize: 18,
+    lineHeight: 24,
+  },
+  birthdayText: {
+    flex: 1,
   },
   addArea: {
     flexGrow: 1,
     minHeight: 64,
   },
+  emptyState: {
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: Spacing.three,
+  },
+  emptyPlus: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   empty: {
     textAlign: 'center',
-    marginTop: Spacing.four,
   },
 });

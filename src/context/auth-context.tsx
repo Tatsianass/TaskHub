@@ -28,9 +28,11 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   /**
    * Permanently deletes the account and all its data on the server, then signs out. An Apple account
-   * first asks for Apple's sign-in sheet again; throws 'APPLE_CANCELED' if it is dismissed.
+   * first asks for Apple's sign-in sheet again; throws 'APPLE_CANCELED' if it is dismissed. An email
+   * account is confirmed with its `password`: without one this throws 'PASSWORD_REQUIRED' so the
+   * caller can ask for it and call again (a wrong one throws an ApiError 'WRONG_PASSWORD').
    */
-  deleteAccount: () => Promise<void>;
+  deleteAccount: (password?: string) => Promise<void>;
   /** Local mode: data lives on this device, there are no accounts. */
   isLocal: boolean;
 };
@@ -150,11 +152,12 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
     await clearSession();
   }, [clearSession]);
 
-  const deleteAccount = useCallback(async () => {
+  const deleteAccount = useCallback(async (password?: string) => {
     // Unlike logout, a failure must surface: the account still exists.
     try {
-      await api('/auth/account', { method: 'DELETE' });
+      await api('/auth/account', { method: 'DELETE', body: password === undefined ? undefined : { password } });
     } catch (e) {
+      if (e instanceof ApiError && e.code === 'PASSWORD_REQUIRED') throw new Error('PASSWORD_REQUIRED');
       if (!(e instanceof ApiError) || e.code !== 'APPLE_REAUTH_REQUIRED') throw e;
       // An Apple account: Apple must release it too, which takes a fresh sign-in with Apple (guideline 5.1.1(v)).
       let authorizationCode: string | null;

@@ -1,9 +1,31 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { diffTask } from '@/utils/task-patch';
+import { diffTask, revertPatch } from '@/utils/task-patch';
 
 import { makeTask } from './helpers';
+
+describe('revertPatch', () => {
+  const before = makeTask({ title: 'Old', done: false, completedAt: null });
+
+  test('puts back only the fields the refused change set', () => {
+    const after = { ...before, title: 'New' };
+    // Meanwhile the user also ticked the task off: that must survive the title being refused.
+    const current = { ...after, done: true, completedAt: 5 };
+    assert.deepEqual(revertPatch(current, before, after, diffTask(before, after)), { ...before, done: true, completedAt: 5 });
+  });
+
+  test('a field that changed again since is not touched', () => {
+    const after = { ...before, title: 'New' };
+    const current = { ...after, title: 'Newer' };
+    assert.equal(revertPatch(current, before, after, diffTask(before, after)).title, 'Newer');
+  });
+
+  test('reverts a whole multi-field change', () => {
+    const after = { ...before, done: true, completedAt: 5 };
+    assert.deepEqual(revertPatch(after, before, after, diffTask(before, after)), before);
+  });
+});
 
 describe('diffTask', () => {
   test('only the changed fields are sent', () => {

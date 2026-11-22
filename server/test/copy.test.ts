@@ -85,6 +85,8 @@ describe('copySqliteToPostgres', () => {
       completedAt: null, createdAt: 5000, dueDate: '2026-12-01', remindMe: true, remindTime: '10:00',
       remindOffsets: [0, 15],
       repeat: null,
+      seriesId: null,
+      repeatAnchor: null,
     });
     assert.equal(listed[1].done, true);
     assert.equal(listed[1].completedAt, 5500);

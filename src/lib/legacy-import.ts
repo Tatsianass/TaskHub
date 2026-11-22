@@ -69,6 +69,8 @@ function toTask(raw: unknown): Task | null {
     remindTime: validTime(raw.remindTime),
     remindOffsets: sanitizeOffsets(raw.remindOffsets, raw.remindMe === true ? [0] : []),
     repeat: null,
+    seriesId: null,
+    repeatAnchor: null,
   };
 }
 
