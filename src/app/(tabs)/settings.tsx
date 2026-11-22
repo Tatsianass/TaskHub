@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, Switch, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DeleteAccountSheet } from '@/components/delete-account-sheet';
 import { DropdownField } from '@/components/dropdown-field';
 import { GlassPanel } from '@/components/glass-panel';
 import { InfoButton } from '@/components/info-button';
@@ -48,6 +49,7 @@ export default function SettingsScreen() {
   const { notificationsEnabled, setNotificationsEnabled, morningTime, setMorningTime, overdueNudges, setOverdueNudges, morningDigest, setMorningDigest } =
     useNotificationsSettings();
   const [morningOpen, setMorningOpen] = useState(false);
+  const [passwordSheetOpen, setPasswordSheetOpen] = useState(false);
   const [notificationsDenied, setNotificationsDenied] = useState(false);
   const theme = useTheme();
 
@@ -98,12 +100,23 @@ export default function SettingsScreen() {
             router.replace('/login');
           } catch (e) {
             if (e instanceof Error && e.message === 'APPLE_CANCELED') return;
+            // An email account has to confirm with its password first.
+            if (e instanceof Error && e.message === 'PASSWORD_REQUIRED') {
+              setPasswordSheetOpen(true);
+              return;
+            }
             const code = e instanceof Error && 'code' in e ? String((e as { code: unknown }).code) : '';
             notify(t(code === 'SERVER_UNREACHABLE' ? 'errors.SERVER_UNREACHABLE' : 'settings.deleteAccountFailed'));
           }
         },
       },
     ]);
+  };
+
+  const confirmDeleteWithPassword = async (password: string) => {
+    await deleteAccount(password);
+    setPasswordSheetOpen(false);
+    router.replace('/login');
   };
 
   const handleCustomEscalationChange = (text: string) => {
@@ -312,6 +325,11 @@ export default function SettingsScreen() {
             title={t('settings.morningTime')}
             onClose={() => setMorningOpen(false)}
             onChange={setMorningTime}
+          />
+          <DeleteAccountSheet
+            visible={passwordSheetOpen}
+            onClose={() => setPasswordSheetOpen(false)}
+            onConfirm={confirmDeleteWithPassword}
           />
 
           {!isLocal && <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />}

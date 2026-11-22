@@ -40,3 +40,40 @@ export function rateLimit({ max, windowMs, key, now = Date.now }: RateLimitOptio
     next();
   };
 }
+
+/**
+ * Counts only failures (a wrong password), so busy but honest clients never run into it. Once `key`
+ * has failed `max` times within `windowMs` it is blocked until the window ends.
+ */
+export function failureLimiter({ max, windowMs, now = Date.now }: { max: number; windowMs: number; now?: () => number }) {
+  const buckets = new Map<string, { count: number; resetAt: number }>();
+
+  function live(key: string) {
+    const bucket = buckets.get(key);
+    if (bucket && bucket.resetAt <= now()) {
+      buckets.delete(key);
+      return undefined;
+    }
+    return bucket;
+  }
+
+  return {
+    /** Seconds until `key` may try again, or 0 if it may try now. */
+    retryAfter(key: string): number {
+      const bucket = live(key);
+      return bucket && bucket.count >= max ? Math.ceil((bucket.resetAt - now()) / 1000) : 0;
+    },
+    fail(key: string) {
+      const time = now();
+      if (buckets.size > 10_000) {
+        for (const [k, bucket] of buckets) if (bucket.resetAt <= time) buckets.delete(k);
+      }
+      const bucket = live(key) ?? { count: 0, resetAt: time + windowMs };
+      bucket.count += 1;
+      buckets.set(key, bucket);
+    },
+    clear(key: string) {
+      buckets.delete(key);
+    },
+  };
+}

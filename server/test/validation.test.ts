@@ -11,6 +11,7 @@ import {
   TAG_IDS,
   parseBirthday,
   parseTask,
+  parseTaskPatch,
   parseTaskUpdate,
   type Birthday,
   type Task,
@@ -86,6 +87,21 @@ describe('parseTask', () => {
     assert.deepEqual([parsed.seriesId, parsed.repeatAnchor], [null, null]);
   });
 
+  test('fields that depend on each other are made to agree', () => {
+    const open = parseTask({ ...validTask, done: false, completedAt: 123 });
+    assert.equal(open.completedAt, null);
+    assert.equal(parseTask({ ...validTask, remindMe: false }).remindMe, true); // alerts exist
+    assert.equal(parseTask({ ...validTask, remindMe: true, remindOffsets: [] }).remindMe, false);
+    const undated = parseTask({ ...validTask, dueDate: null });
+    assert.deepEqual([undated.repeat, undated.seriesId, undated.repeatAnchor], [null, null, null]);
+    const noRepeat = parseTask({ ...validTask, repeat: null });
+    assert.deepEqual([noRepeat.seriesId, noRepeat.repeatAnchor], [null, null]);
+  });
+
+  test('a finished task without a completion time is kept (done before it was tracked)', () => {
+    assert.equal(parseTask({ ...validTask, done: true, completedAt: null }).completedAt, null);
+  });
+
   test('rejects an unknown repeat rule', () => {
     assertRejects(() => parseTask({ ...validTask, repeat: 'hourly' }), 'INVALID_TASK');
     assertRejects(() => parseTask({ ...validTask, repeat: 7 }), 'INVALID_TASK');
@@ -93,12 +109,12 @@ describe('parseTask', () => {
 
   const valid: [string, Partial<Task>][] = [
     ['null tag', { tag: null }],
-    ['null dueDate', { dueDate: null }],
-    ['null remindTime', { remindTime: null, remindMe: false }],
+    ['null dueDate', { dueDate: null, repeat: null, seriesId: null, repeatAnchor: null }],
+    ['null remindTime', { remindTime: null, remindMe: false, remindOffsets: [] }],
     ['empty description', { description: '' }],
     ['leap day', { dueDate: '2028-02-29' }],
     ['midnight', { remindTime: '00:00' }],
-    ['no alerts', { remindOffsets: [] }],
+    ['no alerts', { remindOffsets: [], remindMe: false }],
     ['five alerts', { remindOffsets: [0, 5, 60, 1440, 43200] }],
     ['last minute of day', { remindTime: '23:59' }],
     ['done task', { done: true }],
@@ -218,6 +234,30 @@ describe('parseTaskUpdate', () => {
   test('rejects an invalid field with 400 INVALID_TASK', () => {
     assertRejects(() => parseTaskUpdate({ ...validTask, title: ' ' }), 'INVALID_TASK');
     assertRejects(() => parseTaskUpdate({ ...validTask, done: undefined }), 'INVALID_TASK');
+  });
+});
+
+describe('parseTaskPatch keeps dependent fields in step', () => {
+  const NOW = 1_800_000_000_000;
+  test('done: true without a time stamps it', () => {
+    assert.deepEqual(parseTaskPatch({ done: true }, NOW), { done: true, completedAt: NOW });
+  });
+  test('done: true with its own time keeps that time', () => {
+    assert.deepEqual(parseTaskPatch({ done: true, completedAt: 5 }, NOW), { done: true, completedAt: 5 });
+  });
+  test('done: false clears the time', () => {
+    assert.deepEqual(parseTaskPatch({ done: false }, NOW), { done: false, completedAt: null });
+    assert.deepEqual(parseTaskPatch({ done: false, completedAt: 7 }, NOW), { done: false, completedAt: null });
+  });
+  test('a change that does not touch done leaves completedAt alone', () => {
+    assert.deepEqual(parseTaskPatch({ title: 'x' }, NOW), { title: 'x' });
+  });
+  test('alerts decide remindMe', () => {
+    assert.deepEqual(parseTaskPatch({ remindOffsets: [0, 60] }, NOW), { remindOffsets: [0, 60], remindMe: true });
+    assert.deepEqual(parseTaskPatch({ remindOffsets: [] }, NOW), { remindOffsets: [], remindMe: false });
+  });
+  test('turning repeat off ends the series', () => {
+    assert.deepEqual(parseTaskPatch({ repeat: null }, NOW), { repeat: null, seriesId: null, repeatAnchor: null });
   });
 });
 

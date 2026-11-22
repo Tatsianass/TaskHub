@@ -193,11 +193,28 @@ const taskUpdateChecks: { [K in keyof TaskUpdate]: Check<TaskUpdate[K]> } = {
 };
 
 /**
+ * Makes the fields of a whole task agree with each other, whatever the client sent: an open task has
+ * no completion time, `remindMe` says whether there are alerts, and only a dated task repeats.
+ * (A finished task without a completion time stays: tasks done before it was tracked have none.)
+ */
+function consistent<T extends TaskUpdate>(task: T): T {
+  const repeats = task.repeat !== null && task.dueDate !== null;
+  return {
+    ...task,
+    completedAt: task.done ? task.completedAt : null,
+    remindMe: task.remindOffsets.length > 0,
+    repeat: repeats ? task.repeat : null,
+    seriesId: repeats ? task.seriesId : null,
+    repeatAnchor: repeats ? task.repeatAnchor : null,
+  };
+}
+
+/**
  * The body of `PATCH /tasks/:id`: any non-empty subset of the `PUT` fields. Only the fields that
  * are present are validated and returned, so a client holding a stale copy changes just what it
  * meant to (e.g. `done`) instead of overwriting edits made on another device. Throws 400 `INVALID_TASK`.
  */
-export function parseTaskPatch(body: unknown): Partial<TaskUpdate> {
+export function parseTaskPatch(body: unknown, now: number = Date.now()): Partial<TaskUpdate> {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) throw new ApiError(400, 'INVALID_TASK');
   const fields = body as Fields;
   const patch: Record<string, unknown> = {};
@@ -208,7 +225,16 @@ export function parseTaskPatch(body: unknown): Partial<TaskUpdate> {
     patch[key] = value;
   }
   if (Object.keys(patch).length === 0) throw new ApiError(400, 'INVALID_TASK');
-  return patch as Partial<TaskUpdate>;
+  const result = patch as Partial<TaskUpdate>;
+  // Only the changed fields arrive, so keep the ones that depend on them in step.
+  if (result.done === true && result.completedAt === undefined) result.completedAt = now;
+  if (result.done === false) result.completedAt = null;
+  if (result.remindOffsets !== undefined) result.remindMe = result.remindOffsets.length > 0;
+  if (result.repeat === null) {
+    result.seriesId = null;
+    result.repeatAnchor = null;
+  }
+  return result;
 }
 
 /** A full `Task` (POST /tasks, /import). Throws 400 `INVALID_TASK`. */
@@ -218,7 +244,7 @@ export function parseTask(body: unknown): Task {
     { id, createdAt: timestamp, ...taskUpdateChecks },
     'INVALID_TASK',
   );
-  return { ...task, ...withLegacyOffsets(body, task) };
+  return consistent({ ...task, ...withLegacyOffsets(body, task) });
 }
 
 /**
@@ -226,7 +252,7 @@ export function parseTask(body: unknown): Task {
  * (the client sends the whole task). Throws 400 `INVALID_TASK`.
  */
 export function parseTaskUpdate(body: unknown): TaskUpdate {
-  return withLegacyOffsets(body, parseObject<TaskUpdate>(body, taskUpdateChecks, 'INVALID_TASK'));
+  return consistent(withLegacyOffsets(body, parseObject<TaskUpdate>(body, taskUpdateChecks, 'INVALID_TASK')));
 }
 
 /** A missing field (older clients) reads as the old behaviour: remind at 09:00. */

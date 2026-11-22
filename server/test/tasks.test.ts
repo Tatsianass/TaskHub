@@ -89,6 +89,7 @@ describe('/tasks CRUD', () => {
       done: true,
       completedAt: 1718000500000,
       remindMe: false,
+      remindOffsets: [],
       repeat: null,
       seriesId: null,
       repeatAnchor: null,

@@ -20,6 +20,19 @@ const FIELDS: (keyof TaskPatch)[] = [
 ];
 
 /**
+ * `current` with the fields of `patch` put back to what `before` had, so a change the server turned
+ * down is undone without touching anything else about the task. A field that has changed again since
+ * (to something other than what `after` set) is left alone: that later change is not the one refused.
+ */
+export function revertPatch(current: Task, before: Task, after: Task, patch: TaskPatch): Task {
+  const reverted: Record<string, unknown> = { ...current };
+  for (const field of Object.keys(patch) as (keyof TaskPatch)[]) {
+    if (JSON.stringify(current[field]) === JSON.stringify(after[field])) reverted[field] = before[field];
+  }
+  return reverted as Task;
+}
+
+/**
  * The fields that differ between `before` and `after`. Sending only these means a device holding
  * an old copy of the task changes just what the user touched, instead of overwriting edits made
  * elsewhere with its stale values.

@@ -70,6 +70,16 @@ export function usersRepo(db: Queryable) {
       return rows[0]?.apple_sub ?? null;
     },
 
+    /** The stored password of user `id` (to confirm it before something irreversible), or undefined. */
+    async passwordOf(id: string): Promise<StoredPassword | undefined> {
+      const { rows } = await db.query<Omit<UserRow, 'id' | 'email'>>(
+        'SELECT password_hash, password_salt, password_params FROM users WHERE id = $1',
+        [id],
+      );
+      const row = rows[0];
+      return row && { hash: row.password_hash, salt: row.password_salt, params: row.password_params };
+    },
+
     async findById(id: string): Promise<User | undefined> {
       const { rows } = await db.query<User>('SELECT id, email FROM users WHERE id = $1', [id]);
       return rows[0];

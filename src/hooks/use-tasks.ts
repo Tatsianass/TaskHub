@@ -4,7 +4,7 @@ import { useServerList } from '@/hooks/use-server-list';
 import { todayISODate } from '@/utils/dates';
 import { MAX_DESCRIPTION_LENGTH, MAX_TITLE_LENGTH } from '@/constants/limits';
 import { isFollowUp, nextOccurrence, withSeries } from '@/utils/recurrence';
-import { diffTask } from '@/utils/task-patch';
+import { diffTask, revertPatch } from '@/utils/task-patch';
 import type { QuadrantId, RepeatRule, TagId, Task } from '@/types/task';
 
 export type TaskDraft = {
@@ -85,7 +85,8 @@ export function useTasks() {
       mutate(
         (prev) => prev.map((task) => (task.id === id ? next : task)),
         { method: 'PATCH', path: taskPath(id), body: patch },
-        (prev) => prev.map((task) => (task.id === id ? previous : task)),
+        // Undo only the fields this change set: a later edit to the same task is not lost with it.
+        (prev) => prev.map((task) => (task.id === id ? revertPatch(task, previous, next, patch) : task)),
       );
     },
     [tasks, mutate],

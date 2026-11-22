@@ -85,7 +85,19 @@ ALTER TABLE tasks ADD COLUMN series_id TEXT;
 ALTER TABLE tasks ADD COLUMN repeat_anchor TEXT;
 `;
 
-export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL, V4_SQL];
+// Rows the API accepted before it checked these invariants are repaired first, so the constraints
+// can be added to a database that already holds them: a task repeats only from a date, and only a
+// finished task has a completion time.
+const V5_SQL = `
+UPDATE tasks SET repeat = NULL, series_id = NULL, repeat_anchor = NULL
+  WHERE repeat IS NOT NULL AND due_date IS NULL;
+UPDATE tasks SET completed_at = NULL WHERE NOT done AND completed_at IS NOT NULL;
+ALTER TABLE tasks
+  ADD CONSTRAINT tasks_repeat_needs_date CHECK (repeat IS NULL OR due_date IS NOT NULL),
+  ADD CONSTRAINT tasks_open_not_completed CHECK (done OR completed_at IS NULL);
+`;
+
+export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL, V4_SQL, V5_SQL];
 
 /** Arbitrary constant; every instance takes the same advisory lock while migrating. */
 const MIGRATION_LOCK_ID = 727274;
