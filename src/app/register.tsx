@@ -13,6 +13,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/context/auth-context';
 import { useLocale } from '@/context/locale-context';
 import { Spacing } from '@/constants/theme';
+import { EMAIL_AUTH_ENABLED } from '@/lib/config';
 
 export default function RegisterScreen() {
   const { user, register } = useAuth();
@@ -24,6 +25,7 @@ export default function RegisterScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (user) return <Redirect href="/" />;
+  if (!EMAIL_AUTH_ENABLED) return <Redirect href="/login" />;
 
   const handleSubmit = async () => {
     setError('');

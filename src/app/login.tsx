@@ -13,6 +13,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/context/auth-context';
 import { useLocale } from '@/context/locale-context';
 import { Spacing } from '@/constants/theme';
+import { EMAIL_AUTH_ENABLED } from '@/lib/config';
 
 export default function LoginScreen() {
   const { user, login } = useAuth();
@@ -50,6 +51,8 @@ export default function LoginScreen() {
           </View>
 
           <GlassPanel contentStyle={styles.form}>
+            {EMAIL_AUTH_ENABLED && (
+              <>
             <TextField
               label={t('auth.email')}
               value={email}
@@ -74,30 +77,35 @@ export default function LoginScreen() {
               onSubmitEditing={handleSubmit}
             />
 
+            <PrimaryButton title={t('auth.loginButton')} onPress={handleSubmit} loading={isSubmitting} />
+            <ThemedText type="small" themeColor="textSecondary" style={styles.or}>
+              {t('auth.or')}
+            </ThemedText>
+              </>
+            )}
+
             {!!error && (
               <ThemedText themeColor="danger" type="small">
                 {error}
               </ThemedText>
             )}
 
-            <PrimaryButton title={t('auth.loginButton')} onPress={handleSubmit} loading={isSubmitting} />
-            <ThemedText type="small" themeColor="textSecondary" style={styles.or}>
-              {t('auth.or')}
-            </ThemedText>
             <AppleSignInButton onError={setError} onBusyChange={setIsSubmitting} />
           </GlassPanel>
 
-          <View style={styles.footer}>
-            <ThemedText type="small" themeColor="textSecondary">
-              {t('auth.noAccount')}
-            </ThemedText>
-            <Link href="/register">
-              <ThemedText type="small" themeColor="primary">
-                {' '}
-                {t('auth.createAccount')}
+          {EMAIL_AUTH_ENABLED && (
+            <View style={styles.footer}>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t('auth.noAccount')}
               </ThemedText>
-            </Link>
-          </View>
+              <Link href="/register">
+                <ThemedText type="small" themeColor="primary">
+                  {' '}
+                  {t('auth.createAccount')}
+                </ThemedText>
+              </Link>
+            </View>
+          )}
         </View>
         </SafeAreaView>
       </KeyboardAvoidingView>

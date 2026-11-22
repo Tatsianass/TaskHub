@@ -3,6 +3,9 @@
 // 'server': talk to the API in server/ (needs EXPO_PUBLIC_API_URL).
 export const LOCAL_MODE = process.env.EXPO_PUBLIC_STORAGE_MODE !== 'server';
 
+/** Email + password sign-up and sign-in. Hidden for now: Sign in with Apple is the only way in. Flip to bring it back. */
+export const EMAIL_AUTH_ENABLED = false;
+
 /** The one implicit user of local mode. */
 export const LOCAL_USER = { id: 'local', email: '' };
 
