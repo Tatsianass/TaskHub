@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 /** The `server/` directory, whether running from `src/` (tsx) or `dist/` (node). */
 export const SERVER_DIR = resolve(import.meta.dirname, '..');
 
+import type { AppleCredentials } from './auth/apple-revoke.js';
+import { normalizePrivateKey } from './auth/apple-revoke.js';
+
 export type Config = {
   port: number;
   /** Interface to bind. `0.0.0.0` accepts connections from outside the container. */
@@ -18,6 +21,8 @@ export type Config = {
   trustProxy: number;
   /** Accepted audiences of Sign in with Apple identity tokens: the app's bundle id. */
   appleAudiences: string[];
+  /** Key for revoking Apple sign-ins when an account is deleted; null disables the revocation. */
+  appleRevoke: AppleCredentials | null;
 };
 
 export const DEFAULT_PORT = 4000;
@@ -35,13 +40,15 @@ export function loadEnvFile(path = resolve(SERVER_DIR, '.env')) {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  const appleAudiences = parseList(env.APPLE_BUNDLE_IDS, [DEFAULT_APPLE_AUDIENCE]);
   return {
     port: parsePort(env.PORT),
     host: parseHost(env.HOST),
     ...parseDatabase(env),
     corsOrigins: parseOrigins(env.CORS_ORIGIN),
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
-    appleAudiences: parseList(env.APPLE_BUNDLE_IDS, [DEFAULT_APPLE_AUDIENCE]),
+    appleAudiences,
+    appleRevoke: parseAppleRevoke(env, appleAudiences[0]),
   };
 }
 
@@ -111,4 +118,16 @@ function parseTrustProxy(value: string | undefined) {
   const hops = Number(value);
   if (!Number.isInteger(hops) || hops < 0) throw new Error(`Invalid TRUST_PROXY: "${value}"`);
   return hops;
+}
+
+/** All three of `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY`, or none (revocation off). */
+function parseAppleRevoke(env: NodeJS.ProcessEnv, clientId: string): AppleCredentials | null {
+  const teamId = env.APPLE_TEAM_ID?.trim() ?? '';
+  const keyId = env.APPLE_KEY_ID?.trim() ?? '';
+  const privateKey = env.APPLE_PRIVATE_KEY?.trim() ?? '';
+  if (!teamId && !keyId && !privateKey) return null;
+  if (!teamId || !keyId || !privateKey) {
+    throw new Error('APPLE_TEAM_ID, APPLE_KEY_ID and APPLE_PRIVATE_KEY must be set together');
+  }
+  return { teamId, keyId, privateKey: normalizePrivateKey(privateKey), clientId };
 }

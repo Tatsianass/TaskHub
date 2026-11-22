@@ -46,7 +46,7 @@ export default function HomeScreen() {
   const { t } = useLocale();
   const { isPro, openPaywall } = usePro();
   const theme = useTheme();
-  const { tasks, isLoaded, addTask, updateTask, toggleTask, rescheduleTask, deleteTask, error, clearError, refresh } = useTasksContext();
+  const { tasks, isLoaded, addTask, updateTask, toggleTask, rescheduleTask, deleteTask, error, pendingWrites, clearError, refresh } = useTasksContext();
   const { escalationDays } = useEscalationSettings();
   const today = useToday();
   const { refreshing, onRefresh } = usePullToRefresh(refresh);
@@ -228,7 +228,7 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <ErrorBanner code={error} onDismiss={clearError} />
+        <ErrorBanner code={error ?? (pendingWrites > 0 ? 'QUEUED_OFFLINE' : null)} info={!error} onDismiss={clearError} />
 
         {isLoaded && (
           <OverdueBanner

@@ -42,7 +42,7 @@ export default function CalendarScreen() {
   const { user } = useAuth();
   const { t, locale } = useLocale();
   const theme = useTheme();
-  const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, clearError, refresh } =
+  const { tasks, isLoaded, addTask, updateTask, toggleTask, deleteTask, error, pendingWrites, clearError, refresh } =
     useTasksContext();
   const { birthdays, refresh: refreshBirthdays } = useBirthdaysContext();
   const { escalationDays } = useEscalationSettings();
@@ -173,7 +173,7 @@ export default function CalendarScreen() {
             </Pressable>
           </View>
 
-          <ErrorBanner code={error} onDismiss={clearError} />
+          <ErrorBanner code={error ?? (pendingWrites > 0 ? 'QUEUED_OFFLINE' : null)} info={!error} onDismiss={clearError} />
 
           <GestureDetector gesture={monthSwipe}>
             <GlassPanel style={styles.monthPanel} contentStyle={styles.monthContent}>

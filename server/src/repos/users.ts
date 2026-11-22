@@ -64,6 +64,12 @@ export function usersRepo(db: Queryable) {
       return { id, email };
     },
 
+    /** The Apple id the account signs in with, or null for an email account (or no such user). */
+    async appleSubOf(id: string): Promise<string | null> {
+      const { rows } = await db.query<{ apple_sub: string | null }>('SELECT apple_sub FROM users WHERE id = $1', [id]);
+      return rows[0]?.apple_sub ?? null;
+    },
+
     async findById(id: string): Promise<User | undefined> {
       const { rows } = await db.query<User>('SELECT id, email FROM users WHERE id = $1', [id]);
       return rows[0];

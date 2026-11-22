@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 
-import { SESSION_TTL_MS, sessionsRepo } from '../src/repos/sessions.js';
+import { hashToken } from '../src/auth/tokens.js';
+import { SESSION_RENEW_AFTER_MS, SESSION_TTL_MS, sessionsRepo } from '../src/repos/sessions.js';
 import type { Db } from '../src/db/connection.js';
 import { createTestDb, makeBirthday, makeTask, startApp } from './helpers.js';
 
@@ -178,6 +179,30 @@ describe('GET /auth/me', () => {
 
     const second = await app.request('GET', '/auth/me', { token });
     assert.deepEqual(second.body, { error: 'UNAUTHORIZED' });
+  });
+});
+
+describe('session renewal', () => {
+  const expiryOf = async (token: string) =>
+    (await sessionsRepo(db).findValid(hashToken(token)))?.expiresAt as number;
+
+  test('a session not used for a day is renewed to a full 30 days (R2.3)', async () => {
+    const { user } = await register();
+    const { token } = await sessionsRepo(db).create(user.id, Date.now() - 10 * 24 * 60 * 60 * 1000);
+    const before = await expiryOf(token);
+
+    assert.equal((await app.request('GET', '/auth/me', { token })).status, 200);
+    const after = await expiryOf(token);
+    assert.ok(after > before);
+    assert.ok(after >= Date.now() + SESSION_TTL_MS - 5000);
+  });
+
+  test('a fresh session is left alone, so reads stay reads', async () => {
+    const { user } = await register();
+    const { token } = await sessionsRepo(db).create(user.id, Date.now() - SESSION_RENEW_AFTER_MS / 2);
+    const before = await expiryOf(token);
+    await app.request('GET', '/auth/me', { token });
+    assert.equal(await expiryOf(token), before);
   });
 });
 

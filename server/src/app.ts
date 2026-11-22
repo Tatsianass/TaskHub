@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 
 import { createAppleVerifier, type AppleVerifier } from './auth/apple.js';
+import type { AppleRevoker } from './auth/apple-revoke.js';
 import { DEFAULT_APPLE_AUDIENCE, DEFAULT_CORS_ORIGIN } from './config.js';
 import type { Db } from './db/connection.js';
 import { errorHandler, notFoundHandler } from './errors.js';
@@ -23,6 +24,8 @@ export type AppOptions = {
   appleAudiences?: string[];
   /** Replaces the real Apple token check; tests only. */
   appleVerifier?: AppleVerifier;
+  /** Revokes the Apple sign-in when an Apple account is deleted; null skips it (not configured). */
+  appleRevoker?: AppleRevoker | null;
 };
 
 export function createApp(db: Db, options: AppOptions = {}) {
@@ -32,6 +35,7 @@ export function createApp(db: Db, options: AppOptions = {}) {
     authRateLimits,
     appleAudiences = [DEFAULT_APPLE_AUDIENCE],
     appleVerifier = createAppleVerifier({ audiences: appleAudiences }),
+    appleRevoker = null,
   } = options;
   const app = express();
   const users = usersRepo(db);
@@ -53,7 +57,7 @@ export function createApp(db: Db, options: AppOptions = {}) {
     }
   });
 
-  app.use('/auth', authRouter(users, sessions, appleVerifier, authRateLimits));
+  app.use('/auth', authRouter(users, sessions, appleVerifier, authRateLimits, appleRevoker));
   app.use('/tasks', tasksRouter(tasks, sessions));
   app.use('/birthdays', birthdaysRouter(birthdays, sessions));
   app.use('/import', importRouter(db, sessions));

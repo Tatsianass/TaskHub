@@ -14,6 +14,7 @@ import { MAX_ACTIVE_TASKS_PER_QUADRANT } from '@/constants/quadrants';
 import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
 import { useEscalationSettings } from '@/context/escalation-context';
+import { useNotificationsSettings } from '@/context/notifications-context';
 import { useLocale } from '@/context/locale-context';
 import { useToday } from '@/context/today-context';
 import { useTheme } from '@/hooks/use-theme';
@@ -134,6 +135,7 @@ function TaskFormBody({
   const theme = useTheme();
   const { isPro, openPaywall } = usePro();
   const { escalationDays } = useEscalationSettings();
+  const { askForPermission } = useNotificationsSettings();
   const today = useToday();
   const [title, setTitle] = useState(initialTask?.title ?? '');
   const [description, setDescription] = useState(initialTask?.description ?? '');
@@ -230,6 +232,9 @@ function TaskFormBody({
   const handleSave = () => {
     if (!canSave) return;
     onSave({ title, description, quadrantId, tag, dueDate, remindOffsets, remindTime, repeat: dueDate ? repeat : null });
+    // The first reminder is what makes notifications worth allowing. Wait for the sheet to close:
+    // iOS won't show an alert on top of a dismissing modal.
+    if (dueDate && remindOffsets.length > 0) setTimeout(() => void askForPermission().catch(() => {}), 600);
   };
 
   const pickDate = (value: string | null) => {

@@ -97,6 +97,7 @@ export default function SettingsScreen() {
             await deleteAccount();
             router.replace('/login');
           } catch (e) {
+            if (e instanceof Error && e.message === 'APPLE_CANCELED') return;
             const code = e instanceof Error && 'code' in e ? String((e as { code: unknown }).code) : '';
             notify(t(code === 'SERVER_UNREACHABLE' ? 'errors.SERVER_UNREACHABLE' : 'settings.deleteAccountFailed'));
           }

@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 
 import { useServerList } from '@/hooks/use-server-list';
-import { api } from '@/lib/api';
 import type { Birthday } from '@/types/birthday';
 
 export type BirthdayDraft = {
@@ -13,7 +12,7 @@ export type BirthdayDraft = {
 };
 
 export function useBirthdays() {
-  const { items: birthdays, isLoaded, error, clearError, mutate, refresh } = useServerList<Birthday>('/birthdays');
+  const { items: birthdays, isLoaded, error, pendingWrites, clearError, mutate, refresh } = useServerList<Birthday>('/birthdays');
 
   const addBirthday = useCallback(
     (draft: BirthdayDraft) => {
@@ -29,7 +28,7 @@ export function useBirthdays() {
       };
       mutate(
         (prev) => [...prev, birthday],
-        () => api('/birthdays', { method: 'POST', body: birthday }),
+        { method: 'POST', path: '/birthdays', body: birthday },
         (prev) => prev.filter((item) => item.id !== birthday.id),
       );
     },
@@ -51,7 +50,7 @@ export function useBirthdays() {
       };
       mutate(
         (prev) => prev.map((birthday) => (birthday.id === id ? next : birthday)),
-        () => api(`/birthdays/${encodeURIComponent(id)}`, { method: 'PUT', body: next }),
+        { method: 'PUT', path: `/birthdays/${encodeURIComponent(id)}`, body: next },
         (prev) => prev.map((birthday) => (birthday.id === id ? previous : birthday)),
       );
     },
@@ -65,7 +64,7 @@ export function useBirthdays() {
       const removed = birthdays[index];
       mutate(
         (prev) => prev.filter((birthday) => birthday.id !== id),
-        () => api(`/birthdays/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+        { method: 'DELETE', path: `/birthdays/${encodeURIComponent(id)}` },
         (prev) =>
           prev.some((birthday) => birthday.id === id)
             ? prev
@@ -75,5 +74,5 @@ export function useBirthdays() {
     [birthdays, mutate],
   );
 
-  return { birthdays, isLoaded, addBirthday, updateBirthday, deleteBirthday, error, clearError, refresh };
+  return { birthdays, isLoaded, addBirthday, updateBirthday, deleteBirthday, error, pendingWrites, clearError, refresh };
 }

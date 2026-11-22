@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import { useServerList } from '@/hooks/use-server-list';
-import { api, ApiError } from '@/lib/api';
 import { todayISODate } from '@/utils/dates';
 import { isFollowUp, nextOccurrence } from '@/utils/recurrence';
 import { diffTask } from '@/utils/task-patch';
@@ -31,27 +30,10 @@ const repeatField = (draft: TaskDraft) => (draft.dueDate ? draft.repeat : null);
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-/**
- * Creates the task, safe to repeat because the client chose its id: when the answer gets lost
- * (timeout) the server may already have it, so one retry follows and "duplicate id" counts as done.
- */
-async function createTask(task: Task) {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      await api('/tasks', { method: 'POST', body: task });
-      return;
-    } catch (e) {
-      if (e instanceof ApiError && e.code === 'DUPLICATE_ID') return;
-      if (attempt === 0 && e instanceof ApiError && e.code === 'SERVER_UNREACHABLE') continue;
-      throw e;
-    }
-  }
-}
-
 const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
 
 export function useTasks() {
-  const { items: tasks, isLoaded, error, clearError, mutate, refresh } = useServerList<Task>('/tasks');
+  const { items: tasks, isLoaded, error, pendingWrites, clearError, mutate, refresh } = useServerList<Task>('/tasks');
   const toggledSinceRender = useRef(new Set<string>());
   useEffect(() => {
     toggledSinceRender.current.clear();
@@ -61,7 +43,7 @@ export function useTasks() {
     (task: Task) =>
       mutate(
         (prev) => [task, ...prev],
-        () => createTask(task),
+        { method: 'POST', path: '/tasks', body: task },
         (prev) => prev.filter((item) => item.id !== task.id),
       ),
     [mutate],
@@ -98,7 +80,7 @@ export function useTasks() {
       if (Object.keys(patch).length === 0) return;
       mutate(
         (prev) => prev.map((task) => (task.id === id ? next : task)),
-        () => api(taskPath(id), { method: 'PATCH', body: patch }),
+        { method: 'PATCH', path: taskPath(id), body: patch },
         (prev) => prev.map((task) => (task.id === id ? previous : task)),
       );
     },
@@ -129,7 +111,7 @@ export function useTasks() {
       if (!removed) return;
       mutate(
         (prev) => prev.filter((task) => task.id !== id),
-        () => api(taskPath(id), { method: 'DELETE' }),
+        { method: 'DELETE', path: taskPath(id) },
         (prev) => (prev.some((task) => task.id === id) ? prev : [removed, ...prev]),
       );
     },
@@ -172,5 +154,5 @@ export function useTasks() {
     for (const task of tasks) if (task.done) deleteTask(task.id);
   }, [tasks, deleteTask]);
 
-  return { tasks, isLoaded, addTask, updateTask, toggleTask, rescheduleTask, deleteTask, clearCompleted, error, clearError, refresh };
+  return { tasks, isLoaded, addTask, updateTask, toggleTask, rescheduleTask, deleteTask, clearCompleted, error, pendingWrites, clearError, refresh };
 }
