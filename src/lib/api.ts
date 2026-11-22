@@ -35,28 +35,34 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+  // The timer covers the whole exchange, body included: a connection that stalls mid-response
+  // must not hang the request forever.
   let res: Response;
-  try {
-    res = await fetch(`${BASE_URL}${path}`, {
-      method: opts.method ?? 'GET',
-      headers,
-      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-      signal: controller.signal,
-    });
-  } catch {
-    // Network failure, DNS, refused connection or timeout abort.
-    throw new ApiError('SERVER_UNREACHABLE', 0);
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (res.status === 204) return undefined as T;
-
   let data: unknown = null;
   try {
-    data = await res.json();
-  } catch {
-    // Empty or non-JSON body (e.g. a proxy error page).
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        method: opts.method ?? 'GET',
+        headers,
+        body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+        signal: controller.signal,
+      });
+    } catch {
+      // Network failure, DNS, refused connection or timeout abort.
+      throw new ApiError('SERVER_UNREACHABLE', 0);
+    }
+
+    if (res.status === 204) return undefined as T;
+
+    try {
+      data = await res.json();
+    } catch {
+      // A timeout while reading means the answer is incomplete, not empty.
+      if (controller.signal.aborted) throw new ApiError('SERVER_UNREACHABLE', 0);
+      // Empty or non-JSON body (e.g. a proxy error page).
+    }
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!res.ok) {

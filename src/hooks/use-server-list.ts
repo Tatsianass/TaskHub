@@ -34,15 +34,34 @@ export function useServerList<T>(path: string) {
   const current = state && state.owner === userId ? state : null;
   // Only the newest fetch may write, so an older response can't overwrite a newer one.
   const latestFetch = useRef(0);
+  // A fetch that was in flight while the user changed something holds a pre-change snapshot, so its
+  // answer must not replace the list. It is dropped and the list is fetched again once the changes
+  // have reached the server.
+  const mutationCount = useRef(0);
+  const pendingMutations = useRef(0);
+  const reloadWanted = useRef(false);
+  const loadRef = useRef<() => Promise<void>>(async () => {});
 
   const load = useCallback(async () => {
     if (!userId) return;
     const fetchId = ++latestFetch.current;
+    const mutationsAtStart = mutationCount.current;
+    const outdated = () => fetchId !== latestFetch.current;
+    const changedMeanwhile = () => mutationCount.current !== mutationsAtStart || pendingMutations.current > 0;
     try {
       const items = await api<T[]>(path);
-      if (fetchId === latestFetch.current) setState({ owner: userId, items, isLoaded: true, error: null });
+      if (outdated()) return;
+      if (changedMeanwhile()) {
+        reloadWanted.current = true;
+        return;
+      }
+      setState({ owner: userId, items, isLoaded: true, error: null });
     } catch (e) {
-      if (fetchId !== latestFetch.current) return;
+      if (outdated()) return;
+      if (changedMeanwhile()) {
+        reloadWanted.current = true;
+        return;
+      }
       // A failed refresh keeps the list already on screen; only the first load falls back to empty.
       setState((prev) =>
         prev && prev.owner === userId
@@ -51,6 +70,10 @@ export function useServerList<T>(path: string) {
       );
     }
   }, [path, userId]);
+
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
 
   useEffect(() => {
     load();
@@ -110,8 +133,18 @@ export function useServerList<T>(path: string) {
             ? { ...prev, items: change(prev.items), error: error ?? prev.error, cached: false }
             : prev,
         );
+      mutationCount.current++;
+      pendingMutations.current++;
       apply(optimistic);
-      request().catch((e) => apply(rollback, errorCode(e)));
+      request()
+        .catch((e) => apply(rollback, errorCode(e)))
+        .finally(() => {
+          pendingMutations.current--;
+          if (pendingMutations.current === 0 && reloadWanted.current) {
+            reloadWanted.current = false;
+            loadRef.current();
+          }
+        });
     },
     [userId],
   );
