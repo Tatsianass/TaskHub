@@ -18,6 +18,8 @@ export function makeTask(overrides: Partial<Task> = {}): Task {
     remindTime: null,
     remindOffsets: [],
     repeat: null,
+    seriesId: null,
+    repeatAnchor: null,
     ...overrides,
   };
 }

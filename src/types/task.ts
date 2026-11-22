@@ -26,4 +26,8 @@ export type Task = {
   remindOffsets: number[];
   /** When set, finishing the task creates the next one on the following date. Missing on tasks saved before this existed. */
   repeat: RepeatRule | null;
+  /** Shared by every occurrence of one repeating task, so a task is never mistaken for another with the same title. Null for one-off tasks and tasks saved before this existed. */
+  seriesId: string | null;
+  /** The date the series started from; monthly/yearly occurrences return to its day after a short month (31st -> 28th -> 31st). */
+  repeatAnchor: string | null;
 };

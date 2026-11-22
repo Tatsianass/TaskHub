@@ -15,6 +15,8 @@ const FIELDS: (keyof TaskPatch)[] = [
   'remindTime',
   'remindOffsets',
   'repeat',
+  'seriesId',
+  'repeatAnchor',
 ];
 
 /**

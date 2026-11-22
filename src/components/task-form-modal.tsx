@@ -10,6 +10,7 @@ import { PrimaryButton } from '@/components/primary-button';
 import { RemindersSection } from '@/components/reminders-section';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
+import { MAX_DESCRIPTION_LENGTH, MAX_TITLE_LENGTH } from '@/constants/limits';
 import { MAX_ACTIVE_TASKS_PER_QUADRANT } from '@/constants/quadrants';
 import { TAGS } from '@/constants/tags';
 import { Spacing } from '@/constants/theme';
@@ -270,6 +271,7 @@ function TaskFormBody({
         <TextField
           value={title}
           onChangeText={setTitle}
+          maxLength={MAX_TITLE_LENGTH}
           placeholder={voice.listening ? t('voice.listening') : t('taskForm.titlePlaceholder')}
           autoFocus={!autoListen}
           accessory={
@@ -293,7 +295,12 @@ function TaskFormBody({
             {t(voice.error === 'denied' ? 'voice.denied' : 'voice.error')}
           </ThemedText>
         )}
-        <TextField label={t('taskForm.descriptionLabel')} value={description} onChangeText={setDescription} />
+        <TextField
+          label={t('taskForm.descriptionLabel')}
+          value={description}
+          onChangeText={setDescription}
+          maxLength={MAX_DESCRIPTION_LENGTH}
+        />
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
           {t('taskForm.whenLabel')}

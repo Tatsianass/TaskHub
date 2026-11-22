@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import { useServerList } from '@/hooks/use-server-list';
 import { todayISODate } from '@/utils/dates';
-import { isFollowUp, nextOccurrence } from '@/utils/recurrence';
+import { MAX_DESCRIPTION_LENGTH, MAX_TITLE_LENGTH } from '@/constants/limits';
+import { isFollowUp, nextOccurrence, withSeries } from '@/utils/recurrence';
 import { diffTask } from '@/utils/task-patch';
 import type { QuadrantId, RepeatRule, TagId, Task } from '@/types/task';
 
@@ -29,6 +30,7 @@ function reminderFields(draft: TaskDraft) {
 const repeatField = (draft: TaskDraft) => (draft.dueDate ? draft.repeat : null);
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const newSeriesId = () => `s-${newId()}`;
 
 const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
 
@@ -51,21 +53,23 @@ export function useTasks() {
 
   const addTask = useCallback(
     (draft: TaskDraft) => {
-      const title = draft.title.trim();
+      const title = draft.title.trim().slice(0, MAX_TITLE_LENGTH);
       if (!title) return;
-      insertTask({
+      insertTask(withSeries({
         id: newId(),
         title,
-        description: draft.description.trim(),
+        description: draft.description.trim().slice(0, MAX_DESCRIPTION_LENGTH),
         quadrantId: draft.quadrantId,
         tag: draft.tag,
         dueDate: draft.dueDate,
         ...reminderFields(draft),
         repeat: repeatField(draft),
+        seriesId: null,
+        repeatAnchor: null,
         done: false,
         completedAt: null,
         createdAt: Date.now(),
-      });
+      }, newSeriesId));
     },
     [insertTask],
   );
@@ -89,18 +93,26 @@ export function useTasks() {
 
   const updateTask = useCallback(
     (id: string, draft: TaskDraft) => {
-      const title = draft.title.trim();
+      const title = draft.title.trim().slice(0, MAX_TITLE_LENGTH);
       if (!title) return;
-      replaceTask(id, (task) => ({
-        ...task,
-        title,
-        description: draft.description.trim(),
-        quadrantId: draft.quadrantId,
-        tag: draft.tag,
-        dueDate: draft.dueDate,
-        ...reminderFields(draft),
-        repeat: repeatField(draft),
-      }));
+      replaceTask(id, (task) => {
+        // Moving the date in the form starts the series over from the new date; a plain postpone doesn't.
+        const dateMoved = draft.dueDate !== task.dueDate;
+        return withSeries(
+          {
+            ...task,
+            title,
+            description: draft.description.trim().slice(0, MAX_DESCRIPTION_LENGTH),
+            quadrantId: draft.quadrantId,
+            tag: draft.tag,
+            dueDate: draft.dueDate,
+            ...reminderFields(draft),
+            repeat: repeatField(draft),
+            repeatAnchor: dateMoved ? null : task.repeatAnchor,
+          },
+          newSeriesId,
+        );
+      });
     },
     [replaceTask],
   );
@@ -130,15 +142,23 @@ export function useTasks() {
       // same state and, for a repeating task, create its next occurrence twice.
       if (toggledSinceRender.current.has(id)) return;
       toggledSinceRender.current.add(id);
-      replaceTask(id, (current) => ({ ...current, done: !current.done, completedAt: current.done ? null : Date.now() }));
+      // A repeating task saved before series existed joins one now, so its follow-up can be told apart.
+      const series = withSeries(task, newSeriesId);
+      replaceTask(id, (current) => ({
+        ...current,
+        done: !current.done,
+        completedAt: current.done ? null : Date.now(),
+        seriesId: series.seriesId,
+        repeatAnchor: series.repeatAnchor,
+      }));
       if (!task.repeat) return;
       if (task.done) {
         const followUp = tasks
           .filter((candidate) => isFollowUp(task, candidate) && candidate.createdAt >= (task.completedAt ?? 0))
           .sort((a, b) => a.createdAt - b.createdAt)[0];
         if (followUp) deleteTask(followUp.id);
-      } else if (!tasks.some((candidate) => isFollowUp(task, candidate))) {
-        const next = nextOccurrence(task, newId(), Date.now(), todayISODate());
+      } else if (!tasks.some((candidate) => isFollowUp(series, candidate))) {
+        const next = nextOccurrence(series, newId(), Date.now(), todayISODate());
         if (next) insertTask(next);
       }
     },

@@ -1,11 +1,11 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { hexToRgba } from '@/utils/colors';
 
-/** What a day cell shows under its number: one dot per task, and a cake for birthdays. */
+/** What a day cell shows under its number: one dot per task, and a pink dot for birthdays. */
 export type DayMarks = { dots: { color: string; done: boolean }[]; birthday: boolean };
 
 type Props = {
@@ -45,6 +45,8 @@ function monthCells(year: number, month: number, weekStartsOn: 0 | 1) {
 export function MonthGrid({ year, month, weekStartsOn, weekdayLabels, today, selected, marks, onSelect }: Props) {
   const theme = useTheme();
   const cells = monthCells(year, month, weekStartsOn);
+  // The third blob is the palette's pink/warm accent in every theme, so birthdays stay on-palette.
+  const birthdayColor = theme.blobs[2];
 
   return (
     <View>
@@ -60,6 +62,32 @@ export function MonthGrid({ year, month, weekStartsOn, weekdayLabels, today, sel
           const isSelected = cell.date === selected;
           const isToday = cell.date === today;
           const mark = marks.get(cell.date);
+          const dots = [
+            ...(mark?.birthday ? [{ color: birthdayColor, done: false }] : []),
+            ...(mark?.dots ?? []),
+          ].slice(0, MAX_DOTS);
+          const content = (
+            <>
+              <ThemedText
+                type={isToday || isSelected ? 'smallBold' : 'small'}
+                themeColor={isToday && !isSelected ? 'primary' : cell.inMonth ? 'text' : 'textSecondary'}
+                style={[isSelected && styles.selectedText, !cell.inMonth && !isSelected && styles.outside]}>
+                {cell.day}
+              </ThemedText>
+              <View style={styles.marks}>
+                {dots.map((dot, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.dot,
+                      { backgroundColor: isSelected ? '#ffffff' : dot.color },
+                      dot.done && styles.dotDone,
+                    ]}
+                  />
+                ))}
+              </View>
+            </>
+          );
           return (
             <Pressable
               key={cell.date}
@@ -67,28 +95,17 @@ export function MonthGrid({ year, month, weekStartsOn, weekdayLabels, today, sel
               onPress={() => onSelect(cell.date)}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}>
-              <View
-                style={[
-                  styles.cell,
-                  isSelected && { backgroundColor: theme.backgroundSelected, borderColor: theme.primary },
-                  isToday && !isSelected && { backgroundColor: hexToRgba(theme.primary, 0.14) },
-                ]}>
-                <ThemedText
-                  type={isToday || isSelected ? 'smallBold' : 'small'}
-                  themeColor={isToday ? 'primary' : cell.inMonth ? 'text' : 'textSecondary'}
-                  style={!cell.inMonth && styles.outside}>
-                  {cell.day}
-                </ThemedText>
-                <View style={styles.marks}>
-                  {mark?.dots.slice(0, MAX_DOTS).map((dot, index) => (
-                    <View
-                      key={index}
-                      style={[styles.dot, { backgroundColor: dot.color }, dot.done && styles.dotDone]}
-                    />
-                  ))}
-                  {mark?.birthday && <ThemedText style={styles.cake}>🎂</ThemedText>}
-                </View>
-              </View>
+              {isSelected ? (
+                <LinearGradient
+                  colors={[theme.gradientStart, theme.gradientEnd]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.cell}>
+                  {content}
+                </LinearGradient>
+              ) : (
+                <View style={[styles.cell, isToday && { borderColor: theme.primary }]}>{content}</View>
+              )}
             </Pressable>
           );
         })}
@@ -113,36 +130,38 @@ const styles = StyleSheet.create({
   },
   cellWrapper: {
     width: `${100 / 7}%`,
-    padding: 2,
+    alignItems: 'center',
+    paddingVertical: 1,
   },
+  // A circle: the selected day is filled with the theme gradient, today only gets a ring.
   cell: {
-    height: 44,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1.5,
     borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
   },
+  selectedText: {
+    color: '#ffffff',
+  },
   outside: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   marks: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    height: 8,
+    height: 6,
   },
   dot: {
-    width: 5,
-    height: 5,
+    width: 6,
+    height: 6,
     borderRadius: 3,
   },
   dotDone: {
     opacity: 0.35,
-  },
-  cake: {
-    fontSize: 8,
-    lineHeight: 10,
   },
 });

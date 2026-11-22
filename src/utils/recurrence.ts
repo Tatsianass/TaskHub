@@ -9,26 +9,31 @@ function parts(dateStr: string) {
   return { year, month, day };
 }
 
-/** Year/month shifted by `months`, with the day clamped to the target month's length (31 Jan + 1 month = 28/29 Feb). */
-function addMonthsISO(dateStr: string, months: number): string {
-  const { year, month, day } = parts(dateStr);
-  const target = new Date(year, month - 1 + months, 1);
+/** `day` of `month` (0-based, may overflow into other years), clamped to the month's length (31 -> 28/29 Feb). */
+function clampedDate(year: number, month: number, day: number): string {
+  const target = new Date(year, month, 1);
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
   target.setDate(Math.min(day, lastDay));
   return isoDateOf(target.getTime());
 }
 
-/** The `step`-th occurrence after `dueDate` (step >= 1) for rules that repeat at a fixed interval. */
-function nthOccurrence(rule: Exclude<RepeatRule, 'weekdays'>, dueDate: string, step: number): string {
+/**
+ * The `step`-th occurrence of a rule counted from `dueDate` (step >= 0). Monthly and yearly ones take
+ * their day (and, yearly, month) from `anchor`, so a task that was pushed to the 28th by a short month
+ * goes back to the 31st instead of staying on the 28th for good.
+ */
+function nthOccurrence(rule: Exclude<RepeatRule, 'weekdays'>, dueDate: string, anchor: string, step: number): string {
+  const due = parts(dueDate);
+  const base = parts(anchor);
   switch (rule) {
     case 'daily':
       return addDaysISO(dueDate, step);
     case 'weekly':
       return addDaysISO(dueDate, 7 * step);
     case 'monthly':
-      return addMonthsISO(dueDate, step);
+      return clampedDate(due.year, due.month - 1 + step, base.day);
     case 'yearly':
-      return addMonthsISO(dueDate, 12 * step);
+      return clampedDate(due.year + step, base.month - 1, base.day);
   }
 }
 
@@ -43,18 +48,36 @@ function isWeekend(dateStr: string): boolean {
  * The due date of the next occurrence of a task due on `dueDate`: the first one after it that is
  * also after `today`. Finishing early moves it one period on from the due date; finishing a
  * month-old rent task doesn't leave the next one already overdue. Each step is counted from
- * `dueDate`, not from the previous step, so "31st monthly" doesn't get stuck on the 28th.
+ * `dueDate`, not from the previous step, so "31st monthly" doesn't get stuck on the 28th while
+ * catching up, and `anchor` (the series' original date, default `dueDate`) keeps it from getting
+ * stuck there across completions.
  */
-export function nextDueDate(rule: RepeatRule, dueDate: string, today: string = todayISODate()): string {
+export function nextDueDate(
+  rule: RepeatRule,
+  dueDate: string,
+  today: string = todayISODate(),
+  anchor: string = dueDate,
+): string {
   if (rule === 'weekdays') {
     let next = addDaysISO(dueDate > today ? dueDate : today, 1);
     while (isWeekend(next)) next = addDaysISO(next, 1);
     return next;
   }
-  let step = 1;
-  let next = nthOccurrence(rule, dueDate, step);
-  while (next <= today) next = nthOccurrence(rule, dueDate, ++step);
+  // Monthly and yearly occurrences may fall on or before `dueDate` for step 0 (the anchor's day can
+  // be earlier or later in the month than where the task was moved), so they start there.
+  let step = rule === 'monthly' || rule === 'yearly' ? 0 : 1;
+  let next = nthOccurrence(rule, dueDate, anchor, step);
+  while (next <= dueDate || next <= today) next = nthOccurrence(rule, dueDate, anchor, ++step);
   return next;
+}
+
+/**
+ * Puts a repeating task into a series: it gets a `seriesId` (from `newSeriesId`) and the date it
+ * started from, unless it already has them. Tasks that don't repeat come back without a series.
+ */
+export function withSeries(task: Task, newSeriesId: () => string): Task {
+  if (!task.repeat || !task.dueDate) return { ...task, seriesId: null, repeatAnchor: null };
+  return { ...task, seriesId: task.seriesId ?? newSeriesId(), repeatAnchor: task.repeatAnchor ?? task.dueDate };
 }
 
 /**
@@ -64,7 +87,7 @@ export function nextDueDate(rule: RepeatRule, dueDate: string, today: string = t
  */
 export function nextOccurrence(task: Task, id: string, now: number, today: string = todayISODate()): Task | null {
   if (!task.repeat || !task.dueDate) return null;
-  const dueDate = nextDueDate(task.repeat, task.dueDate, today);
+  const dueDate = nextDueDate(task.repeat, task.dueDate, today, task.repeatAnchor ?? task.dueDate);
   return {
     ...task,
     id,
@@ -76,13 +99,19 @@ export function nextOccurrence(task: Task, id: string, now: number, today: strin
   };
 }
 
-/** Whether `candidate` is already the open follow-up of `completed` (so completing it twice doesn't double up). */
+/**
+ * Whether `candidate` is already the open follow-up of `completed` (so completing it twice doesn't
+ * double up). Tasks of a series are matched by it; only tasks saved before series existed fall back
+ * to the same title and rule, which can mistake two look-alike tasks for each other.
+ */
 export function isFollowUp(completed: Task, candidate: Task): boolean {
+  const sameSeries = completed.seriesId
+    ? candidate.seriesId === completed.seriesId
+    : !candidate.seriesId && candidate.title === completed.title && candidate.repeat === completed.repeat;
   return (
     !candidate.done &&
     candidate.id !== completed.id &&
-    candidate.title === completed.title &&
-    candidate.repeat === completed.repeat &&
+    sameSeries &&
     !!candidate.dueDate &&
     !!completed.dueDate &&
     candidate.dueDate > completed.dueDate

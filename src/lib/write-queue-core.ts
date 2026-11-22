@@ -26,7 +26,7 @@ type Deps = {
   send: (write: Write) => Promise<unknown>;
 };
 
-/** Failures of the server itself are retried this many times before the write is given up on. */
+/** Failures of the server's own code (500) are retried this many times before the write is given up on. */
 export const MAX_SERVER_FAILURES = 5;
 
 type Verdict = 'done' | 'wait' | 'server-failed' | 'rejected';
@@ -43,6 +43,8 @@ export function judge(write: Write, error: unknown): { verdict: Verdict; code: s
   if (code === 'SERVER_UNREACHABLE' || status === 0 || status === 401 || status === 408 || status === 429) {
     return { verdict: 'wait', code };
   }
+  // A proxy's 502/503/504 (a deploy or restart in progress) says nothing about this write: keep it.
+  if (status === 502 || status === 503 || status === 504) return { verdict: 'wait', code };
   if (status >= 500) return { verdict: 'server-failed', code };
   // The first try did get through, only its answer was lost; or someone else already deleted it.
   if (write.method === 'POST' && status === 409) return { verdict: 'done', code };

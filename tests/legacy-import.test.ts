@@ -82,6 +82,7 @@ describe('readLegacyData: tolerant reader of data from older app versions', () =
     assert.deepEqual(data!.tasks[0], {
       id: 'a', title: 'Buy milk', description: '', quadrantId: 'urgent-important', tag: null, done: false, completedAt: null,
       createdAt: 1, dueDate: null, remindMe: false, remindTime: null, remindOffsets: [], repeat: null,
+      seriesId: null, repeatAnchor: null,
     });
   });
   test('invalid items are dropped one by one, valid neighbours survive', async () => {

@@ -12,6 +12,7 @@ import { PrimaryButton } from '@/components/primary-button';
 import { TimeField } from '@/components/time-field';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
+import { MAX_NAME_LENGTH } from '@/constants/limits';
 import { MAX_ACTIVE_TASKS_PER_QUADRANT, QUADRANTS } from '@/constants/quadrants';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
@@ -204,6 +205,7 @@ export default function BirthdaysScreen() {
                   label={t('birthdays.nameLabel')}
                   value={name}
                   onChangeText={setName}
+                  maxLength={MAX_NAME_LENGTH}
                   placeholder={t('birthdays.namePlaceholder')}
                   autoFocus
                 />
