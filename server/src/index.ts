@@ -2,6 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { createApp } from './app.js';
+import { createAppleRevoker } from './auth/apple-revoke.js';
 import { loadConfig, loadEnvFile } from './config.js';
 import { closeDatabase, openDatabase } from './db/connection.js';
 import { sessionsRepo } from './repos/sessions.js';
@@ -50,6 +51,7 @@ const server = createApp(db, {
   corsOrigins: config.corsOrigins,
   trustProxy: config.trustProxy,
   appleAudiences: config.appleAudiences,
+  appleRevoker: config.appleRevoke ? createAppleRevoker(config.appleRevoke) : null,
 }).listen(
   config.port,
   config.host,

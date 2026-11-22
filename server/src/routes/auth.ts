@@ -4,6 +4,7 @@ import { Router, type RequestHandler } from 'express';
 
 import { requireAuth } from '../auth/middleware.js';
 import type { AppleVerifier } from '../auth/apple.js';
+import type { AppleRevoker } from '../auth/apple-revoke.js';
 import { rateLimit } from '../auth/rate-limit.js';
 import { DUMMY_HASH, hashPassword, verifyPassword } from '../auth/password.js';
 import { ApiError, PG_UNIQUE_VIOLATION, isPgError } from '../errors.js';
@@ -47,6 +48,7 @@ export function authRouter(
   sessions: SessionsRepo,
   verifyApple: AppleVerifier,
   limits: AuthRateLimits = DEFAULT_AUTH_RATE_LIMITS,
+  revokeApple: AppleRevoker | null = null,
 ) {
   const router = Router();
   const byIp = rateLimit({ max: limits.ipMax, windowMs: limits.windowMs, key: (req) => req.ip });
@@ -145,6 +147,16 @@ export function authRouter(
   };
 
   const deleteAccount: RequestHandler = async (req, res) => {
+    // An Apple account is only deleted once Apple has let go of it too. Apple wants a fresh
+    // authorization code for that, so the app is asked to sign in with Apple once more.
+    const appleSub = revokeApple ? await users.appleSubOf(req.userId!) : null;
+    if (revokeApple && appleSub) {
+      const code = (req.body as { authorizationCode?: unknown } | undefined)?.authorizationCode;
+      if (typeof code !== 'string' || code === '' || code.length > MAX_APPLE_TOKEN_LENGTH) {
+        throw new ApiError(400, 'APPLE_REAUTH_REQUIRED');
+      }
+      await revokeApple(code, appleSub);
+    }
     await users.delete(req.userId!);
     res.status(204).end();
   };

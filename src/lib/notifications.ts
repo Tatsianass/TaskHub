@@ -126,18 +126,29 @@ Notifications.setNotificationHandler({
   }),
 });
 
+async function ensureChannel() {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+    name: 'TaskHub',
+    importance: Notifications.AndroidImportance.MAX,
+  });
+}
+
+export type PermissionState = 'granted' | 'askable' | 'denied';
+
+/** Where notification permission stands, without asking: allowed, still to be asked, or refused (or no notifications here). */
+export async function notificationPermissionState(): Promise<PermissionState> {
+  if (Platform.OS === 'web') return 'denied';
+  await ensureChannel();
+  const current = await Notifications.getPermissionsAsync();
+  if (current.granted) return 'granted';
+  return current.canAskAgain && current.status === Notifications.PermissionStatus.UNDETERMINED ? 'askable' : 'denied';
+}
+
 /** Asks for permission if it has not been decided yet; resolves to whether we may notify. */
 export async function ensureNotificationPermission(): Promise<boolean> {
-  if (Platform.OS === 'web') return false;
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: 'TaskHub',
-      importance: Notifications.AndroidImportance.MAX,
-    });
-  }
-  const current = await Notifications.getPermissionsAsync();
-  if (current.granted) return true;
-  if (!current.canAskAgain) return false;
+  const state = await notificationPermissionState();
+  if (state !== 'askable') return state === 'granted';
   const asked = await Notifications.requestPermissionsAsync({
     ios: { allowAlert: true, allowBadge: true, allowSound: true },
   });

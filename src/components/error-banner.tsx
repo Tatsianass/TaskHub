@@ -11,10 +11,12 @@ type Props = {
   /** An error code from the API (e.g. `SERVER_UNREACHABLE`), or null to render nothing. */
   code: string | null;
   onDismiss: () => void;
+  /** A notice rather than a failure (e.g. changes waiting for the connection): neutral colour. */
+  info?: boolean;
 };
 
 /** A tap-to-dismiss banner for a failed data request. Unknown codes read as `errors.UNKNOWN`. */
-export function ErrorBanner({ code, onDismiss }: Props) {
+export function ErrorBanner({ code, onDismiss, info = false }: Props) {
   const { t } = useLocale();
   const theme = useTheme();
 
@@ -25,7 +27,7 @@ export function ErrorBanner({ code, onDismiss }: Props) {
 
   return (
     <Pressable onPress={onDismiss} accessibilityRole="alert">
-      <GlassPanel style={styles.banner} contentStyle={styles.content} tintColor={hexToRgba(theme.danger, 0.15)}>
+      <GlassPanel style={styles.banner} contentStyle={styles.content} tintColor={hexToRgba(info ? theme.primary : theme.danger, 0.15)}>
         <ThemedText type="small" style={styles.text}>
           {message === key ? t('errors.UNKNOWN') : message}
         </ThemedText>

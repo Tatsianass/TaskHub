@@ -7,6 +7,7 @@ import { LOCAL_MODE, LOCAL_USER } from '@/lib/config';
 import { api, ApiError, setAuthToken, setOnUnauthorized } from '@/lib/api';
 import { offerLegacyImport } from '@/lib/legacy-import';
 import { clearListCache } from '@/lib/list-cache';
+import { clearWriteQueues } from '@/lib/write-queue';
 import { clearToken, getToken, setToken } from '@/lib/token-storage';
 import { clearCachedUser, readCachedUser, writeCachedUser } from '@/lib/user-cache';
 
@@ -25,7 +26,10 @@ type AuthContextValue = {
   /** Shows Apple's sign-in sheet, then signs in or creates the account. Throws 'APPLE_CANCELED' if dismissed. */
   loginWithApple: () => Promise<void>;
   logout: () => Promise<void>;
-  /** Permanently deletes the account and all its data on the server, then signs out. */
+  /**
+   * Permanently deletes the account and all its data on the server, then signs out. An Apple account
+   * first asks for Apple's sign-in sheet again; throws 'APPLE_CANCELED' if it is dismissed.
+   */
   deleteAccount: () => Promise<void>;
   /** Local mode: data lives on this device, there are no accounts. */
   isLocal: boolean;
@@ -45,7 +49,7 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(async () => {
     setAuthToken(null);
     setUser(null);
-    await Promise.all([clearToken(), clearListCache(), clearCachedUser()]);
+    await Promise.all([clearToken(), clearListCache(), clearWriteQueues(), clearCachedUser()]);
   }, []);
 
   useEffect(() => {
@@ -148,7 +152,21 @@ function ServerAuthProvider({ children }: { children: ReactNode }) {
 
   const deleteAccount = useCallback(async () => {
     // Unlike logout, a failure must surface: the account still exists.
-    await api('/auth/account', { method: 'DELETE' });
+    try {
+      await api('/auth/account', { method: 'DELETE' });
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.code !== 'APPLE_REAUTH_REQUIRED') throw e;
+      // An Apple account: Apple must release it too, which takes a fresh sign-in with Apple (guideline 5.1.1(v)).
+      let authorizationCode: string | null;
+      try {
+        ({ authorizationCode } = await AppleAuthentication.signInAsync({}));
+      } catch (appleError) {
+        if ((appleError as { code?: string }).code === 'ERR_REQUEST_CANCELED') throw new Error('APPLE_CANCELED');
+        throw new Error('APPLE_FAILED');
+      }
+      if (!authorizationCode) throw new Error('APPLE_FAILED');
+      await api('/auth/account', { method: 'DELETE', body: { authorizationCode } });
+    }
     await clearSession();
   }, [clearSession]);
 

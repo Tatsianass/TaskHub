@@ -23,6 +23,7 @@ describe('config', () => {
       corsOrigins: ['http://localhost:8081'],
       trustProxy: 0,
       appleAudiences: ['com.tatsianas.todomobile'],
+      appleRevoke: null,
     });
   });
 
@@ -47,6 +48,22 @@ describe('config', () => {
       'http://localhost:8081',
       'http://192.168.1.10:8081',
     ]);
+  });
+
+  test('Apple revocation needs all three settings or none', () => {
+    assert.throws(() => loadConfig({ DATABASE_URL: DB, APPLE_TEAM_ID: 'T' }), /must be set together/);
+    const config = loadConfig({
+      DATABASE_URL: DB,
+      APPLE_TEAM_ID: ' TEAM ',
+      APPLE_KEY_ID: 'KEY',
+      APPLE_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
+    });
+    assert.deepEqual(config.appleRevoke, {
+      teamId: 'TEAM',
+      keyId: 'KEY',
+      privateKey: '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----',
+      clientId: 'com.tatsianas.todomobile',
+    });
   });
 
   test('HOST override is trimmed', () => {

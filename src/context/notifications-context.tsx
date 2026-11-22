@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AppState, Platform } from 'react-native';
+import { Alert, AppState, Platform } from 'react-native';
 
 import { useAuth } from '@/context/auth-context';
 import { useBirthdaysContext } from '@/context/birthdays-context';
@@ -12,6 +12,7 @@ import {
   addSnooze,
   cancelAllReminders,
   ensureNotificationPermission,
+  notificationPermissionState,
   resolveAction,
   syncReminders,
 } from '@/lib/notifications';
@@ -28,6 +29,11 @@ type NotificationsContextValue = {
   notificationsEnabled: boolean;
   /** Turning on asks for OS permission; resolves to false if it was denied. */
   setNotificationsEnabled: (enabled: boolean) => Promise<boolean>;
+  /**
+   * Call when the user sets up a reminder. The first time, explains why the app wants to notify
+   * and then lets the phone ask; later it does nothing. Resolves to whether we may notify.
+   */
+  askForPermission: () => Promise<boolean>;
   /** HH:mm at which alerts of tasks without their own time go off. */
   morningTime: string;
   setMorningTime: (time: string) => void;
@@ -102,6 +108,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [prefLoaded, setPrefLoaded] = useState(false);
   // Bumped when the app returns to the foreground so the schedule is rebuilt from the current clock.
   const [resumes, setResumes] = useState(0);
+  // Bumped once permission is granted, so the reminders that were waiting for it get scheduled.
+  const [permissionGrants, setPermissionGrants] = useState(0);
+  // Said "Not now" to our explanation: don't ask again until the app is restarted.
+  const declinedRef = useRef(false);
 
   useEffect(() => {
     Promise.all([
@@ -137,18 +147,44 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
     if (!tasksLoaded || !birthdaysLoaded) return;
     let cancelled = false;
-    ensureNotificationPermission()
-      .then((granted) => {
-        if (granted && !cancelled) return syncReminders(tasks, birthdays, t, morningTime, overdueNudges, { escalationDays, enabled: morningDigest }, trial);
+    // Only checks: the permission is asked for when the user sets up a reminder (askForPermission).
+    notificationPermissionState()
+      .then((state) => {
+        if (state === 'granted' && !cancelled) return syncReminders(tasks, birthdays, t, morningTime, overdueNudges, { escalationDays, enabled: morningDigest }, trial);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [prefLoaded, user, notificationsEnabled, tasksLoaded, birthdaysLoaded, tasks, birthdays, t, morningTime, overdueNudges, morningDigest, escalationDays, trial, resumes]);
+  }, [prefLoaded, user, notificationsEnabled, tasksLoaded, birthdaysLoaded, tasks, birthdays, t, morningTime, overdueNudges, morningDigest, escalationDays, trial, resumes, permissionGrants]);
+
+  const askForPermission = useCallback(async () => {
+    const state = await notificationPermissionState();
+    if (state !== 'askable') return state === 'granted';
+    if (declinedRef.current) return false;
+    const agreed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        t('notifications.permissionTitle'),
+        t('notifications.permissionMessage'),
+        [
+          { text: t('notifications.permissionLater'), style: 'cancel', onPress: () => resolve(false) },
+          { text: t('notifications.permissionAllow'), onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+    if (!agreed) {
+      declinedRef.current = true;
+      return false;
+    }
+    const granted = await ensureNotificationPermission();
+    if (granted) setPermissionGrants((count) => count + 1);
+    return granted;
+  }, [t]);
 
   const setNotificationsEnabled = useCallback(async (enabled: boolean) => {
     if (enabled && !(await ensureNotificationPermission())) return false;
+    if (enabled) setPermissionGrants((count) => count + 1);
     setEnabledState(enabled);
     AsyncStorage.setItem(NOTIFICATIONS_KEY, String(enabled)).catch(() => {});
     return true;
@@ -175,6 +211,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       value={{
         notificationsEnabled,
         setNotificationsEnabled,
+        askForPermission,
         morningTime,
         setMorningTime,
         overdueNudges,

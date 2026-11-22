@@ -1,8 +1,10 @@
 import { hashToken, newToken } from '../auth/tokens.js';
 import type { Queryable } from '../db/connection.js';
 
-/** Sessions expire 30 days after creation, no sliding refresh (R2.3). */
+/** A session expires 30 days after it was last renewed; using it renews it (R2.3). */
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/** A session in use is renewed at most this often, so reads don't turn into writes. */
+export const SESSION_RENEW_AFTER_MS = 24 * 60 * 60 * 1000;
 
 export type Session = { tokenHash: string; userId: string; expiresAt: number };
 
@@ -29,6 +31,17 @@ export function sessionsRepo(db: Queryable) {
       );
       const row = rows[0];
       return row && { tokenHash: row.token_hash, userId: row.user_id, expiresAt: row.expires_at };
+    },
+
+    /** Pushes a live session's expiry to `now` + TTL; returns the new expiry, or null if it is gone or expired. */
+    async renew(tokenHash: string, now = Date.now()): Promise<number | null> {
+      const expiresAt = now + SESSION_TTL_MS;
+      const result = await db.query('UPDATE sessions SET expires_at = $1 WHERE token_hash = $2 AND expires_at > $3', [
+        expiresAt,
+        tokenHash,
+        now,
+      ]);
+      return (result.rowCount ?? 0) > 0 ? expiresAt : null;
     },
 
     /** Returns true if a session (valid or expired) was deleted. */

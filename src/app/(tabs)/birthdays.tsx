@@ -18,6 +18,7 @@ import { useAuth } from '@/context/auth-context';
 import { useBirthdaysContext } from '@/context/birthdays-context';
 import { useTasksContext } from '@/context/tasks-context';
 import { useLocale } from '@/context/locale-context';
+import { useNotificationsSettings } from '@/context/notifications-context';
 import { useToday } from '@/context/today-context';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -31,10 +32,11 @@ const DEFAULT_ALERT_DAYS = 7;
 export default function BirthdaysScreen() {
   const { user } = useAuth();
   const { t, locale } = useLocale();
+  const { askForPermission } = useNotificationsSettings();
   const theme = useTheme();
   const today = useToday();
   const { tasks, addTask } = useTasksContext();
-  const { birthdays, isLoaded, addBirthday, updateBirthday, deleteBirthday, error, clearError, refresh } = useBirthdaysContext();
+  const { birthdays, isLoaded, addBirthday, updateBirthday, deleteBirthday, error, pendingWrites, clearError, refresh } = useBirthdaysContext();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<Birthday | null>(null);
@@ -83,6 +85,8 @@ export default function BirthdaysScreen() {
   const handleSave = () => {
     if (!name.trim() || !date) return;
     const draft = { name, date, remindMe, remindTime, alertDaysBefore: alertOn ? alertDays : null };
+    // A birthday with a reminder is the other moment notifications become worth allowing; the sheet must close first.
+    if (remindMe || alertOn) setTimeout(() => void askForPermission().catch(() => {}), 600);
     if (editing) {
       updateBirthday(editing.id, draft);
       setIsModalOpen(false);
@@ -137,7 +141,7 @@ export default function BirthdaysScreen() {
           </Pressable>
         </View>
 
-        <ErrorBanner code={error} onDismiss={clearError} />
+        <ErrorBanner code={error ?? (pendingWrites > 0 ? 'QUEUED_OFFLINE' : null)} info={!error} onDismiss={clearError} />
 
         {isLoaded && (
           <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>

@@ -117,6 +117,19 @@ describe('sessionsRepo', () => {
     assert.equal(await sessions.findValid(tokenHash, now + SESSION_TTL_MS), undefined);
   });
 
+  test('renew pushes a live session 30 days past now; an expired or unknown one stays out (R2.3)', async () => {
+    const start = Date.now() - 20 * 24 * 60 * 60 * 1000;
+    const { token } = await sessions.create(userId, start);
+    const tokenHash = hashToken(token);
+    const now = Date.now();
+
+    assert.equal(await sessions.renew(tokenHash, now), now + SESSION_TTL_MS);
+    assert.equal((await sessions.findValid(tokenHash, now))?.expiresAt, now + SESSION_TTL_MS);
+
+    assert.equal(await sessions.renew(tokenHash, now + SESSION_TTL_MS), null);
+    assert.equal(await sessions.renew(hashToken(newToken()), now), null);
+  });
+
   test('expired session is not returned', async () => {
     const { token } = await sessions.create(userId, Date.now() - SESSION_TTL_MS - 1000);
     assert.equal(await sessions.findValid(hashToken(token)), undefined);

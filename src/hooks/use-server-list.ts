@@ -5,6 +5,8 @@ import { useAuth } from '@/context/auth-context';
 import { api, ApiError } from '@/lib/api';
 import { LOCAL_MODE } from '@/lib/config';
 import { readListCache, writeListCache } from '@/lib/list-cache';
+import { writeQueue } from '@/lib/write-queue';
+import type { Write } from '@/lib/write-queue-core';
 
 // The list always belongs to one user. While `owner` isn't the signed-in user
 // (just logged in, switched account, logged out) the hook reports nothing
@@ -15,6 +17,9 @@ type State<T> = { owner: string; items: T[]; isLoaded: boolean; error: string | 
 type Change<T> = (prev: T[]) => T[];
 
 const EMPTY: never[] = [];
+
+/** How often waiting changes are retried while the app is open. */
+const RETRY_MS = 15_000;
 
 function errorCode(e: unknown) {
   return e instanceof ApiError ? e.code : 'UNKNOWN';
@@ -41,6 +46,10 @@ export function useServerList<T>(path: string) {
   const pendingMutations = useRef(0);
   const reloadWanted = useRef(false);
   const loadRef = useRef<() => Promise<void>>(async () => {});
+  // Server mode: changes that haven't reached the server yet (offline). Each can still be undone on the screen
+  // if the server turns it down; changes left over from an earlier run have no undo and trigger a refetch instead.
+  const [pendingWrites, setPendingWrites] = useState(0);
+  const rollbacks = useRef(new Map<string, { rollback: Change<T> }>());
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -48,6 +57,17 @@ export function useServerList<T>(path: string) {
     const mutationsAtStart = mutationCount.current;
     const outdated = () => fetchId !== latestFetch.current;
     const changedMeanwhile = () => mutationCount.current !== mutationsAtStart || pendingMutations.current > 0;
+    if (!LOCAL_MODE) {
+      // Changes made offline go first; until they are through, the server's list would undo them.
+      await writeQueue.flush(userId);
+      if (outdated()) return;
+      if (writeQueue.size(userId) > 0) {
+        setState((prev) =>
+          prev && prev.owner === userId ? prev : { owner: userId, items: [], isLoaded: true, error: 'SERVER_UNREACHABLE' },
+        );
+        return;
+      }
+    }
     try {
       const items = await api<T[]>(path);
       if (outdated()) return;
@@ -119,34 +139,82 @@ export function useServerList<T>(path: string) {
     return () => subscription.remove();
   }, [load]);
 
+  const applyChange = useCallback(
+    (change: Change<T>, error?: string) =>
+      setState((prev) =>
+        prev && prev.owner === userId
+          ? { ...prev, items: change(prev.items), error: error ?? prev.error, cached: false }
+          : prev,
+      ),
+    [userId],
+  );
+
+  // What the queue reports: the size of the backlog, and writes the server finally refused.
+  useEffect(() => {
+    if (LOCAL_MODE || !userId) return;
+    setPendingWrites(writeQueue.size(userId));
+    return writeQueue.subscribe((event) => {
+      if (event.userId !== userId) return;
+      if (event.type === 'size') {
+        setPendingWrites(event.size);
+        return;
+      }
+      const mine = rollbacks.current.get(event.write.id);
+      rollbacks.current.delete(event.write.id);
+      if (event.outcome !== 'rejected') return;
+      if (mine) applyChange(mine.rollback, event.code);
+      else {
+        // A write from an earlier run, refused now: the screen can't undo it, the server's list is the truth.
+        reloadWanted.current = true;
+        if (pendingMutations.current === 0) {
+          reloadWanted.current = false;
+          loadRef.current();
+        }
+      }
+    });
+  }, [userId, applyChange]);
+
+  // While changes are waiting, keep trying: the connection may come back with the app in the foreground.
+  useEffect(() => {
+    if (pendingWrites === 0) return;
+    const timer = setInterval(() => loadRef.current(), RETRY_MS);
+    return () => clearInterval(timer);
+  }, [pendingWrites]);
+
   /**
-   * Applies `optimistic` to the list now, sends `request`, and on failure
-   * applies `rollback` and surfaces the error code. Rollbacks should touch
-   * only the affected item, so a concurrent mutation that succeeded is kept.
+   * Applies `optimistic` to the list now and sends `request`. In server mode the request goes through
+   * the on-device queue: without a connection it waits there and the change stays on screen; if the
+   * server finally turns it down, `rollback` is applied and the error code surfaced. Rollbacks should
+   * touch only the affected item, so a concurrent mutation that succeeded is kept.
    */
   const mutate = useCallback(
-    (optimistic: Change<T>, request: () => Promise<unknown>, rollback: Change<T>) => {
+    (optimistic: Change<T>, request: Omit<Write, 'id'>, rollback: Change<T>) => {
       if (!userId) return;
-      const apply = (change: Change<T>, error?: string) =>
-        setState((prev) =>
-          prev && prev.owner === userId
-            ? { ...prev, items: change(prev.items), error: error ?? prev.error, cached: false }
-            : prev,
-        );
       mutationCount.current++;
       pendingMutations.current++;
-      apply(optimistic);
-      request()
-        .catch((e) => apply(rollback, errorCode(e)))
-        .finally(() => {
-          pendingMutations.current--;
-          if (pendingMutations.current === 0 && reloadWanted.current) {
-            reloadWanted.current = false;
-            loadRef.current();
-          }
-        });
+      applyChange(optimistic);
+      const settled = () => {
+        pendingMutations.current--;
+        if (pendingMutations.current === 0 && reloadWanted.current) {
+          reloadWanted.current = false;
+          loadRef.current();
+        }
+      };
+      if (LOCAL_MODE) {
+        api(request.path, { method: request.method, body: request.body })
+          .catch((e) => applyChange(rollback, errorCode(e)))
+          .finally(settled);
+        return;
+      }
+      const write: Write = { ...request, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` };
+      rollbacks.current.set(write.id, { rollback });
+      writeQueue
+        .enqueue(userId, write)
+        .then(() => writeQueue.flush(userId))
+        .catch(() => {})
+        .finally(settled);
     },
-    [userId],
+    [userId, applyChange],
   );
 
   const clearError = useCallback(
@@ -158,6 +226,8 @@ export function useServerList<T>(path: string) {
     items: current?.items ?? (EMPTY as T[]),
     isLoaded: current?.isLoaded ?? false,
     error: current?.error ?? null,
+    /** Changes saved on this device that the server hasn't confirmed yet (offline). */
+    pendingWrites,
     clearError,
     mutate,
     refresh: load,
