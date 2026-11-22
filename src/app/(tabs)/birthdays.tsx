@@ -1,12 +1,15 @@
 import { Redirect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomSheetModal } from '@/components/bottom-sheet-modal';
 import { DateField } from '@/components/date-field';
 import { ErrorBanner } from '@/components/error-banner';
-import { PlusIcon } from '@/components/header-icons';
+import { PlusIcon, TrashIcon } from '@/components/header-icons';
 import { GlassPanel } from '@/components/glass-panel';
 import { PrimaryButton } from '@/components/primary-button';
 import { TimeField } from '@/components/time-field';
@@ -25,10 +28,56 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import type { Birthday } from '@/types/birthday';
 import type { QuadrantId } from '@/types/task';
+import { hexToRgba } from '@/utils/colors';
 import { addDaysISO, dayDiffFromToday, nextBirthdayDayDiff } from '@/utils/dates';
 
 const ALERT_OPTIONS = [1, 3, 7, 14];
 const DEFAULT_ALERT_DAYS = 7;
+const SOON_DAYS = 30;
+const CLOSE_DAYS = 7;
+const ACTION_WIDTH = 76;
+
+function initialOf(name: string) {
+  return (Array.from(name.trim())[0] ?? '?').toUpperCase();
+}
+
+/** Same name, same colour: picks one of the theme's blob colours so avatars stay on-palette. */
+function avatarColor(name: string, palette: readonly string[]) {
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return palette[hash % palette.length];
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.sectionTitle}>
+        {title.toUpperCase()}
+      </ThemedText>
+      <GlassPanel>{children}</GlassPanel>
+    </View>
+  );
+}
+
+type Entry = { birthday: Birthday; diff: number; dateLabel: string };
+
+/** Revealed under a row while it is swiped left; fades in so it never shows through a resting row. */
+function DeleteAction({ progress, onPress }: { progress: SharedValue<number>; onPress: () => void }) {
+  const { t } = useLocale();
+  const theme = useTheme();
+  const fade = useAnimatedStyle(() => ({ opacity: progress.value }));
+  return (
+    <Animated.View style={[styles.deleteAction, fade]}>
+      <Pressable
+        onPress={onPress}
+        style={[styles.deleteButton, { backgroundColor: theme.danger }]}
+        accessibilityRole="button"
+        accessibilityLabel={t('overdue.delete')}>
+        <TrashIcon color={theme.background} size={20} />
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export default function BirthdaysScreen() {
   const { user } = useAuth();
@@ -51,10 +100,19 @@ export default function BirthdaysScreen() {
   const [giftOn, setGiftOn] = useState(true);
   const [giftQuadrant, setGiftQuadrant] = useState<QuadrantId>('urgent-important');
 
-  const sorted = useMemo(
-    () => [...birthdays].sort((a, b) => nextBirthdayDayDiff(a.date, today) - nextBirthdayDayDiff(b.date, today)),
-    [birthdays, today],
-  );
+  const entries = useMemo<Entry[]>(() => {
+    const format = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' });
+    return birthdays
+      .map((birthday) => ({
+        birthday,
+        diff: nextBirthdayDayDiff(birthday.date, today),
+        dateLabel: format.format(new Date(`${birthday.date}T00:00:00`)),
+      }))
+      .sort((a, b) => a.diff - b.diff);
+  }, [birthdays, today, locale]);
+  const [next, ...rest] = entries;
+  const soon = rest.filter((entry) => entry.diff <= SOON_DAYS);
+  const later = rest.filter((entry) => entry.diff > SOON_DAYS);
 
   if (!user) return <Redirect href="/login" />;
 
@@ -126,13 +184,51 @@ export default function BirthdaysScreen() {
     if (value && !remindTime) setRemindTime('09:00');
   };
 
+  const renderRow = ({ birthday, diff, dateLabel }: Entry, first: boolean) => {
+    const color = avatarColor(birthday.name, theme.blobs);
+    const pillStyle =
+      diff === 0
+        ? { backgroundColor: theme.primary, color: theme.background }
+        : diff <= CLOSE_DAYS
+          ? { backgroundColor: hexToRgba(theme.primary, 0.2), color: theme.primary }
+          : { backgroundColor: theme.glassBg, color: theme.textSecondary };
+    return (
+      <ReanimatedSwipeable
+        key={birthday.id}
+        friction={2}
+        rightThreshold={40}
+        overshootRight={false}
+        renderRightActions={(progress) => <DeleteAction progress={progress} onPress={() => confirmDelete(birthday)} />}
+        containerStyle={!first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.glassBorder }}>
+        <Pressable onPress={() => openEdit(birthday)} style={styles.row}>
+          <View style={[styles.avatar, { backgroundColor: hexToRgba(color, 0.35) }]}>
+            <ThemedText style={styles.avatarText}>{initialOf(birthday.name)}</ThemedText>
+          </View>
+          <View style={styles.rowText}>
+            <ThemedText type="smallBold" numberOfLines={1}>
+              {birthday.name}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {dateLabel}
+            </ThemedText>
+          </View>
+          <View style={[styles.pill, { backgroundColor: pillStyle.backgroundColor }]}>
+            <ThemedText type="small" style={{ color: pillStyle.color }}>
+              {diff === 0 ? t('birthdays.today') : t('birthdays.inDays', { n: diff })}
+            </ThemedText>
+          </View>
+        </Pressable>
+      </ReanimatedSwipeable>
+    );
+  };
+
   return (
     <>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.inner}>
         <View style={styles.header}>
           <ThemedText type="subtitle" style={styles.title}>
-            🎉 {t('settings.birthdays')}
+            {t('settings.birthdays')}
           </ThemedText>
           <Pressable
             onPress={openModal}
@@ -145,43 +241,58 @@ export default function BirthdaysScreen() {
         <ErrorBanner code={error ?? (pendingWrites > 0 ? 'QUEUED_OFFLINE' : null)} info={!error} onDismiss={clearError} />
 
         {isLoaded && (
-          <GlassPanel style={styles.listPanel} contentStyle={styles.listContent}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />
-              }>
-              {sorted.length === 0 && (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />}>
+            {!next && (
+              <View style={styles.emptyState}>
+                <View style={[styles.emptyCircle, { borderColor: theme.glassBorder, backgroundColor: theme.glassBg }]}>
+                  <ThemedText style={styles.emptyIcon}>🎉</ThemedText>
+                </View>
                 <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
                   {t('birthdays.empty')}
                 </ThemedText>
-              )}
-              {sorted.map((birthday) => {
-                const diff = nextBirthdayDayDiff(birthday.date, today);
-                const dateLabel = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(
-                  new Date(`${birthday.date}T00:00:00`),
-                );
-                return (
-                  <Pressable key={birthday.id} onPress={() => openEdit(birthday)} style={styles.row}>
-                    <View style={styles.rowText}>
-                      <ThemedText type="smallBold">{birthday.name}</ThemedText>
-                      <ThemedText type="small" themeColor="textSecondary">
-                        {dateLabel}
-                      </ThemedText>
+                <PrimaryButton title={t('birthdays.addTitle')} onPress={openModal} style={styles.emptyButton} />
+              </View>
+            )}
+            {!!next && (
+              <Pressable onPress={() => openEdit(next.birthday)}>
+                <LinearGradient
+                  colors={[theme.gradientStart, theme.gradientEnd]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.hero}>
+                  <ThemedText style={styles.heroWatermark}>🎂</ThemedText>
+                  <ThemedText style={styles.heroLabel}>{t('birthdays.next')}</ThemedText>
+                  <View style={styles.heroPerson}>
+                    <View style={styles.heroAvatar}>
+                      <ThemedText style={styles.heroInitial}>{initialOf(next.birthday.name)}</ThemedText>
                     </View>
-                    <ThemedText type="small" themeColor="primary">
-                      {diff === 0 ? t('birthdays.today') : t('birthdays.inDays', { n: diff })}
-                    </ThemedText>
-                    <Pressable onPress={() => confirmDelete(birthday)} hitSlop={8} style={styles.delete}>
-                      <ThemedText themeColor="textSecondary">✕</ThemedText>
-                    </Pressable>
-                  </Pressable>
-                );
-              })}
-              <Pressable onPress={openModal} style={styles.freeArea} />
-            </ScrollView>
-          </GlassPanel>
+                    <View style={styles.rowText}>
+                      <ThemedText style={styles.heroName} numberOfLines={1}>
+                        {next.birthday.name}
+                      </ThemedText>
+                      <ThemedText style={styles.heroDate}>{next.dateLabel}</ThemedText>
+                    </View>
+                  </View>
+                  <ThemedText style={styles.heroCountdown}>
+                    {next.diff === 0 ? t('birthdays.today') : t('birthdays.inDays', { n: next.diff })}
+                  </ThemedText>
+                </LinearGradient>
+              </Pressable>
+            )}
+            {soon.length > 0 && (
+              <Section title={t('birthdays.sectionSoon')}>
+                {soon.map((entry, index) => renderRow(entry, index === 0))}
+              </Section>
+            )}
+            {later.length > 0 && (
+              <Section title={t('birthdays.sectionLater')}>
+                {later.map((entry, index) => renderRow(entry, index === 0))}
+              </Section>
+            )}
+          </ScrollView>
         )}
       </View>
       </SafeAreaView>
@@ -302,6 +413,16 @@ export default function BirthdaysScreen() {
                   </>
                 )}
                 <PrimaryButton title={t('birthdays.save')} onPress={handleSave} disabled={!name.trim() || !date} />
+                {editing && (
+                  <PrimaryButton
+                    title={t('overdue.delete')}
+                    variant="danger"
+                    onPress={() => {
+                      setIsModalOpen(false);
+                      confirmDelete(editing);
+                    }}
+                  />
+                )}
               </View>
           </ScrollView>
         </SafeAreaView>
@@ -336,40 +457,137 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  listPanel: {
-    flex: 1,
-    marginBottom: Spacing.three,
-  },
-  // Fills the panel so pull-to-refresh works from anywhere in it, even when the list is short or empty.
+  // Fills the screen so pull-to-refresh works from anywhere, even when the list is short or empty.
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: Spacing.four,
   },
-  listContent: {
+  hero: {
+    borderRadius: Spacing.four - 4,
+    padding: Spacing.three,
+    gap: Spacing.three,
+    overflow: 'hidden',
+  },
+  heroWatermark: {
+    position: 'absolute',
+    right: -4,
+    top: -12,
+    fontSize: 72,
+    lineHeight: 88,
+    opacity: 0.18,
+  },
+  heroLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  heroPerson: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three - 4,
+  },
+  heroAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroInitial: {
+    color: '#ffffff',
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '600',
+  },
+  heroName: {
+    color: '#ffffff',
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '600',
+  },
+  heroDate: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+  },
+  heroCountdown: {
+    color: '#ffffff',
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 11,
+    letterSpacing: 0.8,
+    marginTop: Spacing.three,
+    marginBottom: Spacing.two,
+    marginLeft: Spacing.one,
+  },
+  emptyState: {
     flex: 1,
-    padding: Spacing.two,
-    gap: Spacing.two,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.four,
+  },
+  emptyCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyIcon: {
+    fontSize: 38,
+    lineHeight: 48,
   },
   empty: {
     textAlign: 'center',
-    marginTop: Spacing.five,
+  },
+  emptyButton: {
+    alignSelf: 'stretch',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    borderRadius: Spacing.three,
-    padding: Spacing.two,
+    gap: Spacing.three - 4,
+    padding: Spacing.three - 4,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '600',
   },
   rowText: {
     flex: 1,
     gap: 2,
   },
-  freeArea: {
-    flex: 1,
-    minHeight: Spacing.six,
+  pill: {
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two + 2,
+    paddingVertical: 3,
   },
-  delete: {
-    paddingLeft: Spacing.one,
+  deleteAction: {
+    width: ACTION_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalHeader: {
     flexDirection: 'row',
