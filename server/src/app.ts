@@ -45,6 +45,16 @@ export function createApp(db: Db, options: AppOptions = {}) {
 
   app.disable('x-powered-by');
   app.set('trust proxy', trustProxy);
+  // A JSON API: no sniffing, no framing, and browsers stay on HTTPS once they have seen it.
+  app.use((req, res, next) => {
+    res.set({
+      'X-Content-Type-Options': 'nosniff',
+      'Strict-Transport-Security': 'max-age=15552000; includeSubDomains',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'no-referrer',
+    });
+    next();
+  });
   app.use(cors({ origin: corsOrigins }));
   app.use(express.json({ limit: '1mb' }));
 

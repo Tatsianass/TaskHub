@@ -23,6 +23,15 @@ describe('createApp', () => {
     await testDb.drop();
   });
 
+  test('responses carry security headers, on errors too', async () => {
+    for (const path of ['/health', '/tasks', '/nope']) {
+      const res = await fetch(`${baseUrl}${path}`);
+      assert.equal(res.headers.get('x-content-type-options'), 'nosniff', path);
+      assert.match(res.headers.get('strict-transport-security') ?? '', /max-age=\d+/, path);
+      assert.equal(res.headers.get('x-frame-options'), 'DENY', path);
+    }
+  });
+
   test('GET /health', async () => {
     const res = await fetch(`${baseUrl}/health`);
     assert.equal(res.status, 200);
