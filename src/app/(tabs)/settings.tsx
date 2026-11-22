@@ -7,6 +7,7 @@ import { DeleteAccountSheet } from '@/components/delete-account-sheet';
 import { DropdownField } from '@/components/dropdown-field';
 import { GlassPanel } from '@/components/glass-panel';
 import { InfoButton } from '@/components/info-button';
+import { LegalLinks } from '@/components/legal-links';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { TimePickerSheet } from '@/components/time-picker-sheet';
@@ -334,6 +335,7 @@ export default function SettingsScreen() {
 
           {!isLocal && <PrimaryButton title={t('settings.logout')} onPress={handleLogout} variant="danger" />}
           {!isLocal && <PrimaryButton title={t('settings.deleteAccount')} onPress={handleDeleteAccount} variant="danger" />}
+          <LegalLinks />
         </ScrollView>
       </View>
       </SafeAreaView>

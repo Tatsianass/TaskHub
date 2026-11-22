@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuroraBackground } from '@/components/aurora-background';
 import { AppleSignInButton } from '@/components/apple-sign-in-button';
 import { GlassPanel } from '@/components/glass-panel';
+import { LegalLinks } from '@/components/legal-links';
 import { PrimaryButton } from '@/components/primary-button';
 import { PasswordField } from '@/components/password-field';
 import { TextField } from '@/components/text-field';
@@ -106,6 +107,8 @@ export default function LoginScreen() {
               </Link>
             </View>
           )}
+
+          <LegalLinks />
         </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
