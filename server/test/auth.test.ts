@@ -78,6 +78,26 @@ describe('POST /auth/register', () => {
     await register(uniqueEmail(), '12345678');
   });
 
+  for (const [name, email] of [
+    ['no @', 'a'],
+    ['no domain dot', 'a@b'],
+    ['space inside', 'a b@c.io'],
+    ['too long', `${'e'.repeat(300_000)}@x.io`],
+    ['NUL character', 'a\u0000@x.io'],
+  ] as const) {
+    test(`${name} email -> 400 INVALID_EMAIL, never a 500`, async () => {
+      const res = await app.request('POST', '/auth/register', { body: { email, password: PASSWORD } });
+      assert.equal(res.status, 400);
+      assert.deepEqual(res.body, { error: 'INVALID_EMAIL' });
+    });
+  }
+
+  test('a 254-character email is still accepted', async () => {
+    const email = `${'e'.repeat(254 - '@x.io'.length)}@x.io`;
+    assert.equal(email.length, 254);
+    await register(email);
+  });
+
   test('already registered email (any case/whitespace) -> 409 EMAIL_TAKEN (R1.4)', async () => {
     const email = uniqueEmail();
     await register(email);
@@ -108,6 +128,23 @@ describe('POST /auth/login', () => {
     });
     assert.equal(res.status, 200);
     assert.equal(res.body.user.id, registered.user.id);
+  });
+
+  test('an email that cannot exist -> 400 INVALID_EMAIL instead of a database error', async () => {
+    for (const email of ['a\u0000@x.io', `${'e'.repeat(300_000)}@x.io`]) {
+      const res = await app.request('POST', '/auth/login', { body: { email, password: PASSWORD } });
+      assert.equal(res.status, 400);
+      assert.deepEqual(res.body, { error: 'INVALID_EMAIL' });
+    }
+  });
+
+  test('an older account with an odd (non-address) email can still sign in', async () => {
+    await db.query(
+      `INSERT INTO users (id, email, password_hash, password_salt, password_params, created_at)
+       VALUES ('odd-user', 'oddname', 'x', 'x', '{"N":16384,"r":8,"p":1,"keylen":64}', 1)`,
+    );
+    const res = await app.request('POST', '/auth/login', { body: { email: 'oddname', password: PASSWORD } });
+    assert.equal(res.status, 401); // reached the password check, not rejected as malformed
   });
 
   test('empty credentials -> 400 ENTER_EMAIL_PASSWORD', async () => {

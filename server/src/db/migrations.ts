@@ -77,7 +77,15 @@ ALTER TABLE birthdays         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schema_migrations ENABLE ROW LEVEL SECURITY;
 `;
 
-export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL];
+// Repeating tasks keep their identity: `series_id` ties the occurrences of one repeating task
+// together (not the title, which two different tasks can share), and `repeat_anchor` remembers the
+// original date so a monthly task on the 31st or a yearly one on 29 Feb returns to it after a short month.
+const V4_SQL = `
+ALTER TABLE tasks ADD COLUMN series_id TEXT;
+ALTER TABLE tasks ADD COLUMN repeat_anchor TEXT;
+`;
+
+export const MIGRATIONS: readonly string[] = [V1_SQL, V2_SQL, V3_SQL, V4_SQL];
 
 /** Arbitrary constant; every instance takes the same advisory lock while migrating. */
 const MIGRATION_LOCK_ID = 727274;

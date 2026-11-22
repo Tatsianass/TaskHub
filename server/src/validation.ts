@@ -33,6 +33,10 @@ export type Task = {
   remindOffsets: number[];
   /** Finishing the task creates the next one on the following date; `null` for a one-off task. */
   repeat: RepeatRule | null;
+  /** Shared by every occurrence of one repeating task; `null` for a one-off task (or one saved before this existed). */
+  seriesId: string | null;
+  /** The date the series started from; later occurrences clamp to its day of month. */
+  repeatAnchor: string | null;
 };
 
 /** The fields `PUT /tasks/:id` may change: everything except `id` and `createdAt`. */
@@ -50,6 +54,10 @@ export type Birthday = {
 };
 
 export const MAX_ID_LENGTH = 128;
+// Mirrored by the app in src/constants/limits.ts.
+export const MAX_TITLE_LENGTH = 500;
+export const MAX_DESCRIPTION_LENGTH = 10_000;
+export const MAX_NAME_LENGTH = 200;
 
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME = /^(\d{2}):(\d{2})$/;
@@ -59,21 +67,35 @@ type Fields = Record<string, unknown>;
 /** A validator returns the cleaned value, or `undefined` if the input is invalid. */
 type Check<T> = (value: unknown) => T | undefined;
 
+/** Postgres cannot store a NUL character in text; it would surface as a 500 instead of a 400. */
+const hasNul = (value: string) => value.includes('\u0000');
+
 const id: Check<string> = (value) =>
-  typeof value === 'string' && value.length > 0 && value.length <= MAX_ID_LENGTH ? value : undefined;
+  typeof value === 'string' && value.length > 0 && value.length <= MAX_ID_LENGTH && !hasNul(value) ? value : undefined;
 
-const nonEmptyTrimmed: Check<string> = (value) => {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-};
+/** Non-blank after trimming, at most `max` characters, no NUL. */
+function nonEmptyTrimmed(max: number): Check<string> {
+  return (value) => {
+    if (typeof value !== 'string' || hasNul(value)) return undefined;
+    const trimmed = value.trim();
+    return trimmed && trimmed.length <= max ? trimmed : undefined;
+  };
+}
 
-const text: Check<string> = (value) => (typeof value === 'string' ? value.trim() : undefined);
+/** Possibly empty text of at most `max` characters, trimmed, no NUL. */
+function boundedText(max: number): Check<string> {
+  return (value) => {
+    if (typeof value !== 'string' || hasNul(value)) return undefined;
+    const trimmed = value.trim();
+    return trimmed.length <= max ? trimmed : undefined;
+  };
+}
 
 const bool: Check<boolean> = (value) => (typeof value === 'boolean' ? value : undefined);
 
-const finiteNumber: Check<number> = (value) =>
-  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+/** A whole, non-negative timestamp in ms: fits the BIGINT columns (a float or 1e300 would be a 500). */
+const timestamp: Check<number> = (value) =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 
 function oneOf<T extends string>(values: readonly T[]): Check<T> {
   return (value) => (values.includes(value as T) ? (value as T) : undefined);
@@ -122,9 +144,9 @@ function parseObject<T>(body: unknown, checks: { [K in keyof T]: Check<T[K]> }, 
   return result;
 }
 
-/** Like `nullable(finiteNumber)`, but a missing field (older clients) reads as `null`. */
+/** Like `nullable(timestamp)`, but a missing field (older clients) reads as `null`. */
 const optionalNullableNumber: Check<number | null> = (value) =>
-  value === undefined || value === null ? null : finiteNumber(value);
+  value === undefined || value === null ? null : timestamp(value);
 
 export const MAX_REMIND_OFFSETS = 5;
 export const MAX_REMIND_OFFSET_MINUTES = 30 * 24 * 60;
@@ -143,6 +165,11 @@ const remindOffsets: Check<number[]> = (value) => {
 const optionalRepeat: Check<RepeatRule | null> = (value) =>
   value === undefined || value === null ? null : oneOf(REPEAT_RULES)(value);
 
+/** A missing field (older clients) reads as `null`. */
+function optionalNullable<T>(check: Check<T>): Check<T | null> {
+  return (value) => (value === undefined || value === null ? null : check(value));
+}
+
 /** Older clients send only `remindMe`; it then means the single alert at the reminder time. */
 function withLegacyOffsets(body: unknown, task: TaskUpdate): TaskUpdate {
   const sentOffsets = (body as Fields).remindOffsets !== undefined;
@@ -150,8 +177,8 @@ function withLegacyOffsets(body: unknown, task: TaskUpdate): TaskUpdate {
 }
 
 const taskUpdateChecks: { [K in keyof TaskUpdate]: Check<TaskUpdate[K]> } = {
-  title: nonEmptyTrimmed,
-  description: text,
+  title: nonEmptyTrimmed(MAX_TITLE_LENGTH),
+  description: boundedText(MAX_DESCRIPTION_LENGTH),
   quadrantId: oneOf(QUADRANT_IDS),
   tag: nullable(oneOf(TAG_IDS)),
   done: bool,
@@ -161,6 +188,8 @@ const taskUpdateChecks: { [K in keyof TaskUpdate]: Check<TaskUpdate[K]> } = {
   remindTime: nullable(time),
   remindOffsets,
   repeat: optionalRepeat,
+  seriesId: optionalNullable(id),
+  repeatAnchor: optionalNullable(date),
 };
 
 /**
@@ -186,7 +215,7 @@ export function parseTaskPatch(body: unknown): Partial<TaskUpdate> {
 export function parseTask(body: unknown): Task {
   const task = parseObject<Task>(
     body,
-    { id, createdAt: finiteNumber, ...taskUpdateChecks },
+    { id, createdAt: timestamp, ...taskUpdateChecks },
     'INVALID_TASK',
   );
   return { ...task, ...withLegacyOffsets(body, task) };
@@ -214,7 +243,7 @@ const optionalAlertDays: Check<number | null> = (value) => {
 export function parseBirthday(body: unknown): Birthday {
   return parseObject<Birthday>(
     body,
-    { id, name: nonEmptyTrimmed, date, remindMe: optionalRemindMe, remindTime: optionalRemindTime, alertDaysBefore: optionalAlertDays },
+    { id, name: nonEmptyTrimmed(MAX_NAME_LENGTH), date, remindMe: optionalRemindMe, remindTime: optionalRemindTime, alertDaysBefore: optionalAlertDays },
     'INVALID_BIRTHDAY',
   );
 }

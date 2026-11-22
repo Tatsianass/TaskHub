@@ -29,6 +29,16 @@ export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+/** Longest address allowed by RFC 5321; also keeps the unique index and the limiter's keys small. */
+export const MAX_EMAIL_LENGTH = 254;
+// Same shape the app checks before it sends anything.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** A NUL would make Postgres fail the lookup with a 500. */
+function usableEmail(email: string) {
+  return email.length <= MAX_EMAIL_LENGTH && !email.includes('\u0000');
+}
+
 /** Reads `{ email, password }`; non-strings count as empty. Email is normalized. */
 function readCredentials(body: unknown) {
   const { email, password } = (body ?? {}) as Record<string, unknown>;
@@ -39,6 +49,7 @@ function readCredentials(body: unknown) {
   if (!credentials.email || !credentials.password) {
     throw new ApiError(400, 'ENTER_EMAIL_PASSWORD');
   }
+  if (!usableEmail(credentials.email)) throw new ApiError(400, 'INVALID_EMAIL');
   return credentials;
 }
 
@@ -57,12 +68,14 @@ export function authRouter(
     windowMs: limits.windowMs,
     key: (req) => {
       const email = (req.body as { email?: unknown } | undefined)?.email;
-      return typeof email === 'string' ? normalizeEmail(email) : undefined;
+      return typeof email === 'string' && email.length <= MAX_EMAIL_LENGTH * 2 ? normalizeEmail(email) : undefined;
     },
   });
 
   const register: RequestHandler = async (req, res) => {
     const { email, password } = readCredentials(req.body);
+    // Only new accounts need a well-formed address; older ones may have signed up with anything.
+    if (!EMAIL_PATTERN.test(email)) throw new ApiError(400, 'INVALID_EMAIL');
     if (password.length < MIN_PASSWORD_LENGTH) throw new ApiError(400, 'PASSWORD_TOO_SHORT');
     if (password.length > MAX_PASSWORD_LENGTH) throw new ApiError(400, 'PASSWORD_TOO_LONG');
 

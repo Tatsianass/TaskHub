@@ -16,6 +16,8 @@ type TaskRow = {
   remind_time: string | null;
   remind_offsets: unknown;
   repeat: RepeatRule | null;
+  series_id: string | null;
+  repeat_anchor: string | null;
 };
 
 /** The column each `PATCH`-able field is stored in. */
@@ -31,10 +33,12 @@ const PATCH_COLUMNS: Record<keyof TaskUpdate, string> = {
   remindTime: 'remind_time',
   remindOffsets: 'remind_offsets',
   repeat: 'repeat',
+  seriesId: 'series_id',
+  repeatAnchor: 'repeat_anchor',
 };
 
 const COLUMNS =
-  'id, title, description, quadrant_id, tag, done, completed_at, created_at, due_date, remind_me, remind_time, remind_offsets, repeat';
+  'id, title, description, quadrant_id, tag, done, completed_at, created_at, due_date, remind_me, remind_time, remind_offsets, repeat, series_id, repeat_anchor';
 
 function parseOffsets(value: unknown): number[] {
   return Array.isArray(value) ? value.filter((item): item is number => typeof item === 'number') : [];
@@ -55,6 +59,8 @@ function toTask(row: TaskRow): Task {
     remindTime: row.remind_time,
     remindOffsets: parseOffsets(row.remind_offsets),
     repeat: row.repeat,
+    seriesId: row.series_id,
+    repeatAnchor: row.repeat_anchor,
   };
 }
 
@@ -75,12 +81,15 @@ function toParams(userId: string, id: string, task: Task) {
     // pg would send a JS array as a Postgres array, not JSON.
     JSON.stringify(task.remindOffsets),
     task.repeat,
+    task.seriesId,
+    task.repeatAnchor,
   ];
 }
 
 const INSERT = `INSERT INTO tasks (id, user_id, title, description, quadrant_id, tag, done,
-                                   completed_at, created_at, due_date, remind_me, remind_time, remind_offsets, repeat)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`;
+                                   completed_at, created_at, due_date, remind_me, remind_time, remind_offsets, repeat,
+                                   series_id, repeat_anchor)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`;
 
 /**
  * Every statement filters by `user_id`, so a user never sees another user's
@@ -130,8 +139,9 @@ export function tasksRepo(db: Queryable) {
       const { rows } = await db.query<TaskRow>(
         `UPDATE tasks
          SET title = $1, description = $2, quadrant_id = $3, tag = $4, done = $5, completed_at = $6,
-             due_date = $7, remind_me = $8, remind_time = $9, remind_offsets = $10, repeat = $11
-         WHERE id = $12 AND user_id = $13
+             due_date = $7, remind_me = $8, remind_time = $9, remind_offsets = $10, repeat = $11,
+             series_id = $12, repeat_anchor = $13
+         WHERE id = $14 AND user_id = $15
          RETURNING ${COLUMNS}`,
         [
           fields.title,
@@ -145,6 +155,8 @@ export function tasksRepo(db: Queryable) {
           fields.remindTime,
           JSON.stringify(fields.remindOffsets),
           fields.repeat,
+          fields.seriesId,
+          fields.repeatAnchor,
           id,
           userId,
         ],

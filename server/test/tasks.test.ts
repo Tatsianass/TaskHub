@@ -19,6 +19,44 @@ after(async () => {
   await testDb.drop();
 });
 
+describe('/tasks rejects what the database cannot store with 400, never 500', () => {
+  for (const [name, overrides] of [
+    ['fractional createdAt', { createdAt: 1.5 }],
+    ['createdAt beyond BIGINT', { createdAt: 1e300 }],
+    ['fractional completedAt', { completedAt: 1.5 }],
+    ['NUL in the title', { title: 'a\u0000b' }],
+    ['title over the limit', { title: 'a'.repeat(501) }],
+  ] as const) {
+    test(name, async () => {
+      const { token } = await registerUser(app);
+      const res = await app.request('POST', '/tasks', { token, body: makeTask(overrides) });
+      assert.equal(res.status, 400);
+      assert.deepEqual(res.body, { error: 'INVALID_TASK' });
+    });
+  }
+
+  test('PATCH with an invalid value is a 400 too', async () => {
+    const { token } = await registerUser(app);
+    const task = makeTask();
+    await app.request('POST', '/tasks', { token, body: task });
+    const res = await app.request('PATCH', `/tasks/${task.id}`, { token, body: { completedAt: 1.5 } });
+    assert.equal(res.status, 400);
+  });
+});
+
+describe('/tasks series', () => {
+  test('seriesId and repeatAnchor round-trip through POST, PATCH and GET', async () => {
+    const { token } = await registerUser(app);
+    const task = makeTask({ repeat: 'monthly', dueDate: '2026-01-31', seriesId: 's-1', repeatAnchor: '2026-01-31' });
+    assert.deepEqual((await app.request('POST', '/tasks', { token, body: task })).body, task);
+    const patched = await app.request('PATCH', `/tasks/${task.id}`, { token, body: { repeatAnchor: '2026-03-31' } });
+    assert.equal(patched.body.repeatAnchor, '2026-03-31');
+    assert.equal(patched.body.seriesId, 's-1');
+    const cleared = await app.request('PATCH', `/tasks/${task.id}`, { token, body: { seriesId: null, repeatAnchor: null } });
+    assert.deepEqual([cleared.body.seriesId, cleared.body.repeatAnchor], [null, null]);
+  });
+});
+
 describe('/tasks CRUD', () => {
   test('POST -> GET -> PUT -> DELETE round-trip (R4.1)', async () => {
     const { token } = await registerUser(app);
@@ -32,6 +70,8 @@ describe('/tasks CRUD', () => {
       remindTime: '09:30',
       remindOffsets: [0, 60, 1440],
       repeat: 'weekly',
+      seriesId: 's-1',
+      repeatAnchor: '2026-10-01',
     });
 
     const created = await app.request('POST', '/tasks', { token, body: task });
@@ -50,6 +90,8 @@ describe('/tasks CRUD', () => {
       completedAt: 1718000500000,
       remindMe: false,
       repeat: null,
+      seriesId: null,
+      repeatAnchor: null,
     };
     const updated = await app.request('PUT', `/tasks/${task.id}`, { token, body: edited });
     assert.equal(updated.status, 200);
