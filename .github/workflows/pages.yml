@@ -1,6 +1,6 @@
 name: Publish legal pages
 
-# Publishes only the privacy policy and terms to GitHub Pages (not the rest of docs/).
+# Publishes only the privacy policy, terms and support page to GitHub Pages (not the rest of docs/).
 # One-time setup: Settings > Pages > Source: "GitHub Actions".
 on:
   push:
@@ -8,6 +8,7 @@ on:
     paths:
       - docs/privacy.html
       - docs/terms.html
+      - docs/support.html
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -28,10 +29,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Collect the two pages
+      - name: Collect the pages
         run: |
           mkdir site
-          cp docs/privacy.html docs/terms.html site/
+          cp docs/privacy.html docs/terms.html docs/support.html site/
           touch site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
